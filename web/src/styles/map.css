@@ -1,0 +1,302 @@
+/* map.css — the map container, our MapLibre overrides ("Bord" chrome instead of the library
+   defaults) and the static fallback for browsers without WebGL2.
+   This file and the MapLibre stylesheet are imported by src/map/map.ts and
+   src/map/entity-map.ts, so every page that mounts a map gets both automatically. */
+
+.map {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.map__canvas {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+.maplibregl-map {
+  font: inherit;
+  color: var(--text);
+}
+
+.maplibregl-canvas:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: -3px;
+}
+
+/* ------------------------------------------------------------------ controls */
+
+.maplibregl-ctrl-group {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.maplibregl-ctrl-group:not(:empty) {
+  box-shadow: var(--shadow-1);
+}
+
+.maplibregl-ctrl-group button {
+  width: var(--touch);
+  height: var(--touch);
+  background: transparent;
+  border-radius: 0;
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--border);
+}
+
+.maplibregl-ctrl-group button:hover {
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+}
+
+.maplibregl-ctrl-group button:focus:not(:focus-visible) {
+  box-shadow: none;
+}
+
+.maplibregl-ctrl-group button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+
+/* The library ships black icons; tint them to the ink colour of the theme. */
+.maplibregl-ctrl-group button .maplibregl-ctrl-icon {
+  filter: none;
+}
+
+:root[data-theme='dark'] .maplibregl-ctrl-group button .maplibregl-ctrl-icon,
+:root[data-theme='dark'] .maplibregl-ctrl-attrib-button {
+  filter: invert(1) brightness(1.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .maplibregl-ctrl-group button .maplibregl-ctrl-icon,
+  :root:not([data-theme='light']) .maplibregl-ctrl-attrib-button {
+    filter: invert(1) brightness(1.4);
+  }
+}
+
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left,
+.maplibregl-ctrl-top-right {
+  padding: var(--s-2);
+}
+
+/* The bottom-right corner keeps its corner on every viewport: the collapsed ⓘ and the zoom
+   buttons belong where a map reader looks for them, and moving them to the top turned the
+   attribution into a strip across the map (see map/attribution.ts).
+   Only the app map needs help on a phone, where the bottom sheet covers the lower part of the
+   stage: lifting the corner to just above the sheet keeps both controls tappable and keeps them
+   off the sheet. The entity-page maps sit in a bordered box in the page flow, so they need
+   nothing. */
+@media (max-width: 768px) {
+  .map__canvas .maplibregl-ctrl-bottom-right {
+    /* `--sheet-visible` is written by ui/panel.ts on every snap change; the `--sheet-peek`
+       fallback covers the moment before that script runs. `min()` keeps the controls inside the
+       map when the sheet is dragged to full height. */
+    bottom: min(
+      calc(var(--sheet-visible, var(--sheet-peek)) + env(safe-area-inset-bottom, 0px)),
+      calc(100% - 132px)
+    );
+  }
+}
+
+/* ------------------------------------------------------------------ attribution */
+
+/* Two class selectors: MapLibre's own `.maplibregl-ctrl-attrib.maplibregl-compact` rule
+   hard-codes a white background, which is unreadable in the dark theme. */
+.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  border-radius: var(--r-1);
+  backdrop-filter: blur(6px);
+}
+
+.maplibregl-ctrl-attrib-inner {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.6;
+  color: var(--text-2);
+  padding: 0 4px;
+}
+
+.maplibregl-ctrl-attrib-inner a {
+  color: var(--text-2);
+  text-decoration: underline;
+}
+
+.maplibregl-ctrl-attrib-inner a:hover {
+  color: var(--text);
+}
+
+.maplibregl-ctrl-attrib.maplibregl-compact {
+  min-height: 24px;
+}
+
+/* ------------------------------------------------------------------ cursors */
+
+.maplibregl-canvas-container.maplibregl-interactive {
+  cursor: grab;
+}
+
+.maplibregl-canvas-container.maplibregl-interactive:active,
+.maplibregl-canvas-container.maplibregl-touch-drag-pan:active {
+  cursor: grabbing;
+}
+
+/* ------------------------------------------------------------------ popups */
+
+.maplibregl-popup-content {
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--geel);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-2);
+  font-size: var(--text-sm);
+}
+
+.maplibregl-popup-close-button {
+  width: 32px;
+  height: 32px;
+  color: var(--text-2);
+  font-size: 18px;
+  border-radius: var(--r-1);
+}
+
+.maplibregl-popup-close-button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--surface);
+}
+
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--surface);
+}
+
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--surface);
+}
+
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--surface);
+}
+
+/* ------------------------------------------------------------------ cooperative gestures */
+
+.maplibregl-cooperative-gesture-screen {
+  background: var(--scrim);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+}
+
+/* ------------------------------------------------------------------ notices */
+
+/* Error / info banner floating over the map (data failure, WebGL fallback). */
+.map__notice {
+  position: absolute;
+  z-index: 3;
+  top: var(--s-4);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(30rem, calc(100% - 2 * var(--s-4)));
+  display: grid;
+  gap: var(--s-2);
+  justify-items: start;
+  padding: var(--s-4);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-2);
+  font-size: var(--text-sm);
+}
+
+.map__notice-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+}
+
+.map__notice a {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------ static fallback */
+
+/* Tile mosaic rendered by src/map/basemap.ts when WebGL2 is unavailable. */
+.map-static {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.map-static img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 256px;
+  height: 256px;
+  opacity: 0.85;
+}
+
+:root[data-theme='dark'] .map-static img {
+  filter: invert(0.92) hue-rotate(180deg) saturate(0.6);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .map-static img {
+    filter: invert(0.92) hue-rotate(180deg) saturate(0.6);
+  }
+}
+
+.map-static__notice {
+  position: absolute;
+  left: 50%;
+  top: var(--s-4);
+  transform: translateX(-50%);
+  width: min(32rem, calc(100% - 2 * var(--s-4)));
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  box-shadow: var(--shadow-2);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  overflow: hidden;
+}
+
+/* Barrier stripe on top of the fallback notice (border-image would stripe all four sides). */
+.map-static__notice::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--stripe);
+}
+
+.map-static__notice a {
+  color: var(--text);
+  font-weight: 500;
+}
+
+/* Entity pages (owner C) render the small map inside a bordered box, not full-bleed. */
+.entity-map .map-static,
+.entity-map__fallback .map-static {
+  position: relative;
+  min-height: 260px;
+}

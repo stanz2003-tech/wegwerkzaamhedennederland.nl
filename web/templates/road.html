@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<!-- @head -->
+</head>
+<body data-page="road" data-road="{{road}}" data-road-type="{{roadType}}" data-lon="{{lon}}" data-lat="{{lat}}" data-bbox="{{bbox}}">
+<a class="skip-link" href="#main">Naar de inhoud</a>
+<!-- @header -->
+<main id="main" class="page page--wide">
+  <nav class="crumbs" aria-label="Kruimelpad">
+    <ol>
+      {{#each crumbs}}<li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}<li aria-current="page">{{crumbCurrent}}</li>
+    </ol>
+  </nav>
+
+  <header class="entity-hero entity-hero--{{badgeClass}}">
+    <span class="badge badge--{{badgeClass}} badge--xl" role="img" aria-label="Weg {{road}}">{{road}}</span>
+    <div class="entity-hero__text">
+      <p class="entity-hero__kicker">{{kindLabel}}</p>
+      <h1>Wegwerkzaamheden {{road}}</h1>
+      <div class="entity-hero__intro">{{{intro}}}</div>
+      <dl class="entity-counts">
+        <div class="entity-counts__item"><dt>Nu actief</dt><dd id="entity-count-active">–</dd></div>
+        <div class="entity-counts__item"><dt>Gepland (30 dagen)</dt><dd id="entity-count-upcoming">–</dd></div>
+      </dl>
+      <p class="entity-hero__meta">
+        <span id="entity-summary" class="entity-summary">Actuele meldingen worden geladen…</span>
+        <span class="entity-hero__sep" aria-hidden="true">·</span>
+        <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
+      </p>
+    </div>
+  </header>
+
+  <section class="entity-live" aria-label="Actuele situatie op de {{road}}">
+    <div id="entity-map" class="entity-map">
+      <p class="entity-map__fallback">Kaart met de meldingen op de {{road}}. <a href="{{mapHref}}">Open de {{road}} op de grote kaart</a>.</p>
+    </div>
+    <div id="entity-list" class="entity-list" aria-live="polite"></div>
+    <div id="entity-empty" class="entity-empty" hidden>
+      <p><strong>Geen meldingen voor de {{road}}.</strong> Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden, afsluitingen of files op deze weg bekend. Kijk op <a href="{{mapHref}}">de kaart</a> voor de omgeving.</p>
+    </div>
+  </section>
+
+  <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
+
+  <article class="prose prose--entity">
+    <div class="prose__body">
+    <h2 id="uitleg">Zo lees je dit overzicht</h2>
+    <p>Bovenaan staat alles wat wegbeheerders voor de {{road}} hebben aangemeld bij het Nationaal Dataportaal Wegverkeer (NDW): <strong>werkzaamheden</strong> (rijstrookafzettingen, versmalde rijstroken, tijdelijke snelheidsbeperkingen), <strong>afsluitingen</strong> van een rijbaan, op- of afrit, <strong>omleidingen</strong>, <strong>evenementen</strong> met verkeersmaatregelen en, als ze er zijn, <strong>files</strong> en <strong>incidenten</strong>. Meldingen die nu gelden staan bovenaan; daaronder volgen de geplande werkzaamheden voor de komende 30 dagen op volgorde van starttijd.</p>
+    <p>Klik op een melding voor de details: de exacte periode, het aantal afgesloten rijstroken, een eventuele tijdelijke maximumsnelheid, de omleidingsroute en de wegbeheerder die de melding heeft ingevoerd. Elke melding heeft een eigen link die je kunt delen. Files en incidenten worden elke {{refreshMinutes}} minuten vernieuwd, de planning ongeveer elk kwartier; het tijdstip van de laatste update staat bovenaan de pagina.</p>
+    <p>De rode badge geeft aan dat het om een A-weg gaat (autosnelweg), een gele badge staat voor een N-weg, net als op de borden langs de weg. Wil je weten wat er in een bepaalde plaats gebeurt, kijk dan bij <a href="/plaatsen/">plaatsen en gemeenten</a>; alle afsluitingen van dit moment staan op <a href="/afsluitingen/">afsluitingen</a> en de files op <a href="/files/">files</a>.</p>
+
+    </div>
+
+    <section class="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">Veelgestelde vragen over de {{road}}</h2>
+      {{#each faq}}<details class="faq__item">
+        <summary>{{q}}</summary>
+        <div class="faq__answer"><p>{{{a}}}</p></div>
+      </details>
+      {{/each}}
+    </section>
+  </article>
+
+  {{#if hasRelated}}<section class="related" aria-labelledby="related-title">
+    <h2 id="related-title">Andere wegen</h2>
+    <ul class="related__list chips chips--badges">
+      {{#each related}}<li><a class="badge badge--{{badgeClass}}" href="{{href}}" title="Wegwerkzaamheden {{road}}">{{road}}</a></li>
+      {{/each}}
+    </ul>
+    <p class="related__more"><a href="/wegen/">Alle wegen met een eigen pagina</a> · <a href="/afsluitingen/">actuele afsluitingen</a> · <a href="/files/">files</a> · <a href="/dit-weekend/">dit weekend</a></p>
+  </section>{{/if}}
+</main>
+<!-- @footer -->
+<script type="module" src="/src/pages/road.ts"></script>
+</body>
+</html>

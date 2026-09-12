@@ -1,0 +1,301 @@
+/* panel.css — the floating control panel on desktop and the bottom sheet on mobile,
+   plus the scrolling result list inside it. Behaviour lives in src/ui/panel.ts, which sets
+   `data-snap` (desktop | peek | half | full) and the `--sheet-y` transform. Tokens only. */
+
+.panel {
+  position: absolute;
+  z-index: var(--z-panel);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-2);
+  overflow: hidden;
+}
+
+/* Barrier stripe as the top edge of the panel — the signature detail. */
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: var(--stripe);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.panel__head {
+  display: grid;
+  /* minmax(0, 1fr): the nowrap time chips must not stretch the panel's content box. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.panel__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-2);
+}
+
+.panel__head > *,
+.panel__filters > * {
+  min-width: 0;
+}
+
+/* Slightly tighter time chips so all five fit the 380 px panel without scrolling. */
+.panel .chip--time {
+  padding-inline: var(--s-2);
+  white-space: nowrap;
+}
+
+.panel__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-2);
+  min-height: 32px;
+}
+
+/* The count gets its own line: the switch plus the sort select already fill the 380 px panel. */
+.panel__summary {
+  flex: 1 1 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.panel__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex: none;
+  margin-left: auto;
+}
+
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  background: var(--surface);
+}
+
+.panel__body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel__body::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-3) 45%, transparent);
+  border: 3px solid var(--surface);
+  border-radius: var(--r-pill);
+}
+
+.panel__view--detail {
+  padding-bottom: var(--s-4);
+}
+
+/* ------------------------------------------------------------------ drag handle */
+
+.panel__handle {
+  display: none;
+  width: 100%;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  /* The pointer drag in panel.ts needs the browser to stop scrolling for us. */
+  touch-action: none;
+  background: var(--surface);
+}
+
+.panel__grip {
+  width: 44px;
+  height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--text-3);
+  opacity: 0.55;
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+
+.panel__handle:hover .panel__grip,
+.panel__handle:focus-visible .panel__grip {
+  opacity: 1;
+}
+
+.panel.is-dragging {
+  transition: none !important;
+}
+
+/* ------------------------------------------------------------------ result list */
+
+.list {
+  display: block;
+}
+
+.list__items {
+  display: flex;
+  flex-direction: column;
+}
+
+.list__items .item:last-child {
+  border-bottom: 0;
+}
+
+.list__more {
+  width: 100%;
+  justify-content: center;
+  min-height: var(--touch);
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.list .empty,
+.list .banner {
+  margin: var(--s-4);
+}
+
+.list .skeleton {
+  padding: var(--s-2) 0;
+}
+
+/* ------------------------------------------------------------------ desktop panel */
+
+@media (min-width: 769px) {
+  .panel {
+    top: var(--s-4);
+    left: var(--s-4);
+    width: var(--panel-w);
+    max-height: calc(100% - 2 * var(--s-4));
+    border-radius: var(--r-3);
+  }
+
+  .panel::before {
+    border-radius: var(--r-3) var(--r-3) 0 0;
+  }
+}
+
+@media (min-width: 1440px) {
+  .panel {
+    top: var(--s-5);
+    left: var(--s-5);
+    max-height: calc(100% - 2 * var(--s-5));
+  }
+}
+
+/* ------------------------------------------------------------------ mobile sheet */
+
+@media (max-width: 768px) {
+  .panel {
+    top: 8px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    border-radius: var(--r-3) var(--r-3) 0 0;
+    border-bottom: 0;
+    /* `--sheet-y` is written by panel.ts; the fallback keeps the sheet half-open before JS runs. */
+    transform: translateY(var(--sheet-y, 50%));
+    will-change: transform;
+  }
+
+  .panel::before {
+    border-radius: var(--r-3) var(--r-3) 0 0;
+  }
+
+  .panel__handle {
+    display: flex;
+  }
+
+  .panel__head {
+    padding: var(--s-2) var(--s-4) var(--s-3);
+    gap: var(--s-2);
+  }
+
+  /* One horizontally scrollable row of category chips: wrapping them costs four rows of
+     sheet height, which would leave no room for the list itself. The chips keep their full
+     label (`flex: none` in components.css) and the row fades out on the right so it is
+     visible that there is more to scroll to. */
+  .panel .chips--cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    padding-bottom: 1px;
+    /* Alpha ramp, not a colour: fades the row itself, so it works in both themes. */
+    mask-image: linear-gradient(to right, rgb(0 0 0) 0, rgb(0 0 0) calc(100% - 32px), rgb(0 0 0 / 0.12) 100%);
+  }
+
+  .panel .chips--cats > .chip {
+    scroll-snap-align: start;
+  }
+
+  .panel .chips--cats::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* In the peek state only the handle, the search box and the summary are reachable. */
+  .panel[data-snap='peek'] .panel__filters {
+    display: none;
+  }
+
+  .panel__body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .list .empty,
+  .list .banner {
+    margin: var(--s-3);
+  }
+}
+
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  .panel {
+    will-change: auto;
+  }
+}
+
+/* Narrow phones (375 px and below): tighter padding, single-line filter rows. */
+@media (max-width: 400px) {
+  .panel__head {
+    padding-inline: var(--s-3);
+  }
+
+  .panel__bar {
+    flex-wrap: wrap;
+    row-gap: var(--s-1);
+  }
+
+  /* Five time chips do not fit on one 390 px line, so they wrap here instead of scrolling
+     (the segmented control has no fade affordance). */
+  .panel .chips--time {
+    flex-wrap: wrap;
+  }
+
+  .item {
+    padding-inline: var(--s-3);
+  }
+}
+
+/* No WebGL2: the map is a static image, so give the list the whole stage. */
+.app__stage[data-no-webgl] .panel {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: auto;
+  max-height: 62%;
+  border-radius: var(--r-3) var(--r-3) 0 0;
+  transform: none;
+}

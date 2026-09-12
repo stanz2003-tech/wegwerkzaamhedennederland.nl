@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<!-- @head -->
+</head>
+<body data-page="list" data-list="{{list}}">
+<a class="skip-link" href="#main">Naar de inhoud</a>
+<!-- @header -->
+<main id="main" class="page page--wide">
+  <nav class="crumbs" aria-label="Kruimelpad">
+    <ol>
+      {{#each crumbs}}<li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}<li aria-current="page">{{crumbCurrent}}</li>
+    </ol>
+  </nav>
+
+  <header class="page-head page-head--{{list}}">
+    {{#if kicker}}<p class="page-head__kicker">{{kicker}}</p>{{/if}}
+    <h1>{{heading}}</h1>
+    {{#if lead}}<p class="page-head__lead">{{lead}}</p>{{/if}}
+    <p class="page-head__meta"><span id="list-summary">{{summaryFallback}}</span>{{#if isLive}} <span class="page-head__sep" aria-hidden="true">·</span> <span>Pagina bijgewerkt <time id="list-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>{{/if}}</p>
+  </header>
+
+  <section class="list-page" aria-label="{{heading}}">
+    <div id="list-items" class="list-items entity-list" aria-live="polite"></div>
+    <div id="list-empty" class="entity-empty" hidden>
+      <p><strong>{{emptyTitle}}</strong> {{emptyText}} <a href="/">Bekijk de kaart</a> voor het volledige beeld.</p>
+    </div>
+  </section>
+
+  {{#if hasPrerendered}}<section class="list-groups" aria-label="{{heading}} – alle pagina's">
+    {{{prerendered}}}
+  </section>{{/if}}
+
+  <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
+
+  {{#if hasBody}}<article class="prose">
+    {{{body}}}
+  </article>{{/if}}
+</main>
+<!-- @footer -->
+<script type="module" src="/src/pages/list.ts"></script>
+</body>
+</html>

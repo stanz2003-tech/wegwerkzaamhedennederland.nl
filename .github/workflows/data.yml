@@ -1,0 +1,203 @@
+# Data pipeline: NDW open data → GeoJSON → Cloudflare R2, every 5 minutes.
+#
+# The minute offset ("1-59/5") avoids GitHub's top-of-the-hour congestion. The planning
+# feed is only re-parsed when its ETag changed (pipeline/cache/etags.json); the parsed
+# result lives in pipeline/cache/last/, kept between runs with the Actions cache.
+# Exit codes of the pipeline: 0 publish · 1 failed · 2 validation floor not met (never publish).
+name: Data
+
+on:
+  schedule:
+    - cron: "1-59/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force a full run (ignore the NDW ETag cache)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+permissions:
+  contents: write # commit updated caches back to the repository
+  actions: write # keepalive: re-enable this workflow through the REST API
+
+env:
+  OUT_DIR: pipeline/out
+  CACHE_DIR: pipeline/cache
+
+# GitHub's implicit shell is `bash -e {0}` — without pipefail. Two steps below pipe into
+# `tee`, and without this block the exit code of `tee` (always 0) would hide a failing
+# uploader: the job would go green and healthchecks.io would be pinged while nothing was
+# published. Naming bash explicitly gives every step `bash --noprofile --norc -eo pipefail`.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  # Without the R2 secrets the pipeline cannot publish. Skipping (green) instead of failing
+  # (red) avoids a failure e-mail every 5 minutes between publishing the repository and
+  # finishing the setup; the notice below shows on every run until the secrets exist.
+  preflight:
+    name: Check configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Are the R2 secrets set?
+        id: check
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+        run: |
+          missing=""
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
+            [ -z "${!name}" ] && missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Data workflow is not configured yet: missing secret(s)$missing. Add them under Settings > Secrets and variables > Actions (see infra/README.md). Nothing was published."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  data:
+    name: Fetch, convert, publish
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install pipeline dependencies
+        run: npm ci -w @wegwerk/pipeline --no-audit --no-fund --ignore-scripts
+
+      # Exact key only, deliberately no restore-keys: the parsed feed in pipeline/cache/last
+      # is only valid for the ETag recorded in the committed pipeline/cache/etags.json. A
+      # prefix match could hand the pipeline an older parse while etags.json says it is
+      # current, and NDW's 304 would then republish stale roadworks. A miss simply means a
+      # full download and parse (measured 9,7 s), which is always correct.
+      - name: Restore parsed-feed cache
+        id: restore
+        uses: actions/cache/restore@v6
+        with:
+          path: pipeline/cache/last
+          key: pipeline-last-${{ hashFiles('pipeline/cache/etags.json') }}
+
+      - name: Run pipeline
+        id: pipeline
+        env:
+          FORCE_FLAG: ${{ inputs.force == true && '--force' || '' }}
+        run: |
+          set +e
+          node pipeline/bin/run.js --out "$OUT_DIR" --cache "$CACHE_DIR" --geocode-max 400 $FORCE_FLAG | tee pipeline-summary.txt
+          code=${PIPESTATUS[0]}
+          echo "exit=$code" >> "$GITHUB_OUTPUT"
+          case "$code" in
+            0) echo "Pipeline finished." ;;
+            2) echo "::error::Validation floor not met (exit 2): nothing published, the last good data stays online." ; exit 2 ;;
+            *) echo "::error::Pipeline failed (exit $code): nothing published." ; exit "$code" ;;
+          esac
+
+      - name: Upload changed files to R2
+        id: upload
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          R2_PREFIX: ${{ secrets.R2_PREFIX }}
+          R2_JURISDICTION: ${{ secrets.R2_JURISDICTION }}
+        run: node infra/upload-r2.mjs --out "$OUT_DIR" --cache "$CACHE_DIR" | tee upload-summary.txt
+
+      # The key has to be recomputed *after* the run, because the pipeline rewrites
+      # etags.json. Comparing it with the key the restore step actually matched is what
+      # decides whether there is something new to store.
+      - name: Cache key for this parse
+        id: cachekey
+        run: echo "key=pipeline-last-${{ hashFiles('pipeline/cache/etags.json') }}" >> "$GITHUB_OUTPUT"
+
+      - name: Save parsed-feed cache
+        if: steps.cachekey.outputs.key != steps.restore.outputs.cache-matched-key
+        uses: actions/cache/save@v6
+        with:
+          path: pipeline/cache/last
+          key: ${{ steps.cachekey.outputs.key }}
+
+      - name: Ping healthchecks.io
+        env:
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: |
+          if [ -z "$HEALTHCHECK_URL" ]; then
+            echo "HEALTHCHECK_URL secret is not set; skipping the heartbeat ping."
+            exit 0
+          fi
+          curl -fsS -m 10 --retry 3 -o /dev/null "$HEALTHCHECK_URL"
+          echo "Heartbeat sent."
+
+      - name: Commit updated caches
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          files=()
+          for f in pipeline/cache/geocode.json pipeline/cache/bruggen-seen.json pipeline/cache/etags.json; do
+            [ -f "$f" ] && files+=("$f")
+          done
+          [ "${#files[@]}" -gt 0 ] && git add -- "${files[@]}"
+          if git diff --cached --quiet; then
+            echo "Caches unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(data): update caches [skip ci]"
+          for attempt in 1 2 3; do
+            git push origin "HEAD:${{ github.ref_name }}" && exit 0
+            echo "Push failed (attempt $attempt); rebasing on the remote branch and retrying."
+            git pull --rebase origin "${{ github.ref_name }}"
+          done
+          echo "::warning::Could not push the cache commit after 3 attempts (data was published fine)."
+          exit 1
+
+      - name: Keep the schedule alive
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub disables scheduled workflows in public repositories after 60 days without
+          # repository activity. Re-enabling through the API counts as activity; once a day is plenty.
+          if [ "$(date -u +%H)" != "03" ]; then
+            echo "Keepalive runs during 03:xx UTC only; skipping."
+            exit 0
+          fi
+          gh api --method PUT "/repos/${GITHUB_REPOSITORY}/actions/workflows/data.yml/enable"
+          echo "Workflow re-enabled through the API (keepalive)."
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### Pipeline"
+            echo '```'
+            cat pipeline-summary.txt 2>/dev/null || echo "(no summary: the pipeline did not finish)"
+            echo '```'
+            echo "### Upload"
+            echo '```'
+            cat upload-summary.txt 2>/dev/null || echo "(nothing uploaded)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

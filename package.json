@@ -1,0 +1,28 @@
+{
+  "name": "wegwerk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wegwerkzaamheden Nederland - alle wegwerkzaamheden, afsluitingen, files, incidenten en brugopeningen van Nederland op een kaart (NDW open data).",
+  "license": "MIT",
+  "type": "module",
+  "workspaces": [
+    "pipeline",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "data": "node pipeline/bin/run.js --out web/public/data --cache pipeline/cache",
+    "data:offline": "node pipeline/bin/run.js --out web/public/data --cache pipeline/cache --no-geocode",
+    "lists": "node pipeline/bin/build-wegen.js && node pipeline/bin/build-plaatsen.js && node pipeline/bin/build-bruggen.js",
+    "vild": "node pipeline/bin/build-vild.js",
+    "dev": "npm run dev -w @wegwerk/web",
+    "build": "npm run build -w @wegwerk/web",
+    "preview": "npm run preview -w @wegwerk/web",
+    "pages": "npm run pages -w @wegwerk/web",
+    "typecheck": "npm run typecheck -w @wegwerk/web",
+    "upload": "node infra/upload-r2.mjs --out web/public/data --cache pipeline/cache",
+    "test": "npm test -w @wegwerk/pipeline && npm test -w @wegwerk/web && node --test \"infra/test/**/*.test.mjs\""
+  }
+}

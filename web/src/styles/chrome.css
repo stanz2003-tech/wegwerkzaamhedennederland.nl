@@ -1,0 +1,409 @@
+/* chrome.css — the asphalt top bar and the footer. Shared by the app and every generated page,
+   so this file must not depend on the map or the panel. Tokens only. */
+
+/* ------------------------------------------------------------------ top bar */
+
+.topbar {
+  position: relative;
+  z-index: var(--z-topbar);
+  /* Flex, not grid: the nav and the counters must be the parts that shrink, and which
+     children are present differs per breakpoint (and per page). */
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  height: var(--topbar-h);
+  padding: 0 var(--s-3) 0 max(var(--s-3), env(safe-area-inset-left));
+  background: var(--chrome);
+  color: var(--chrome-text);
+  border-bottom: 3px solid transparent;
+  border-image: var(--stripe) 3;
+}
+
+.topbar > * {
+  flex: none;
+}
+
+/* The stripe is the signature; keep it crisp on hidpi screens. */
+@supports not (border-image: repeating-linear-gradient(135deg, #000 0 8px, #fff 8px 16px) 3) {
+  .topbar {
+    border-bottom: 3px solid var(--geel);
+  }
+}
+
+.brand {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto auto;
+  column-gap: var(--s-2);
+  align-items: center;
+  min-height: var(--touch);
+  padding: var(--s-1) var(--s-1) var(--s-1) 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.brand__mark {
+  grid-row: span 2;
+  width: 26px;
+  height: 26px;
+}
+
+.brand__word {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.0625rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--geel);
+  align-self: end;
+}
+
+.brand__sub {
+  font-family: var(--font-body);
+  font-size: 0.625rem;
+  line-height: 1.2;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--chrome-text) 62%, transparent);
+  align-self: start;
+}
+
+.brand:hover .brand__word {
+  color: color-mix(in srgb, var(--geel) 82%, #ffffff);
+}
+
+.topbar__tagline {
+  display: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: color-mix(in srgb, var(--chrome-text) 68%, transparent);
+  padding-left: var(--s-3);
+  border-left: 1px solid color-mix(in srgb, var(--chrome-text) 18%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar__counters {
+  display: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+/* The live pill keeps its own width; on small phones only the status dot remains
+   (the full text stays available as the pill's accessible name / tooltip). */
+.live {
+  flex: none;
+}
+
+@media (max-width: 560px) {
+  .live {
+    padding: 0 var(--s-2);
+  }
+
+  .live .live__text {
+    display: none;
+  }
+}
+
+/* Category counters: dot + number; the label appears only on very wide screens. */
+.count__label {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ navigation */
+
+.topbar__nav {
+  display: none;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  /* Pushes the navigation and the theme toggle to the right edge; everything before it
+     (brand, counters, live pill) stays grouped on the left. */
+  .topbar__nav {
+    flex: 0 1 auto;
+    margin-left: auto;
+  }
+}
+
+.topbar__nav ul {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  list-style: none;
+}
+
+.topbar__nav a {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-1);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: color-mix(in srgb, var(--chrome-text) 84%, transparent);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
+}
+
+.topbar__nav a:hover {
+  background: color-mix(in srgb, var(--chrome-text) 10%, transparent);
+  color: var(--chrome-text);
+}
+
+.topbar__nav a[aria-current='page'] {
+  color: var(--geel-ink);
+  background: var(--geel);
+  font-weight: 600;
+}
+
+.topbar :focus-visible {
+  outline: 2px solid var(--geel);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ chrome buttons */
+
+.theme-toggle,
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-1);
+  color: var(--chrome-text);
+  background: color-mix(in srgb, var(--chrome-text) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chrome-text) 12%, transparent);
+  transition: background var(--dur-1) var(--ease-out);
+}
+
+.theme-toggle:hover,
+.menu-toggle:hover {
+  background: color-mix(in srgb, var(--chrome-text) 18%, transparent);
+}
+
+.theme-toggle svg,
+.menu-toggle svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* 44 px hit target without changing the visual size. */
+.theme-toggle::after,
+.menu-toggle::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+}
+
+.theme-toggle,
+.menu-toggle {
+  position: relative;
+}
+
+/* Below the navigation breakpoint nothing grows, so the theme toggle carries the free space
+   and keeps itself, the menu button and the live pill against the right edge. */
+@media (max-width: 899px) {
+  .topbar > .theme-toggle {
+    margin-left: auto;
+  }
+}
+
+/* ------------------------------------------------------------------ mobile menu */
+
+.topbar__nav {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  padding: var(--s-2);
+  background: var(--chrome);
+  border-bottom: 1px solid color-mix(in srgb, var(--chrome-text) 14%, transparent);
+  box-shadow: var(--shadow-2);
+}
+
+.topbar.is-menu-open .topbar__nav {
+  display: block;
+}
+
+.topbar.is-menu-open .topbar__nav ul {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.topbar.is-menu-open .topbar__nav a {
+  height: var(--touch);
+  font-size: var(--text-base);
+}
+
+/* ------------------------------------------------------------------ breakpoints */
+
+/* The bar is exactly `--topbar-h` tall at every width, so the app can size the map with
+   calc(100dvh - var(--topbar-h)) without measuring anything. */
+@media (min-width: 900px) {
+  html {
+    --topbar-h: 60px;
+  }
+
+  .topbar {
+    padding-right: var(--s-4);
+  }
+
+  .topbar__nav {
+    position: static;
+    display: block;
+    padding: 0;
+    background: none;
+    border: 0;
+    box-shadow: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .topbar__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .menu-toggle {
+    display: none;
+  }
+
+  .brand__mark {
+    width: 30px;
+    height: 30px;
+  }
+
+  .brand__word {
+    font-size: 1.1875rem;
+  }
+}
+
+/* The counters only appear once the full navigation still fits next to them (measured:
+   brand 145 + live 153 + nav 644 + toggle 40 + gaps ≈ 1050 px, counters ≈ 325 px). */
+@media (min-width: 1400px) {
+  .topbar__counters {
+    display: flex;
+  }
+}
+
+@media (min-width: 1440px) {
+  .topbar {
+    padding-inline: var(--s-5);
+  }
+}
+
+/* The tagline only fits next to the counters and the full navigation on very wide screens;
+   below that the same sentence is the <h1> of the page. */
+@media (min-width: 1800px) {
+  .topbar__tagline {
+    display: block;
+  }
+}
+
+@media (min-width: 1680px) {
+  .count__label {
+    display: inline;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand__sub {
+    display: none;
+  }
+
+  .brand__word {
+    font-size: 1rem;
+    align-self: center;
+  }
+
+  .brand__mark {
+    grid-row: span 1;
+  }
+}
+
+/* ------------------------------------------------------------------ footer */
+
+.footer {
+  background: var(--asfalt);
+  color: var(--chrome-text);
+  border-top: 3px solid transparent;
+  border-image: var(--stripe) 3;
+  padding: var(--s-8) var(--s-4) calc(var(--s-8) + env(safe-area-inset-bottom));
+}
+
+.footer__inner {
+  max-width: 76rem;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--s-4);
+}
+
+.footer__attribution {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--chrome-text) 74%, transparent);
+}
+
+.footer__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
+}
+
+.footer__nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--chrome-text);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.footer__nav a:hover {
+  border-bottom-color: var(--geel);
+  color: var(--geel);
+}
+
+.footer__nav a:focus-visible {
+  outline: 2px solid var(--geel);
+  outline-offset: 3px;
+}
+
+.footer__note {
+  font-size: var(--text-sm);
+  color: color-mix(in srgb, var(--chrome-text) 72%, transparent);
+  max-width: 62ch;
+}
+
+@media (min-width: 1024px) {
+  .footer__inner {
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    column-gap: var(--s-10);
+  }
+
+  .footer__attribution {
+    grid-column: 1;
+  }
+
+  .footer__nav {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .footer__note {
+    grid-column: 1;
+  }
+}

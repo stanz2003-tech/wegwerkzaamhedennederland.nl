@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Wegwerkzaamheden Nederland – alle werkzaamheden, afsluitingen en files op één kaart</title>
+    <meta
+      name="description"
+      content="Alle wegwerkzaamheden, wegafsluitingen, files, incidenten en brugopeningen in Nederland op één snelle kaart. Rechtstreeks van de wegbeheerders via NDW, elke 5 minuten vernieuwd."
+    />
+    <link rel="canonical" href="https://www.wegwerk.example/" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Wegwerkzaamheden Nederland" />
+    <meta property="og:locale" content="nl_NL" />
+    <meta property="og:title" content="Wegwerkzaamheden Nederland – alles op één kaart" />
+    <meta
+      property="og:description"
+      content="Zie in één oogopslag welke wegen dicht zijn, waar gewerkt wordt en waar de files staan. Alle open data van NDW op één kaart."
+    />
+    <meta property="og:url" content="https://www.wegwerk.example/" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Wegwerkzaamheden Nederland – alles op één kaart" />
+    <meta
+      name="twitter:description"
+      content="Zie in één oogopslag welke wegen dicht zijn, waar gewerkt wordt en waar de files staan."
+    />
+    <meta name="theme-color" content="#15171b" />
+
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem('theme');
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.dataset.theme = t;
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Overpass:wght@400;600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Wegwerkzaamheden Nederland",
+        "alternateName": "Wegwerk",
+        "url": "https://www.wegwerk.example/",
+        "inLanguage": "nl-NL",
+        "description": "Alle wegwerkzaamheden, wegafsluitingen, files, incidenten en brugopeningen in Nederland op één kaart, gevoed door open data van het Nationaal Dataportaal Wegverkeer (NDW).",
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": "https://www.wegwerk.example/?q={search_term_string}"
+          },
+          "query-input": "required name=search_term_string"
+        }
+      }
+    </script>
+  </head>
+
+  <body class="app-body">
+    <a class="skip-link" href="#main">Naar de inhoud</a>
+
+    <header class="topbar" data-topbar>
+      <a class="brand" href="/" aria-label="Wegwerk – naar de kaart">
+        <svg class="brand__mark" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" focusable="false">
+          <defs>
+            <clipPath id="brand-clip"><rect x="0" y="0" width="24" height="24" rx="6" ry="6" /></clipPath>
+          </defs>
+          <g clip-path="url(#brand-clip)">
+            <rect width="24" height="24" fill="#1b1b1f" />
+            <path
+              d="M-6 24 L6 -6 L12 -6 L0 24 Z M6 24 L18 -6 L24 -6 L12 24 Z M18 24 L30 -6 L36 -6 L24 24 Z"
+              fill="#ffc917"
+            />
+          </g>
+        </svg>
+        <span class="brand__word">WEGWERK</span>
+        <span class="brand__sub">Nederland</span>
+      </a>
+      <p class="topbar__tagline">Alle wegwerkzaamheden van Nederland op één kaart</p>
+      <div class="topbar__counters" data-counters hidden aria-label="Actieve meldingen per categorie"></div>
+      <span class="live" data-live hidden></span>
+      <nav class="topbar__nav" id="topbar-nav" data-nav aria-label="Hoofdnavigatie">
+        <ul>
+          <li><a href="/">Kaart</a></li>
+          <li><a href="/wegen/">Wegen</a></li>
+          <li><a href="/plaatsen/">Plaatsen</a></li>
+          <li><a href="/bruggen/">Bruggen</a></li>
+          <li><a href="/afsluitingen/">Afsluitingen</a></li>
+          <li><a href="/files/">Files</a></li>
+          <li><a href="/veelgestelde-vragen/">Veelgestelde vragen</a></li>
+          <li><a href="/over/">Over</a></li>
+        </ul>
+      </nav>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Donker of licht thema"></button>
+      <button
+        class="menu-toggle"
+        type="button"
+        data-menu-toggle
+        aria-label="Menu"
+        aria-expanded="false"
+        aria-controls="topbar-nav"
+      ></button>
+    </header>
+
+    <main id="main" class="app">
+      <div class="app__stage" data-stage>
+        <section class="map" aria-label="Kaart van Nederland met alle meldingen">
+          <div class="map__canvas" id="map" data-map></div>
+          <div class="map__notice" data-map-error hidden></div>
+          <noscript>
+            <div class="map__notice is-visible">
+              <p class="map__notice-title">De kaart heeft JavaScript nodig.</p>
+              <p>
+                Zonder JavaScript kun je de kaart niet gebruiken. De overzichten per weg, plaats en brug werken wel:
+                <a href="/wegen/">wegen</a>, <a href="/plaatsen/">plaatsen</a>,
+                <a href="/afsluitingen/">afsluitingen</a> en <a href="/files/">files</a>.
+              </p>
+            </div>
+          </noscript>
+        </section>
+
+        <aside class="panel" data-panel aria-label="Zoeken, filteren en meldingen">
+          <button class="panel__handle" type="button" data-sheet-handle aria-label="Paneel vergroten">
+            <span class="panel__grip" aria-hidden="true"></span>
+          </button>
+          <div class="panel__head">
+            <div data-search></div>
+            <div class="panel__filters">
+              <div data-cats></div>
+              <div data-times></div>
+            </div>
+            <div class="panel__bar">
+              <p class="panel__summary" data-summary aria-live="polite">Meldingen worden geladen…</p>
+              <div class="panel__tools">
+                <div data-inview></div>
+                <div data-sort></div>
+              </div>
+            </div>
+          </div>
+          <div class="panel__body" data-panel-body>
+            <div class="panel__view" data-list></div>
+            <div class="panel__view panel__view--detail" data-detail hidden></div>
+          </div>
+        </aside>
+      </div>
+
+      <section class="home" aria-labelledby="home-title">
+        <div class="home__inner">
+          <div class="home__lead">
+            <h1 class="home__title" id="home-title">Alle wegwerkzaamheden van Nederland op één kaart</h1>
+            <p class="home__text">
+              Op deze kaart zie je in één oogopslag waar in Nederland gewerkt wordt aan de weg, welke wegen en
+              rijstroken zijn afgesloten, waar de files staan, waar een incident is en welke bruggen open gaan. Je kunt
+              zoeken op wegnummer of plaats, filteren op categorie en op periode (nu, vandaag, dit weekend of de
+              komende dertig dagen) en elke melding aanklikken voor de details: rijstroken, snelheid, omleiding,
+              wegbeheerder en de exacte periode.
+            </p>
+            <p class="home__text">
+              De gegevens komen rechtstreeks van de wegbeheerders — Rijkswaterstaat, provincies, gemeenten en
+              waterschappen — via het Nationaal Dataportaal Wegverkeer (NDW). Wij halen die open data elke vijf minuten
+              op en zetten hem om naar deze kaart, zonder handmatige tussenstap. De achtergrondkaart is de BRT
+              Achtergrondkaart van het Kadaster. Wegwerk is geen officiële bron: volg langs de weg altijd de borden en
+              de aanwijzingen van de wegbeheerder.
+            </p>
+          </div>
+
+          <div class="home__stats">
+            <h2 class="home__h2">Op dit moment</h2>
+            <dl class="home__counts" data-home-counts>
+              <div class="home__count" style="--count-color: var(--c-werk)">
+                <dt>Werkzaamheden</dt>
+                <dd data-home-count="werk">–</dd>
+              </div>
+              <div class="home__count" style="--count-color: var(--c-afsluiting)">
+                <dt>Afsluitingen</dt>
+                <dd data-home-count="afsluiting">–</dd>
+              </div>
+              <div class="home__count" style="--count-color: var(--c-file)">
+                <dt>Files</dt>
+                <dd data-home-count="file">–</dd>
+              </div>
+              <div class="home__count" style="--count-color: var(--c-incident)">
+                <dt>Incidenten</dt>
+                <dd data-home-count="incident">–</dd>
+              </div>
+              <div class="home__count" style="--count-color: var(--c-brug)">
+                <dt>Bruggen open</dt>
+                <dd data-home-count="brug">–</dd>
+              </div>
+              <div class="home__count" style="--count-color: var(--c-evenement)">
+                <dt>Evenementen</dt>
+                <dd data-home-count="evenement">–</dd>
+              </div>
+            </dl>
+            <p class="home__updated" data-home-updated>
+              De teller vult zich zodra de gegevens geladen zijn.
+            </p>
+          </div>
+
+          <nav class="home__links" aria-labelledby="home-links-title">
+            <h2 class="home__h2" id="home-links-title">Overzichten per weg, plaats en periode</h2>
+            <ul class="home__linklist">
+              <li>
+                <a href="/wegen/"><strong>Alle wegen</strong><span>A- en N-wegen met hun eigen overzichtspagina</span></a>
+              </li>
+              <li>
+                <a href="/plaatsen/"><strong>Alle plaatsen</strong><span>Woonplaatsen en gemeenten van A tot Z</span></a>
+              </li>
+              <li>
+                <a href="/bruggen/"><strong>Bruggen</strong><span>Brugopeningen van vandaag en de komende week</span></a>
+              </li>
+              <li>
+                <a href="/afsluitingen/"><strong>Afsluitingen</strong><span>Wegen en rijbanen die nu dicht zijn</span></a>
+              </li>
+              <li><a href="/files/"><strong>Files</strong><span>Actuele files en langzaam rijdend verkeer</span></a></li>
+              <li><a href="/vandaag/"><strong>Vandaag</strong><span>Alles wat vandaag speelt op de weg</span></a></li>
+              <li>
+                <a href="/dit-weekend/"><strong>Dit weekend</strong><span>Weekendafsluitingen en groot onderhoud</span></a>
+              </li>
+              <li>
+                <a href="/veelgestelde-vragen/"><strong>Veelgestelde vragen</strong><span>Waar komt de data vandaan?</span></a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer__inner">
+        <p class="footer__attribution">
+          Kaart: © Kadaster, BRT Achtergrondkaart (CC BY 4.0) · Verkeersdata: NDW (CC0) · MapLibre
+        </p>
+        <nav class="footer__nav" aria-label="Over deze site">
+          <a href="/over/">Over Wegwerk</a>
+          <a href="/veelgestelde-vragen/">Veelgestelde vragen</a>
+          <a href="/privacy/">Privacy</a>
+          <a href="/cookies/">Cookies</a>
+          <a href="/disclaimer/">Disclaimer</a>
+          <a href="/colofon/">Colofon</a>
+          <a href="/contact/">Contact</a>
+          <a href="#" data-cmp-open>Cookie-instellingen</a>
+        </nav>
+        <p class="footer__note">
+          De gegevens komen rechtstreeks van wegbeheerders via het Nationaal Dataportaal Wegverkeer en worden elke 5
+          minuten vernieuwd. Wegwerk is geen officiële bron; kijk voor actuele reisadviezen ook op de borden langs de
+          weg.
+        </p>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

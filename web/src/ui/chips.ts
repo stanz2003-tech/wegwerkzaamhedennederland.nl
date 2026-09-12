@@ -1,0 +1,149 @@
+/**
+ * Chip groups: category chips (multi-toggle with counts) and time chips (single select).
+ */
+import type { Category } from '../data/types';
+import { TIME_WINDOWS, type TimeWindowId } from '../data/time';
+import { ALL_CATEGORIES, CATEGORY_META } from './categories';
+import { esc, formatCount } from './format';
+
+export interface CategoryChips {
+  root: HTMLElement;
+  setSelected(cats: ReadonlySet<Category> | null): void;
+  setCounts(counts: Partial<Record<Category, number>>): void;
+}
+
+/**
+ * Category chips. `null` selection = all categories shown as active.
+ * Clicking toggles one category; when all are selected, a click isolates that category
+ * (so "show only closures" is one click instead of six).
+ */
+export function mountCategoryChips(
+  root: HTMLElement,
+  onChange: (cats: Set<Category> | null) => void,
+): CategoryChips {
+  root.classList.add('chips', 'chips--cats');
+  root.setAttribute('role', 'group');
+  root.setAttribute('aria-label', 'Categorieën');
+  let selected: Set<Category> | null = null;
+
+  root.innerHTML = ALL_CATEGORIES.map((cat) => {
+    const meta = CATEGORY_META[cat];
+    return `<button type="button" class="chip chip--cat" data-cat="${cat}" aria-pressed="true" style="--chip-color: var(${meta.color})">
+      <span class="chip__bar" aria-hidden="true"></span>
+      <span class="chip__icon">${meta.icon}</span>
+      <span class="chip__label">${esc(meta.plural)}</span>
+      <span class="chip__count" data-count hidden></span>
+    </button>`;
+  }).join('');
+
+  const render = (): void => {
+    root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((btn) => {
+      const cat = btn.dataset.cat as Category;
+      const on = selected === null || selected.has(cat);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.classList.toggle('is-on', on);
+    });
+  };
+
+  root.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-cat]');
+    if (!btn) return;
+    const cat = btn.dataset.cat as Category;
+    const all = new Set(ALL_CATEGORIES);
+    if (selected === null) {
+      selected = new Set([cat]);
+    } else if (selected.has(cat)) {
+      selected.delete(cat);
+      if (selected.size === 0) selected = null;
+    } else {
+      selected.add(cat);
+      if (selected.size === all.size) selected = null;
+    }
+    render();
+    onChange(selected ? new Set(selected) : null);
+  });
+
+  render();
+  return {
+    root,
+    setSelected(cats) {
+      selected = cats ? new Set(cats) : null;
+      if (selected && selected.size === ALL_CATEGORIES.length) selected = null;
+      render();
+    },
+    setCounts(counts) {
+      root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((btn) => {
+        const cat = btn.dataset.cat as Category;
+        const n = counts[cat] ?? 0;
+        const el = btn.querySelector<HTMLElement>('[data-count]');
+        if (!el) return;
+        el.textContent = formatCount(n);
+        el.hidden = n === 0;
+        btn.classList.toggle('is-empty', n === 0);
+      });
+    },
+  };
+}
+
+export interface TimeChips {
+  root: HTMLElement;
+  setSelected(id: TimeWindowId): void;
+}
+
+export function mountTimeChips(root: HTMLElement, initial: TimeWindowId, onChange: (id: TimeWindowId) => void): TimeChips {
+  root.classList.add('chips', 'chips--time');
+  root.setAttribute('role', 'radiogroup');
+  root.setAttribute('aria-label', 'Periode');
+  let current = initial;
+
+  root.innerHTML = TIME_WINDOWS.map(
+    (w) =>
+      `<button type="button" class="chip chip--time" role="radio" data-time="${w.id}" aria-checked="false" title="${esc(w.title)}">${esc(w.label)}</button>`,
+  ).join('');
+
+  const render = (): void => {
+    root.querySelectorAll<HTMLButtonElement>('[data-time]').forEach((btn) => {
+      const on = btn.dataset.time === current;
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+      btn.classList.toggle('is-on', on);
+      btn.tabIndex = on ? 0 : -1;
+    });
+  };
+
+  const select = (id: TimeWindowId, focus: boolean): void => {
+    if (id === current) return;
+    current = id;
+    render();
+    if (focus) root.querySelector<HTMLButtonElement>(`[data-time="${id}"]`)?.focus();
+    onChange(id);
+  };
+
+  root.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-time]');
+    if (btn) select(btn.dataset.time as TimeWindowId, false);
+  });
+
+  // Radio-group keyboard behaviour: arrows move the selection.
+  root.addEventListener('keydown', (e) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    const ids = TIME_WINDOWS.map((w) => w.id);
+    const i = ids.indexOf(current);
+    let next = i;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i - 1 + ids.length) % ids.length;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % ids.length;
+    if (e.key === 'Home') next = 0;
+    if (e.key === 'End') next = ids.length - 1;
+    const id = ids[next];
+    if (id) select(id, true);
+  });
+
+  render();
+  return {
+    root,
+    setSelected(id) {
+      current = id;
+      render();
+    },
+  };
+}

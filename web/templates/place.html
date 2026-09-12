@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<!-- @head -->
+</head>
+<body data-page="place" data-place-kind="{{kind}}" data-place-name="{{name}}" data-gemeente="{{gemeente}}" data-prov-code="{{provCode}}" data-lon="{{lon}}" data-lat="{{lat}}">
+<a class="skip-link" href="#main">Naar de inhoud</a>
+<!-- @header -->
+<main id="main" class="page page--wide">
+  <nav class="crumbs" aria-label="Kruimelpad">
+    <ol>
+      {{#each crumbs}}<li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}<li aria-current="page">{{crumbCurrent}}</li>
+    </ol>
+  </nav>
+
+  <header class="entity-hero entity-hero--place">
+    <span class="badge badge--lokaal badge--xl badge--place" aria-hidden="true">{{#if isGemeente}}Gem.{{else}}Plaats{{/if}}</span>
+    <div class="entity-hero__text">
+      <p class="entity-hero__kicker">{{kicker}}</p>
+      <h1>{{heading}}</h1>
+      <div class="entity-hero__intro">{{{intro}}}</div>
+      <dl class="entity-counts">
+        <div class="entity-counts__item"><dt>Nu actief</dt><dd id="entity-count-active">–</dd></div>
+        <div class="entity-counts__item"><dt>Gepland (30 dagen)</dt><dd id="entity-count-upcoming">–</dd></div>
+      </dl>
+      <p class="entity-hero__meta">
+        <span id="entity-summary" class="entity-summary">Actuele meldingen worden geladen…</span>
+        <span class="entity-hero__sep" aria-hidden="true">·</span>
+        <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
+      </p>
+    </div>
+  </header>
+
+  <section class="entity-live" aria-label="Actuele situatie in {{name}}">
+    <div id="entity-map" class="entity-map">
+      <p class="entity-map__fallback">Kaart met de meldingen in {{name}}. <a href="{{mapHref}}">Open {{name}} op de grote kaart</a>.</p>
+    </div>
+    <div id="entity-list" class="entity-list" aria-live="polite"></div>
+    <div id="entity-empty" class="entity-empty" hidden>
+      <p><strong>Geen meldingen voor {{name}}.</strong> Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden of afsluitingen {{#if isGemeente}}in de gemeente{{else}}in{{/if}} {{name}} bekend. Kijk op <a href="{{mapHref}}">de kaart</a> voor de omgeving{{#if gemeenteHref}} of op de pagina van de <a href="{{gemeenteHref}}">gemeente {{gemeente}}</a>{{/if}}.</p>
+    </div>
+  </section>
+
+  <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
+
+  <article class="prose prose--entity">
+    <div class="prose__body">
+    <h2 id="uitleg">Zo lees je dit overzicht</h2>
+    <p>Bovenaan staat alles wat wegbeheerders voor {{#if isGemeente}}de gemeente {{/if}}{{name}} hebben aangemeld bij het Nationaal Dataportaal Wegverkeer (NDW): <strong>werkzaamheden</strong> aan straten en wegen, <strong>afsluitingen</strong> met de bijbehorende <strong>omleidingen</strong>, en <strong>evenementen</strong> met verkeersmaatregelen, zoals een markt, kermis of wielerronde. Meldingen die nu gelden staan bovenaan; daaronder volgen de geplande werkzaamheden voor de komende 30 dagen op volgorde van starttijd. Een melding telt mee voor {{name}} als de wegbeheerder die plaats of gemeente bij de melding heeft opgegeven of als de locatie erbinnen ligt.</p>
+    <p>Bij elke melding zie je een badge met het wegnummer (rood voor A-wegen, geel voor N-wegen) of een neutrale badge voor een straat, de periode, de verwachte hinder en wie het werk heeft aangemeld. Klik erop voor de omleiding en de details. Gemeentelijk werk staat vaak korter van tevoren in het systeem dan werk aan snelwegen; kijk dus vlak voor vertrek nog even. De planning wordt ongeveer elk kwartier vernieuwd, files en incidenten elke {{refreshMinutes}} minuten.</p>
+
+    </div>
+
+    <section class="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">Veelgestelde vragen over {{#if isGemeente}}de gemeente {{/if}}{{name}}</h2>
+      {{#each faq}}<details class="faq__item">
+        <summary>{{q}}</summary>
+        <div class="faq__answer"><p>{{{a}}}</p></div>
+      </details>
+      {{/each}}
+    </section>
+  </article>
+
+  <section class="related" aria-labelledby="related-title">
+    <h2 id="related-title">In de buurt</h2>
+    {{#if hasRelatedGemeenten}}<h3 class="related__sub">{{relatedGemeentenTitle}}</h3>
+    <ul class="related__list chips">
+      {{#each relatedGemeenten}}<li><a class="chip chip--gemeente" href="{{href}}">{{name}}</a></li>
+      {{/each}}
+    </ul>{{/if}}
+    {{#if hasRelatedPlaces}}<h3 class="related__sub">{{relatedPlacesTitle}}</h3>
+    <ul class="related__list chips">
+      {{#each relatedPlaces}}<li><a class="chip" href="{{href}}">{{name}}</a></li>
+      {{/each}}
+    </ul>{{/if}}
+    <p class="related__more"><a href="/plaatsen/">Alle plaatsen en gemeenten</a> · <a href="/wegen/">wegen</a> · <a href="/afsluitingen/">actuele afsluitingen</a></p>
+  </section>
+</main>
+<!-- @footer -->
+<script type="module" src="/src/pages/place.ts"></script>
+</body>
+</html>

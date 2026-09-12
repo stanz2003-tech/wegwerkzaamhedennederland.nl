@@ -1,0 +1,18 @@
+{
+  "name": "@wegwerk/pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Haalt NDW open data (DATEX II v3) op en zet het om naar compacte GeoJSON voor de kaart.",
+  "bin": {
+    "wegwerk-pipeline": "bin/run.js"
+  },
+  "scripts": {
+    "start": "node bin/run.js",
+    "vild": "node bin/build-vild.js",
+    "test": "node --test --experimental-test-coverage \"--test-coverage-include=src/**/*.js\" \"test/**/*.test.js\""
+  },
+  "dependencies": {
+    "saxes": "^6.0.0"
+  }
+}

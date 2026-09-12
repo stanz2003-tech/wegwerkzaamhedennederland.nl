@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<!-- @head -->
+</head>
+<body data-page="static" data-slug="{{slug}}">
+<a class="skip-link" href="#main">Naar de inhoud</a>
+<!-- @header -->
+<main id="main" class="page">
+  <nav class="crumbs" aria-label="Kruimelpad">
+    <ol>
+      {{#each crumbs}}<li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}<li aria-current="page">{{crumbCurrent}}</li>
+    </ol>
+  </nav>
+
+  <article class="prose prose--article">
+    <header class="page-head">
+      {{#if kicker}}<p class="page-head__kicker">{{kicker}}</p>{{/if}}
+      <h1>{{heading}}</h1>
+      {{#if lead}}<p class="page-head__lead">{{lead}}</p>{{/if}}
+      {{#if updated}}<p class="page-head__meta">Laatst gewijzigd: <time datetime="{{updated}}">{{updatedLabel}}</time></p>{{/if}}
+    </header>
+    {{{body}}}
+  </article>
+
+  {{#unless isNotFound}}<div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>{{/unless}}
+</main>
+<!-- @footer -->
+<script type="module" src="/src/pages/static.ts"></script>
+</body>
+</html>

@@ -1,0 +1,255 @@
+/* app.css — layout of the map page (/): the full-height map stage with the floating panel,
+   and the indexable text section below it. Tokens only. */
+
+.app-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.app {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The map stage is exactly one viewport minus the top bar, so the text section starts
+   right at the fold and the page scrolls naturally into it. */
+.app__stage {
+  position: relative;
+  height: calc(100dvh - var(--topbar-h));
+  min-height: 380px;
+  overflow: hidden;
+  background: var(--bg);
+  isolation: isolate;
+}
+
+/* Fallback for browsers without dvh support (older Safari). */
+@supports not (height: 100dvh) {
+  .app__stage {
+    height: calc(100vh - var(--topbar-h));
+  }
+}
+
+/* ------------------------------------------------------------------ text section */
+
+.home {
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  padding: var(--s-10) var(--s-4) var(--s-12);
+}
+
+.home__inner {
+  max-width: 76rem;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--s-10);
+}
+
+.home__title {
+  position: relative;
+  font-size: clamp(1.75rem, 1.1rem + 2.4vw, 2.75rem);
+  padding-left: var(--s-4);
+  margin-bottom: var(--s-5);
+}
+
+/* Barrier stripe as a vertical rule next to the heading. */
+.home__title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.15em;
+  bottom: 0.15em;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--stripe);
+}
+
+.home__text {
+  max-width: 68ch;
+  color: var(--text-2);
+  font-size: 1.0625rem;
+  line-height: 1.65;
+}
+
+.home__text + .home__text {
+  margin-top: var(--s-4);
+}
+
+/* --text-2 keeps this 12 px kicker above 4.5:1 on the paper background. */
+.home__h2 {
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  margin-bottom: var(--s-4);
+}
+
+/* ------------------------------------------------------------------ live counters */
+
+.home__counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--s-2);
+}
+
+.home__count {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--s-3) var(--s-3) var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--count-color, var(--text-3));
+  border-radius: 0 var(--r-1) var(--r-1) 0;
+}
+
+.home__count dt {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.home__count dd {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* --text-2, not --text-3: on the paper background (--bg) --text-3 measures 4.47:1, just
+   under the 4.5:1 floor for this 12 px line. */
+.home__updated {
+  margin-top: var(--s-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------------ link cards */
+
+.home__linklist {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: var(--s-2);
+  list-style: none;
+}
+
+.home__linklist a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: var(--touch);
+  height: 100%;
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  text-decoration: none;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.home__linklist a:hover {
+  border-color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  transform: translateY(-1px);
+}
+
+.home__linklist a:active {
+  transform: translateY(0);
+}
+
+.home__linklist strong {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  letter-spacing: -0.005em;
+}
+
+.home__linklist span {
+  font-size: var(--text-sm);
+  color: var(--text-3);
+}
+
+/* ------------------------------------------------------------------ breakpoints */
+
+@media (min-width: 768px) {
+  .home {
+    padding-inline: var(--s-6);
+  }
+
+  .home__inner {
+    grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+    gap: var(--s-8) var(--s-10);
+    align-items: start;
+  }
+
+  .home__lead {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .home__stats {
+    grid-column: 2;
+  }
+
+  .home__links {
+    grid-column: 2;
+  }
+
+  .home__counts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home__linklist {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app__stage {
+    min-height: 520px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .home {
+    padding: var(--s-12) var(--s-8);
+  }
+
+  .home__inner {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem) minmax(0, 22rem);
+  }
+
+  .home__lead {
+    grid-row: 1;
+  }
+
+  .home__stats,
+  .home__links {
+    grid-row: 1;
+  }
+
+  .home__stats {
+    grid-column: 2;
+  }
+
+  .home__links {
+    grid-column: 3;
+  }
+
+  .home__counts {
+    grid-template-columns: 1fr;
+  }
+}

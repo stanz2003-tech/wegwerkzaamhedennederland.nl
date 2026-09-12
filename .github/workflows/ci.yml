@@ -1,0 +1,68 @@
+# Tests, type check and a fixture-data build on every push and pull request.
+# Cache commits from the Data workflow carry "[skip ci]" and are made with GITHUB_TOKEN,
+# so they never trigger this workflow.
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "docs/**"
+      - "pipeline/cache/**"
+      - "README.md"
+      - "LICENSE"
+      - ".env.example"
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "pipeline/cache/**"
+      - "README.md"
+      - "LICENSE"
+      - ".env.example"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test, typecheck, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Pipeline tests
+        run: npm test -w @wegwerk/pipeline
+
+      - name: Infra tests (R2 uploader, SigV4)
+        run: node --test "infra/test/**/*.test.mjs"
+
+      - name: Type check web
+        run: npm run typecheck -w @wegwerk/web
+
+      - name: Build web with fixture data
+        run: npm run build -w @wegwerk/web
+
+      - name: Web unit tests
+        run: npm test -w @wegwerk/web --if-present
+
+      - name: Upload built site
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web/dist
+          retention-days: 3
+          if-no-files-found: error

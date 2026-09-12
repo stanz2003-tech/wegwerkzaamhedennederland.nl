@@ -1,0 +1,32 @@
+{
+  "name": "Wegwerk",
+  "longName": "Wegwerkzaamheden Nederland",
+  "tagline": "Alle wegwerkzaamheden van Nederland op één kaart",
+  "url": "https://www.wegwerkzaamhedennederland.nl",
+  "dataBase": "/data/",
+  "contactEmail": "info@wegwerkzaamhedennederland.nl",
+  "locale": "nl-NL",
+  "ogImage": "",
+  "refreshMinutes": 5,
+  "planningRefreshMinutes": 15,
+  "owner": {
+    "name": "[Naam eigenaar / bedrijfsnaam]",
+    "kvk": "",
+    "btw": "",
+    "city": "[Vestigingsplaats]"
+  },
+  "ads": {
+    "enabled": false,
+    "adsenseClient": "ca-pub-0000000000000000",
+    "slots": {
+      "panel": "0000000000",
+      "list": "0000000000",
+      "article": "0000000000"
+    }
+  },
+  "analytics": {
+    "provider": "cloudflare",
+    "token": ""
+  },
+  "attribution": "Kaart: © Kadaster, BRT Achtergrondkaart (CC BY 4.0) · Verkeersdata: NDW (CC0) · MapLibre"
+}

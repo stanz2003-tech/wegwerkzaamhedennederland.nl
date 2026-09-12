@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<!-- @head -->
+</head>
+<body data-page="bridge" data-bridge-id="{{id}}" data-lon="{{lon}}" data-lat="{{lat}}">
+<a class="skip-link" href="#main">Naar de inhoud</a>
+<!-- @header -->
+<main id="main" class="page page--wide">
+  <nav class="crumbs" aria-label="Kruimelpad">
+    <ol>
+      {{#each crumbs}}<li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}<li aria-current="page">{{crumbCurrent}}</li>
+    </ol>
+  </nav>
+
+  <header class="entity-hero entity-hero--brug">
+    <span class="badge badge--brug badge--xl" aria-hidden="true">Brug</span>
+    <div class="entity-hero__text">
+      <p class="entity-hero__kicker">{{kicker}}</p>
+      <h1>{{heading}}</h1>
+      <div class="entity-hero__intro">{{{intro}}}</div>
+      <dl class="entity-facts">
+        {{#if road}}<div class="entity-facts__item"><dt>Weg</dt><dd>{{#if roadHref}}<a href="{{roadHref}}">{{road}}</a>{{else}}{{road}}{{/if}}</dd></div>{{/if}}
+        {{#if water}}<div class="entity-facts__item"><dt>Vaarweg</dt><dd>{{water}}</dd></div>{{/if}}
+        {{#if woonplaats}}<div class="entity-facts__item"><dt>Plaats</dt><dd>{{#if placeHref}}<a href="{{placeHref}}">{{woonplaats}}</a>{{else}}{{woonplaats}}{{/if}}</dd></div>{{/if}}
+        {{#if gemeente}}<div class="entity-facts__item"><dt>Gemeente</dt><dd>{{#if gemeenteHref}}<a href="{{gemeenteHref}}">{{gemeente}}</a>{{else}}{{gemeente}}{{/if}}</dd></div>{{/if}}
+        {{#if prov}}<div class="entity-facts__item"><dt>Provincie</dt><dd>{{prov}}</dd></div>{{/if}}
+      </dl>
+      <p class="entity-hero__meta">
+        <span id="bridge-status" class="bridge-status" data-state="loading">Status wordt geladen…</span>
+        <span class="entity-hero__sep" aria-hidden="true">·</span>
+        <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
+      </p>
+    </div>
+  </header>
+
+  <section class="entity-live" aria-label="Openingen van {{name}}">
+    <div id="entity-map" class="entity-map">
+      <p class="entity-map__fallback">Kaart met de ligging van {{name}}. <a href="{{mapHref}}">Open de brug op de grote kaart</a>.</p>
+    </div>
+    <div class="entity-openings">
+      <h2 id="openingen">Geplande openingen (komende 7 dagen)</h2>
+      <ol id="bridge-openings" class="bridge-openings" aria-live="polite"></ol>
+      <div id="entity-empty" class="entity-empty" hidden>
+        <p><strong>Geen openingen aangemeld.</strong> Voor {{name}} zijn bij NDW op dit moment geen geplande openingen bekend. Dat betekent niet dat de brug niet opengaat: veel bruggen draaien op aanvraag van de scheepvaart. Kijk op <a href="{{mapHref}}">de kaart</a> voor de actuele situatie in de omgeving.</p>
+      </div>
+    </div>
+  </section>
+
+  <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
+
+  <article class="prose prose--entity">
+    <div class="prose__body">
+    <h2 id="uitleg">Wat een brugopening betekent voor het wegverkeer</h2>
+    <p>Een beweegbare brug gaat open om schepen door te laten die niet onder het gesloten brugdek passen. Zolang de brug open staat, is de weg erover in beide richtingen dicht: de slagbomen sluiten, de verkeerslichten springen op rood en het verkeer wacht. Een omleiding is er meestal niet, omdat een opening kort duurt. Op drukke routes ontstaat soms een korte file die na het sluiten weer oplost; hou daar rekening mee als je krap in de tijd zit.</p>
+    <p>Bruggen in rijkswegen en veel provinciale en gemeentelijke bruggen melden hun geplande openingen bij het Nationaal Dataportaal Wegverkeer (NDW). Die planning staat hierboven, samen met de actuele status uit het verkeersbeeld: <strong>open</strong> betekent dat er op dit moment een opening loopt. Sommige bruggen hebben vaste bloktijden (bijvoorbeeld niet in de spits), andere draaien op aanvraag; niet elke opening wordt vooraf gemeld. De status wordt elke {{refreshMinutes}} minuten vernieuwd, de planning ongeveer elk kwartier.</p>
+    <p>Onder de openingen toont de kaart ook de wegwerkzaamheden in de buurt van de brug. Zo zie je in één keer of een omleiding of afsluiting je route bij de brug beïnvloedt. Alle bruggen met een eigen pagina vind je op <a href="/bruggen/">bruggen</a>.</p>
+
+    </div>
+
+    <section class="faq" aria-labelledby="faq-title">
+      <h2 id="faq-title">Veelgestelde vragen over {{name}}</h2>
+      {{#each faq}}<details class="faq__item">
+        <summary>{{q}}</summary>
+        <div class="faq__answer"><p>{{{a}}}</p></div>
+      </details>
+      {{/each}}
+    </section>
+  </article>
+
+  {{#if hasRelatedBridges}}<section class="related" aria-labelledby="related-title">
+    <h2 id="related-title">Andere bruggen in de buurt</h2>
+    <ul class="related__list entity-links">
+      {{#each relatedBridges}}<li><a href="{{href}}"><span class="entity-links__name">{{name}}</span>{{#if sub}}<span class="entity-links__sub">{{sub}}</span>{{/if}}</a></li>
+      {{/each}}
+    </ul>
+    <p class="related__more"><a href="/bruggen/">Alle bruggen</a> · <a href="/wegen/">wegen</a> · <a href="/files/">actuele files</a></p>
+  </section>{{/if}}
+</main>
+<!-- @footer -->
+<script type="module" src="/src/pages/bridge.ts"></script>
+</body>
+</html>

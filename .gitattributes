@@ -1,0 +1,19 @@
+# Keep line endings stable: LF inside the repository, native in the working copy.
+# The GitHub Actions runner is Linux, so committing CRLF would break shell steps.
+* text=auto eol=lf
+
+# Binary assets must never be normalised.
+*.png binary
+*.jpg binary
+*.ico binary
+*.gz binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.pbf binary
+
+# Large generated data: keep diffs out of code review.
+pipeline/static/*.json linguist-generated=true
+pipeline/cache/*.json linguist-generated=true
+web/fixtures/data/** linguist-generated=true
+package-lock.json linguist-generated=true

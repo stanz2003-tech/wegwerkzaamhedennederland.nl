@@ -1,0 +1,91 @@
+/* entity-list.css — grouped item lists on the generated SEO pages (ui/entity-list.ts).
+   Imported by the road, place and list page scripts; the app panel does not use these groups.
+   Tokens only; the rows themselves are the shared `.item` component from components.css. */
+
+/* ------------------------------------------------------------------ entity list groups */
+/* Grouped item lists on the generated pages (ui/entity-list.ts). The window pages add a third,
+   collapsed group for the semi-permanent measures ("Loopt al langer"), which must be visibly
+   secondary to the two groups above it without hiding the count. */
+.entity-list__group { display: grid; gap: var(--s-2); }
+
+.entity-list__group-title {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin: var(--s-4) 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-lg);
+  line-height: var(--leading-tight);
+}
+
+.entity-list__group-count {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+}
+
+.entity-list__items {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+
+.entity-list__items .item:last-child { border-bottom: 0; }
+.entity-list__more { justify-self: start; }
+.entity-list__notice { color: var(--text-2); font-size: var(--text-sm); }
+.entity-list__group-note { color: var(--text-2); font-size: var(--text-sm); margin: 0 0 var(--s-1); }
+
+/* Collapsed group: a dashed surface so it reads as background information, with a summary that
+   is a full-width, 44 px tap target. */
+.entity-list__group--collapsed {
+  margin-top: var(--s-4);
+  padding: 0 var(--s-4) var(--s-4);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-2);
+}
+
+.entity-list__group--collapsed:not([open]) { padding-bottom: 0; }
+
+.entity-list__group--collapsed > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch);
+  margin: 0 calc(-1 * var(--s-4));
+  padding: var(--s-2) var(--s-4);
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-2);
+  font-size: var(--text-base);
+}
+
+.entity-list__group--collapsed > summary::-webkit-details-marker { display: none; }
+
+/* Disclosure triangle drawn from borders: no icon import needed for a decorative marker. */
+.entity-list__group--collapsed > summary::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: rotate(45deg);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.entity-list__group--collapsed[open] > summary::after { transform: rotate(-135deg); }
+.entity-list__group--collapsed > summary:hover { color: var(--text); }
+
+.entity-list__group--collapsed > summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--r-1);
+}

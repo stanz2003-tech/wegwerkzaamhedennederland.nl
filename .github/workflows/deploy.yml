@@ -1,0 +1,100 @@
+# Builds the static site and deploys web/dist to Cloudflare Pages (Direct Upload).
+# Runs on pushes to main that touch the site, or manually. Data is never deployed here;
+# it goes to R2 through the "Data" workflow.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "pipeline/static/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write # lets wrangler-action record a GitHub Deployment
+
+jobs:
+  deploy:
+    name: Build and deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATA_BASE: ${{ vars.DATA_BASE }}
+      CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check repository settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          missing=""
+          [ -z "$DATA_BASE" ] && missing="$missing DATA_BASE(variable)"
+          [ -z "$CF_PAGES_PROJECT" ] && missing="$missing CF_PAGES_PROJECT(variable)"
+          [ -z "$CLOUDFLARE_ACCOUNT_ID" ] && missing="$missing CLOUDFLARE_ACCOUNT_ID(secret)"
+          [ -z "$CLOUDFLARE_API_TOKEN" ] && missing="$missing CLOUDFLARE_API_TOKEN(secret)"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository settings:$missing. See infra/README.md."
+            exit 1
+          fi
+          case "$DATA_BASE" in
+            https://*/) ;;
+            *) echo "::error::DATA_BASE must start with https:// and end with a slash, e.g. https://data.example.nl/v1/" ; exit 1 ;;
+          esac
+
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build site
+        env:
+          VITE_DATA_BASE: ${{ vars.DATA_BASE }}
+        run: npm run build -w @wegwerk/web
+
+      - name: Ensure the Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects"
+          status=$(curl -sS -o project.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "${api}/${CF_PAGES_PROJECT}")
+          if [ "$status" = "200" ]; then
+            echo "Pages project '${CF_PAGES_PROJECT}' exists."
+            exit 0
+          fi
+          if [ "$status" != "404" ] && ! grep -q '"code": *8000007' project.json; then
+            echo "::error::Cloudflare API returned HTTP $status while looking up the Pages project:"
+            cat project.json
+            exit 1
+          fi
+          echo "Creating Pages project '${CF_PAGES_PROJECT}' (production branch: main)."
+          curl -sS --fail-with-body -X POST "$api" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" -H "Content-Type: application/json" \
+            --data "{\"name\":\"${CF_PAGES_PROJECT}\",\"production_branch\":\"main\"}" > create.json
+          jq -e '.success == true' create.json > /dev/null || { cat create.json; exit 1; }
+          echo "Created. Add the custom domain in the Cloudflare dashboard (Workers & Pages > project > Custom domains)."
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+          wranglerVersion: "4"
+          command: pages deploy web/dist --project-name=${{ vars.CF_PAGES_PROJECT }} --branch=main --commit-dirty=true --commit-hash=${{ github.sha }}

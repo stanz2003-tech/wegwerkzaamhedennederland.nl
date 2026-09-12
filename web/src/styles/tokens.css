@@ -1,0 +1,200 @@
+/* Design tokens — "Bord": Dutch road-signage language over a paper-toned map.
+   See docs/spec.md section 4. Components use tokens only, never raw hex. */
+
+:root {
+  color-scheme: light;
+
+  /* brand */
+  --geel: #ffc917;        /* verkeersgeel (detour signs): primary accent */
+  --geel-ink: #1b1b1f;    /* text on yellow */
+  --asfalt: #15171b;      /* dark chrome */
+  --asfalt-2: #1f2229;    /* raised dark surface */
+  --asfalt-3: #2a2e36;    /* dark hairline / hover */
+  --papier: #f7f4ec;      /* light surface (map paper tone) */
+  --papier-2: #ffffff;    /* raised light surface */
+  --lijn: #e9e6df;        /* light hairline */
+  --ink: #16181d;
+  --ink-2: #4a4f58;
+  --ink-3: #6b717c;
+
+  /* semantic surfaces (light theme) */
+  --bg: var(--papier);
+  --surface: var(--papier-2);
+  --surface-2: var(--papier);
+  --border: var(--lijn);
+  --text: var(--ink);
+  --text-2: var(--ink-2);
+  --text-3: var(--ink-3);
+  --chrome: var(--asfalt);          /* top bar */
+  --chrome-text: #f7f4ec;
+  --accent: var(--geel);
+  --accent-ink: var(--geel-ink);
+  --focus: var(--ink);
+  --scrim: rgba(21, 23, 27, 0.55);
+
+  /* road badges (as on Dutch signs) */
+  --a-badge: #d8232a; --a-badge-ink: #ffffff;
+  --n-badge: #f7c600; --n-badge-ink: #1b1b1f;
+  --e-badge: #0b7a3b; --e-badge-ink: #ffffff;
+  --lokaal-badge: #5b6470; --lokaal-badge-ink: #ffffff;
+
+  /* categories */
+  --c-werk: #f5a300;
+  --c-afsluiting: #e0301e;
+  --c-file: #8e0e1f;
+  --c-incident: #c2185b;
+  --c-brug: #0e7c86;
+  --c-evenement: #6d4aff;
+  --c-overig: #5b6470;
+
+  /* status */
+  --ok: #1e8e3e;
+  --warn: #b26a00;
+  --danger: #c62828;
+
+  /* type */
+  --font-display: "Overpass", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --text-xs: 0.75rem;   /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-base: 1rem;    /* 16 */
+  --text-lg: 1.125rem;  /* 18 */
+  --text-xl: 1.375rem;  /* 22 */
+  --text-2xl: 1.75rem;  /* 28 */
+  --text-3xl: 2rem;     /* 32 */
+  --leading-tight: 1.2;
+  --leading-body: 1.5;
+
+  /* spacing (4 px rhythm) */
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px; --s-12: 48px;
+
+  /* shape */
+  --r-1: 6px; --r-2: 10px; --r-3: 16px; --r-pill: 999px;
+
+  /* elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.08), 0 8px 24px -12px rgba(0, 0, 0, 0.25);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.1), 0 16px 40px -16px rgba(0, 0, 0, 0.35);
+
+  /* motion */
+  --dur-1: 150ms;
+  --dur-2: 260ms;
+  --dur-3: 600ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+
+  /* signature: barrier stripe (yellow/black at 135deg) */
+  --stripe: repeating-linear-gradient(135deg, var(--geel) 0 8px, var(--geel-ink) 8px 16px);
+
+  /* layout */
+  --panel-w: 380px;
+  --topbar-h: 56px;
+  --touch: 44px;
+  /* Visible height of the mobile bottom sheet in its "peek" state. Must stay equal to
+     PEEK_PX in src/ui/panel.ts; map.css lifts the map controls above it. */
+  --sheet-peek: 128px;
+  --z-map: 0; --z-panel: 10; --z-topbar: 20; --z-sheet: 30; --z-toast: 40; --z-modal: 100;
+}
+
+/* Dark theme: asphalt surfaces, paper text, same accents. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: var(--asfalt);
+  --surface: var(--asfalt-2);
+  --surface-2: var(--asfalt-3);
+  --border: #33383f;
+  --text: #f4f1ea;
+  --text-2: #c2c6cd;
+  --text-3: #9198a3;
+  --chrome: #0e0f12;
+  --chrome-text: #f7f4ec;
+  --focus: var(--geel);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.6), 0 16px 40px -16px rgba(0, 0, 0, 0.9);
+  --c-werk: #ffb524;
+  --c-afsluiting: #ff5a47;
+  --c-file: #d8434f;
+  --c-incident: #e94b8a;
+  --c-brug: #2fb2be;
+  --c-evenement: #9b85ff;
+  --c-overig: #8b939f;
+  --ok: #4fbf6a;
+  --warn: #e0a030;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: var(--asfalt);
+    --surface: var(--asfalt-2);
+    --surface-2: var(--asfalt-3);
+    --border: #33383f;
+    --text: #f4f1ea;
+    --text-2: #c2c6cd;
+    --text-3: #9198a3;
+    --chrome: #0e0f12;
+    --chrome-text: #f7f4ec;
+    --focus: var(--geel);
+    --scrim: rgba(0, 0, 0, 0.6);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
+    --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.6), 0 16px 40px -16px rgba(0, 0, 0, 0.9);
+    --c-werk: #ffb524;
+    --c-afsluiting: #ff5a47;
+    --c-file: #d8434f;
+    --c-incident: #e94b8a;
+    --c-brug: #2fb2be;
+    --c-evenement: #9b85ff;
+    --c-overig: #8b939f;
+    --ok: #4fbf6a;
+    --warn: #e0a030;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-1: 0ms;
+    --dur-2: 0ms;
+    --dur-3: 0ms;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------- */
+/* Appended: accessibility corrections and live-pill tokens.                                 */
+/* Kept as a separate block (append-only) so the palette above stays the design reference.   */
+/*                                                                                           */
+/* WCAG 2.2 AA needs 4.5:1 for body-size text. Measured with the sRGB relative-luminance     */
+/* formula against --surface and --bg of the same theme:                                     */
+/*   --ok      #1e8e3e  4.21 on #ffffff / 3.83 on #f7f4ec  → text use fails                  */
+/*   --ok-text #17703a  6.15 on #ffffff / 5.59 on #f7f4ec  → passes (dark: 6.82 / 7.68)      */
+/*   --text-3  #6b717c  4.91 on #ffffff / 4.47 on #f7f4ec  → fails on the paper background   */
+/*            #636974  5.39 on #ffffff / 5.02 on #f7f4ec  → passes                           */
+/*   --danger  #c62828  5.62 on #ffffff but 2.83 on #1f2229 → needs a light variant in dark  */
+/* --ok / --warn / --danger keep their values for dots, borders and icons (3:1 suffices).     */
+/* ---------------------------------------------------------------------------------------- */
+
+:root {
+  --text-3: #636974;
+  --ok-text: #17703a;      /* "Nu actief", bridge closed */
+  --warn-text: #8f5500;    /* 6.06 on #ffffff / 5.51 on #f7f4ec */
+  --danger-text: #c62828;  /* 5.62 on #ffffff / 5.12 on #f7f4ec */
+
+  /* Live pill: it always sits on the dark chrome bar (--chrome), in both themes.
+     #ffd27a = 12.61:1 and #ff9b8f = 8.83:1 on #15171b. */
+  --live-stale-text: #ffd27a;
+  --live-error-text: #ff9b8f;
+}
+
+:root[data-theme="dark"] {
+  --ok-text: #4fbf6a;      /* 6.82 on #1f2229 / 7.68 on #15171b */
+  --warn-text: #e0a030;    /* 7.01 on #1f2229 */
+  --danger-text: #ff8a7a;  /* 6.95 on #1f2229 */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ok-text: #4fbf6a;
+    --warn-text: #e0a030;
+    --danger-text: #ff8a7a;
+  }
+}

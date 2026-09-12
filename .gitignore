@@ -1,0 +1,36 @@
+# dependencies
+node_modules/
+
+# build output
+web/dist/
+
+# generated data (pipeline output for local dev)
+web/public/data/
+pipeline/out/
+pipeline/tmp/
+
+# pipeline caches: geocode.json and bruggen-seen.json ARE committed (they make the
+# scheduled run cheap and keep bridge coverage growing). The parsed-feed snapshots and
+# ETag/manifest bookkeeping are not: planning.ndjson alone is ~50 MB and is rebuilt
+# automatically whenever the feed changes.
+pipeline/cache/last/
+pipeline/cache/etags.json
+
+# generated page lists copied out of pipeline/static
+web/public/lists/
+
+# local env
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Onderzoeksdocumenten: eigenaarskeuze om deze niet publiek te maken (concurrentieanalyse,
+# verdienmodel, advertentiestrategie). Ze blijven lokaal in deze map staan.
+docs/onderzoek.md
+docs/research/
