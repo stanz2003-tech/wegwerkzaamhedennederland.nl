@@ -13,12 +13,12 @@
     "fixtures": "node scripts/make-fixtures.mjs"
   },
   "dependencies": {
-    "maplibre-gl": "6.8.0"
+    "maplibre-gl": "6.9.0"
   },
   "devDependencies": {
-    "@types/node": "^26.5.0",
-    "lucide-static": "^1.42.0",
+    "@types/node": "^26.5.1",
+    "lucide-static": "^1.44.0",
     "typescript": "^7.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.3.0"
   }
 }
