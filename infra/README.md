@@ -240,7 +240,9 @@ without pushing code, run it manually the same way.
   a **CORS policy** allowing `GET` from the site origin (the site and the data live on
   different hostnames), and a **Cache Rule** for that hostname: *Eligible for cache*,
   Edge TTL *Use cache-control header if present, bypass cache if not*, Browser TTL
-  *Respect origin*. Cloudflare does not cache JSON by default.
+  *Respect origin*. Cloudflare does not cache JSON by default. Also set the zone-wide
+  **Browser Cache TTL** (Caching → Configuration) to *Respect Existing Headers*; its default
+  of 4 hours overrides the per-file `Cache-Control` and makes browsers hold stale data.
 - A Pages project (created automatically by the Deploy workflow if missing) with custom
   domain(s) `www.<domein>` and the apex.
 

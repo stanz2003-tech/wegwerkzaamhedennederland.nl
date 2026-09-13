@@ -183,6 +183,10 @@ domein → **Caching** → **Cache Rules** → **Create rule** → *Rule name* `
 **Deploy**. De pipeline zet op elk bestand een `Cache-Control`-header (60 s voor live-data en
 `meta.json`, 120 s voor bruggen, 300 s voor de rest), dus de cache volgt precies die tijden.
 
+Zet daarnaast de **zone-brede** instelling **Caching → Configuration → Browser Cache TTL** op
+**Respect Existing Headers**. De standaard (*4 hours*) overschrijft de `Cache-Control`-header van
+elk bestand, zodat browsers `meta.json` vier uur vasthouden en de site verouderde data toont.
+
 4.8 **Controle (na §8).** Open in de browser twee keer `https://data.<domein>/v1/meta.json`.
 Ziet een ontwikkelaar in de response-headers `cf-cache-status: HIT`, dan werkt de cache.
 
