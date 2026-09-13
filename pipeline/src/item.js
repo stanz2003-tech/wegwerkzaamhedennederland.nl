@@ -131,6 +131,7 @@ export function finalizeItem(item, geo, nowMs) {
     hasPeriods: periods !== undefined,
     lanes: merged.lanes,
     speed: merged.speed,
+    texts: [merged.comment, merged.desc, merged.causeDesc],
   });
   item.props = compact({
     id: item.id,

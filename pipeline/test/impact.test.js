@@ -155,3 +155,18 @@ test('veh fallback: the rerouting record says who the detour is for (real Almere
   assert.deepEqual(impactOf([WORK, reroute(['bicycle'])], { cat: 'werk' }), { imp: 'hinder', veh: ['bicycle'] });
   assert.deepEqual(impactOf([WORK, reroute()], { cat: 'werk' }), { imp: 'hinder' });
 });
+
+test('veh: a bare ["car"] next to a text naming a fietspad or voetpad is the Andes default and becomes the path users (Merwedebrug, Waterschap Rivierenland)', () => {
+  const closed = lane('roadClosed', { vehicles: ['car'] });
+  const fietspad = ['Langdurige afsluiting fietspad Merwedebrug westzijde i.v.m. met de bouw van de nieuwe brug.'];
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: fietspad }), { imp: 'dicht', veh: ['bicycle'] });
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Voetpad afgesloten', undefined] }), { imp: 'dicht', veh: ['other'] });
+  // not a path: the published list stands
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Vervanging onderdoorgang Zouwendijk Meerkerk'] }), { imp: 'dicht', veh: ['car'] });
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk' }), { imp: 'dicht', veh: ['car'] });
+  // an explicit list other than ["car"] is never rewritten; the detour fallback is
+  assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['car', 'lorry'] })], { cat: 'werk', texts: fietspad }).veh, ['car', 'lorry']);
+  assert.deepEqual(impactOf([WORK, lane('roadClosed'), reroute(['car'])], { cat: 'werk', texts: fietspad }).veh, ['bicycle']);
+  // a word that merely starts with "fiets" is not a path
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Overleg met de Fietsersbond'] }).veh, ['car']);
+});

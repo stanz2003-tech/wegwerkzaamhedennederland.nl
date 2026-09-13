@@ -4,6 +4,9 @@
  *   2. VILD ROADNUMBER of the AlertC location
  *   3. publishers that manage numbered roads (Rijkswaterstaat, provinces): regex
  *      `\b([AN]\d{1,3})\b` on title / description / cause / source, then the geocoded street
+ *   0. (applied last) a publisher that is not Rijkswaterstaat or a province never gets an
+ *      A-road: the rijkswegen are RWS's; anything else that lands on one is a crossing or
+ *      parallel local road (a TMC point or PDOK snap on the motorway).
  *   4. everyone else (gemeenten, waterschappen, unknown): the reverse-geocoded street name
  *      when it looks like an A/N/s number; the text only when the item was not geocoded at
  *      all. A gemeente cannot publish a motorway measure, so "A4" in its text is a landmark
@@ -120,6 +123,18 @@ export function publisherMayNameRoad(src) {
  * @returns {{ road?: string, roadType: RoadType }}
  */
 export function detectRoad({ roadNr, vildRoad, texts = [], street, publisher }) {
+  const found = detectRoadUnchecked({ roadNr, vildRoad, texts, street, publisher });
+  // Only Rijkswaterstaat manages the rijkswegen. When a gemeente or waterschap lands on an
+  // A-road — a TMC point on the Merwedebrug for a cycle-path closure, or PDOK snapping the
+  // Zouwendijk underpass to "A27" (both Waterschap Rivierenland, 2026-09-13) — the measure is
+  // on a local road that crosses, passes under or runs next to the motorway. Users searching
+  // "A27" must not see a closed motorway that is open. (28 of ~1,700 A-road items.)
+  if (found.roadType === 'A' && !publisherMayNameRoad(publisher)) return typed(undefined);
+  return found;
+}
+
+/** `detectRoad` without the publisher plausibility check. */
+function detectRoadUnchecked({ roadNr, vildRoad, texts, street, publisher }) {
   const positional = roadFromRoadNumberField(roadNr) ?? normalizeVildRoad(vildRoad);
   if (positional) return typed(positional);
   if (publisherMayNameRoad(publisher)) return typed(roadFromTexts(texts) ?? roadFromStreet(street));

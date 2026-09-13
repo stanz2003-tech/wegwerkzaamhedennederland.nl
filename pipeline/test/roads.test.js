@@ -98,6 +98,13 @@ test('detectRoad: the positional sources roadOrJunctionNumber and VILD win over 
       { road: 'N33', roadType: 'N' },
       String(publisher),
     );
+    assert.deepEqual(detectRoad({ roadNr: 'N7 Weg der Verenigde Naties', vildRoad: 'N33', street: 'Dorpsstraat', publisher }), { road: 'N7', roadType: 'N' });
+    // nothing usable at all
+    assert.deepEqual(detectRoad({ texts: ['Werk in de Dorpsstraat'], street: 'Dorpsstraat', publisher }), { roadType: 'lokaal' });
+    assert.deepEqual(detectRoad({ publisher }), { roadType: 'lokaal' });
+  }
+  // A-roads from a positional source: only for the road authorities of the rijkswegen
+  for (const publisher of ['Rijkswaterstaat', 'Provincie Utrecht']) {
     assert.deepEqual(detectRoad({ vildRoad: 'A12 hrb', texts: ['werk op de N57'], street: 'Dorpsstraat', publisher }), { road: 'A12', roadType: 'A' });
     assert.deepEqual(detectRoad({ street: 'Rijksweg A2', publisher }), { road: 'A2', roadType: 'A' });
     // an unusable roadOrJunctionNumber does not block the later steps
@@ -124,8 +131,21 @@ test("detectRoad: a gemeente (or other local publisher) cannot put a measure on 
   assert.deepEqual(detectRoad({ texts, street: 'Binckhorstlaan' }), { roadType: 'lokaal' }, 'unknown publisher: as conservative as a gemeente');
   // a geocoded road number is positional and wins over the text
   assert.deepEqual(detectRoad({ texts, street: 'N57', publisher: 'Gemeente Veere' }), { road: 'N57', roadType: 'N' });
-  // no positional source at all (not geocoded): nothing contradicts the text, so it is used
-  assert.deepEqual(detectRoad({ texts, publisher: "Gemeente 's-Gravenhage" }), { road: 'A4', roadType: 'A' });
+  // no positional source at all (not geocoded): the text would be used — but an A-road is
+  // never plausible for a gemeente, so it stays local (an N-road in the text is fine)
+  assert.deepEqual(detectRoad({ texts, publisher: "Gemeente 's-Gravenhage" }), { roadType: 'lokaal' });
+  assert.deepEqual(detectRoad({ texts: ['Werk aan de N201'], publisher: 'Gemeente Aalsmeer' }), { road: 'N201', roadType: 'N' });
+});
+
+test('detectRoad: a gemeente or waterschap never gets an A-road, not even from a TMC point or a geocoded "A27" (Waterschap Rivierenland, Merwedebrug fietspad and Zouwendijk onderdoorgang, 2026-09-13)', () => {
+  for (const publisher of ['Waterschap Rivierenland', 'Gemeente Rotterdam', undefined]) {
+    assert.deepEqual(detectRoad({ vildRoad: 'A27', texts: ['Langdurige afsluiting fietspad Merwedebrug westzijde'], street: 'Nieuwe Wolpherensedijk', publisher }), { roadType: 'lokaal' }, String(publisher));
+    assert.deepEqual(detectRoad({ texts: ['Vervanging onderdoorgang Zouwendijk Meerkerk'], street: 'A27', publisher }), { roadType: 'lokaal' }, String(publisher));
+    assert.deepEqual(detectRoad({ roadNr: 'A16', publisher }), { roadType: 'lokaal' }, String(publisher));
+  }
+  // the same inputs from the road authority are a motorway measure
+  assert.deepEqual(detectRoad({ vildRoad: 'A27', publisher: 'Rijkswaterstaat' }), { road: 'A27', roadType: 'A' });
+  assert.deepEqual(detectRoad({ street: 'A27', publisher: 'Rijkswaterstaat / NDW' }), { road: 'A27', roadType: 'A' });
 });
 
 test('publisherMayNameRoad: Rijkswaterstaat and provinces yes, gemeenten, waterschappen and unknown no', () => {

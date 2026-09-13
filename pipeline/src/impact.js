@@ -54,6 +54,7 @@
  * @property {boolean=} hasPeriods                        the item has recurring sub-periods (ItemDetail.periods)
  * @property {{ closed?: number }=} lanes                 merged lanes
  * @property {number=} speed                              merged temporary speed limit
+ * @property {(string | undefined)[]=} texts              comment / description, for the path check
  */
 
 /** @typedef {{ imp: Impact, veh?: Vehicle[], per?: true, spd?: number, lc?: number }} ImpactResult */
@@ -69,6 +70,14 @@ const HINDER_LANE_TYPES = new Set([
 const HINDER_NETWORK_TYPES = new Set(['temporaryTrafficLights', 'trafficBeingManuallyDirected']);
 const MEASURE_TYPES = new Set(['RoadOrCarriagewayOrLaneManagement', 'SpeedManagement', 'GeneralNetworkManagement', 'ReroutingManagement']);
 const LIVE_HINDER_CATS = new Set(['file', 'incident']);
+/**
+ * Andes (gemeenten, waterschappen) fills `forVehiclesWithCharacteristicsOf` with `car` by
+ * default, also on a cycle-path or footpath closure ("Langdurige afsluiting fietspad
+ * Merwedebrug", 10 of 337 fiets/voet items on 2026-09-13). A text that names the path is
+ * more specific than that default, so a bare `['car']` becomes the path's users.
+ */
+const CYCLE_PATH_RE = /\bfiets(?:pad|paden|ers|route|strook|straat|tunnel|brug)\b/i;
+const FOOTPATH_RE = /\bvoet(?:pad|paden|gangers?|gangersbrug|gangerstunnel)\b/i;
 
 /** Delay bands in increasing order of hindrance. */
 const DELAY_ORDER = [
@@ -127,12 +136,27 @@ export function impactOf(recs, ctx) {
 
   /** @type {ImpactResult} */
   const out = { imp };
-  const veh = vehiclesOf(winning, recs);
+  const veh = pathUsersOverride(vehiclesOf(winning, recs), ctx.texts);
   if (veh) out.veh = veh;
   if (ctx.hasPeriods) out.per = true;
   if (ctx.speed !== undefined && ctx.speed > 0) out.spd = ctx.speed;
   if (ctx.lanes?.closed !== undefined && ctx.lanes.closed > 0) out.lc = ctx.lanes.closed;
   return out;
+}
+
+/**
+ * A bare `['car']` next to a text that names a cycle path or footpath is the Andes default,
+ * not a statement about cars — see CYCLE_PATH_RE. Any other list is kept as published.
+ * @param {Vehicle[] | undefined} veh
+ * @param {(string | undefined)[] | undefined} texts
+ * @returns {Vehicle[] | undefined}
+ */
+function pathUsersOverride(veh, texts) {
+  if (!veh || veh.length !== 1 || veh[0] !== 'car' || !texts) return veh;
+  const text = texts.filter(Boolean).join(' ');
+  if (CYCLE_PATH_RE.test(text)) return ['bicycle'];
+  if (FOOTPATH_RE.test(text)) return ['other'];
+  return veh;
 }
 
 /** @param {ImpactRecord} r */

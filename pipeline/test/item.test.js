@@ -53,11 +53,11 @@ test('the same record published by Rijkswaterstaat keeps the A4 from its text: r
   assert.match(item.props.title, /^A4/);
 });
 
-test('a gemeente item that was not geocoded keeps the road from its text — nothing contradicts it', async () => {
+test('a gemeente item that was not geocoded still never lands on a motorway — a gemeente does not manage the A4', async () => {
   const item = await localStreetMentioningMotorway("Gemeente 's-Gravenhage");
 
   finalizeItem(item, undefined, NOW_MS);
 
-  assert.equal(item.props.road, 'A4');
-  assert.equal(item.props.roadType, 'A');
+  assert.equal(item.props.road, undefined);
+  assert.equal(item.props.roadType, 'lokaal');
 });
