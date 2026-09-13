@@ -2,9 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CACHE_CONTROL,
+  ENTITY_PREFIXES,
   cacheControlFor,
   contentTypeFor,
   formatBytes,
+  parsePrefixes,
   planUploads,
   validateManifest,
 } from '../lib/plan.mjs';
@@ -78,6 +80,49 @@ test('planUploads reports nothing to do when manifests are identical', () => {
   assert.deepEqual(plan.changed, []);
   assert.deepEqual(plan.removed, []);
   assert.equal(plan.manifestChanged, false);
+});
+
+test('planUploads defers changed files under a skip prefix and keeps the previous hash for them in the manifest', () => {
+  // Arrange: everything changed; R2 has a2 and utrecht, not n57.
+  const prev = { 'meta.json': SHA('1'), 'roads/a2.json': SHA('2'), 'gemeenten/utrecht.json': SHA('3'), 'detail/00.json': SHA('4') };
+  const next = { 'meta.json': SHA('a'), 'roads/a2.json': SHA('b'), 'roads/n57.json': SHA('c'), 'gemeenten/utrecht.json': SHA('3'), 'detail/00.json': SHA('d') };
+
+  // Act
+  const plan = planUploads(next, prev, ENTITY_PREFIXES);
+
+  // Assert
+  assert.deepEqual(plan.changed, ['meta.json', 'roads/n57.json', 'detail/00.json'], 'a new entity file is not deferred');
+  assert.deepEqual(plan.deferred, ['roads/a2.json']);
+  assert.deepEqual(plan.unchanged, ['gemeenten/utrecht.json']);
+  assert.deepEqual(plan.manifest, {
+    'meta.json': SHA('a'),
+    'roads/a2.json': SHA('2'), // what R2 still holds
+    'roads/n57.json': SHA('c'),
+    'gemeenten/utrecht.json': SHA('3'),
+    'detail/00.json': SHA('d'),
+  });
+  assert.equal(plan.manifestChanged, true);
+  assert.deepEqual(ENTITY_PREFIXES, ['roads/', 'gemeenten/']);
+});
+
+test('planUploads without prefixes publishes the local manifest unchanged, and manifestChanged ignores a manifest.json entry', () => {
+  const prev = { 'meta.json': SHA('1'), 'roads/a2.json': SHA('2'), 'manifest.json': SHA('9') };
+  const next = { 'meta.json': SHA('1'), 'roads/a2.json': SHA('2') };
+  const plan = planUploads(next, prev);
+  assert.deepEqual(plan.deferred, []);
+  assert.deepEqual(plan.manifest, next);
+  assert.equal(plan.manifestChanged, false);
+  // only deferred files → nothing to upload but the manifest still differs from R2? No: it is identical to R2.
+  const allDeferred = planUploads({ 'meta.json': SHA('1'), 'roads/a2.json': SHA('x') }, prev, ['roads/']);
+  assert.deepEqual(allDeferred.changed, []);
+  assert.deepEqual(allDeferred.deferred, ['roads/a2.json']);
+  assert.equal(allDeferred.manifestChanged, false, 'R2 already holds exactly this manifest');
+});
+
+test('parsePrefixes splits on commas and drops blanks', () => {
+  assert.deepEqual(parsePrefixes('roads/, gemeenten/,,'), ['roads/', 'gemeenten/']);
+  assert.deepEqual(parsePrefixes(undefined), []);
+  assert.deepEqual(parsePrefixes(''), []);
 });
 
 test('formatBytes picks a sensible unit', () => {

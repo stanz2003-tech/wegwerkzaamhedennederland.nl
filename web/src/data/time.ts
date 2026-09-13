@@ -9,15 +9,19 @@
 
 export const TIME_ZONE = 'Europe/Amsterdam';
 
-export type TimeWindowId = 'nu' | 'vandaag' | 'weekend' | '7d' | '30d';
+export type TimeWindowId = 'nu' | 'vandaag' | 'morgen' | 'weekend' | '7d' | '30d';
 
 export const TIME_WINDOWS: readonly { id: TimeWindowId; label: string; title: string }[] = [
   { id: 'nu', label: 'Nu', title: 'Alleen wat op dit moment actief is' },
   { id: 'vandaag', label: 'Vandaag', title: 'Actief of startend voor het einde van vandaag' },
+  { id: 'morgen', label: 'Morgen', title: 'Alles wat morgen geldt of start' },
   { id: 'weekend', label: 'Dit weekend', title: 'Van vrijdag 20:00 tot maandag 06:00' },
   { id: '7d', label: '7 dagen', title: 'De komende zeven dagen' },
   { id: '30d', label: '30 dagen', title: 'De komende dertig dagen' },
 ];
+
+/** The windows offered in the "Wanneer?" row of the map panel (the rest serve the list pages). */
+export const WHEN_WINDOWS: readonly TimeWindowId[] = ['nu', 'vandaag', 'morgen', 'weekend'];
 
 export const DEFAULT_TIME_WINDOW: TimeWindowId = 'nu';
 
@@ -157,6 +161,8 @@ export function timeWindowBounds(id: TimeWindowId, now: number): { from: number;
       return { from: now, to: now };
     case 'vandaag':
       return { from: startOfDay(now), to: startOfDay(now, 1) - 1 };
+    case 'morgen':
+      return { from: startOfDay(now, 1), to: startOfDay(now, 2) - 1 };
     case '7d':
       return { from: now, to: now + 7 * MS_DAY };
     case '30d':

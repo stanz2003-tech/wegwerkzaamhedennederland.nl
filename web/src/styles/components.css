@@ -172,6 +172,62 @@
   color: var(--text);
 }
 
+/* ------------------------------------------------------------------ vehicle mode */
+/* Auto · Vracht · Fiets — the first choice in the panel and on the entity pages. The active
+   segment is filled verkeersgeel like a road-sign chip; every segment is a ≥ 44 px target. */
+.mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  max-width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+}
+
+.mode__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--touch);
+  min-width: var(--touch);
+  padding: 0 var(--s-3);
+  border: 0;
+  border-radius: var(--r-1);
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background var(--dur-1), color var(--dur-1);
+}
+
+.mode__btn svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.mode__btn:hover:not(.is-on) {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.mode__btn.is-on {
+  background: var(--accent);
+  color: var(--geel-ink);
+  font-weight: 800;
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.15);
+}
+
+.mode__btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 /* ------------------------------------------------------------------ tags */
 .tag {
   display: inline-flex;
@@ -854,3 +910,400 @@
 /* ------------------------------------------------------------------ ad slots */
 .ad-slot { height: 0; overflow: hidden; margin: 0; }
 .ad-slot.is-enabled { margin: var(--s-6) 0; background: var(--surface-2); border-radius: var(--r-2); }
+
+/* ------------------------------------------------------------------ v3: verdict-first rows */
+.item {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: var(--s-4);
+}
+
+.item__where {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.item__badge {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--r-1);
+  cursor: pointer;
+}
+
+.item__badge:hover .badge { box-shadow: 0 0 0 2px var(--accent); }
+.item__badge:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.item__when {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.item__when--active { color: var(--ok-text); font-weight: 500; }
+.item__when--past { color: var(--text-3); }
+
+.item__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.3;
+}
+
+.item__meta > svg { width: 14px; height: 14px; color: var(--tag-color); flex: none; }
+.item__meta .tag--long { margin-left: 2px; }
+.detail__badge { display: inline-flex; padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--r-2); }
+.detail__badge:hover .badge { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ------------------------------------------------------------------ verdict pills & banner */
+/* The verdict is the first thing on every row, in the legend and on the day strip. Text sits
+   on a 12 % tint of the verdict hue and uses the *-text token (≥ 4.5:1 on both themes). */
+.vpill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 2px 10px 2px 8px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--vpill-color) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--vpill-color) 45%, transparent);
+  color: var(--vpill-text, var(--text));
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.vpill__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--vpill-color);
+  flex: none;
+}
+
+.vpill--sm { min-height: 22px; font-size: var(--text-xs); padding: 1px 8px 1px 7px; }
+.vpill--lg { min-height: 30px; font-size: var(--text-base); padding: 3px 12px 3px 10px; }
+
+.vpill--dicht { --vpill-text: var(--v-dicht-text); }
+.vpill--rijbaan { --vpill-text: var(--v-rijbaan-text); }
+.vpill--hinder { --vpill-text: var(--v-hinder-text); }
+.vpill--geen { --vpill-text: var(--v-geen-text); }
+.vpill--nvt { --vpill-text: var(--v-nvt-text); }
+.vpill--onbekend { --vpill-text: var(--v-onbekend-text); }
+
+/* Closed = the road-sign look: filled, white text. */
+.vpill--dicht,
+.vpill--rijbaan {
+  background: var(--vpill-color);
+  border-color: var(--vpill-color);
+  --vpill-text: #ffffff;
+}
+
+.vpill--nvt { border-style: dashed; }
+
+/* List row: pill + specifics on the first line. */
+.item__verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-bottom: 2px;
+}
+
+.item__verdict-detail {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.item[data-verdict='nvt'] .item__verdict-detail,
+.item[data-verdict='nvt'] .item__title { color: var(--text-2); }
+.item[data-verdict='nvt'] { opacity: 0.8; }
+
+/* Detail banner: full width, verdict colour on the left, label big. */
+.vbanner {
+  position: relative;
+  display: grid;
+  gap: 2px;
+  padding: var(--s-3) var(--s-4) var(--s-3) calc(var(--s-4) + 6px);
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--vpill-color) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--vpill-color) 40%, var(--border));
+  overflow: hidden;
+}
+
+.vbanner::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--vpill-color);
+}
+
+.vbanner__label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xl);
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.005em;
+  color: var(--vbanner-text, var(--text));
+}
+
+.vbanner__detail {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+  overflow-wrap: break-word;
+}
+
+.vbanner--dicht { --vbanner-text: var(--v-dicht-text); }
+.vbanner--rijbaan { --vbanner-text: var(--v-rijbaan-text); }
+.vbanner--hinder { --vbanner-text: var(--v-hinder-text); }
+.vbanner--geen { --vbanner-text: var(--v-geen-text); }
+.vbanner--nvt,
+.vbanner--onbekend { --vbanner-text: var(--text-2); }
+
+/* ------------------------------------------------------------------ detour (detail) */
+.detail__detour {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: var(--s-3);
+  border-radius: var(--r-2);
+  border: 1px dashed color-mix(in srgb, var(--omleiding) 60%, var(--border));
+  background: color-mix(in srgb, var(--omleiding) 8%, var(--surface));
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+.detail__detour > svg { width: 18px; height: 18px; flex: none; margin-top: 2px; color: var(--omleiding); }
+.detail__detour strong { display: block; color: var(--text); margin-bottom: 2px; }
+.detail__detour p { white-space: pre-line; overflow-wrap: break-word; }
+
+.detail__gmaps-note {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  line-height: 1.4;
+}
+
+/* The dashed blue swatch that stands for the detour line (detail text, legend, uitleg). */
+.swatch--detour {
+  display: inline-block;
+  width: 26px;
+  height: 0;
+  vertical-align: middle;
+  border-top: 3px dashed var(--omleiding);
+  margin: 0 2px;
+}
+
+/* ------------------------------------------------------------------ legend popover */
+.legend { position: relative; }
+
+.legend__btn { min-height: 32px; padding: 0 var(--s-2); font-size: var(--text-sm); }
+.legend__btn svg { width: 16px; height: 16px; }
+
+.legend__pop {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 5;
+  width: min(340px, calc(100vw - 2 * var(--s-4)));
+  display: grid;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4) var(--s-4);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.22);
+}
+
+.legend__head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); }
+.legend__title { font-family: var(--font-display); font-weight: 800; font-size: var(--text-base); }
+
+.legend__close {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-1);
+  color: var(--text-2);
+}
+
+.legend__close:hover { background: var(--surface-2); color: var(--text); }
+.legend__close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.legend__close svg { width: 16px; height: 16px; }
+
+.legend__h {
+  margin-top: var(--s-1);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-3);
+}
+
+.legend__list,
+.legend__cats { list-style: none; display: grid; gap: 6px; }
+
+.legend__list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  line-height: 1.35;
+}
+
+.legend__list .vpill { margin-top: 1px; }
+
+.legend__cats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+
+.legend__cats li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.legend__cats svg { width: 14px; height: 14px; color: var(--legend-color); flex: none; }
+
+.legend__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--legend-color);
+  flex: none;
+}
+
+.legend__line {
+  display: inline-block;
+  width: 26px;
+  height: 0;
+  margin-top: 7px;
+  border-top: 3px dashed var(--v-dicht);
+}
+
+/* ------------------------------------------------------------------ answer card */
+/* "Kan ik over de A27?" — road mode in the panel and the headline of every road / gemeente page
+   (ui/answer-card.ts), so it lives here and not in panel.css. */
+.answer {
+  position: relative;
+  display: grid;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-4) var(--s-4) calc(var(--s-4) + 6px);
+  border-radius: var(--r-2);
+  background: color-mix(in srgb, var(--vpill-color) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--vpill-color) 40%, var(--border));
+  overflow: hidden;
+}
+
+.answer::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--vpill-color);
+}
+
+.answer__top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--s-3);
+  align-items: center;
+}
+
+.answer__kicker {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.answer__mode {
+  display: block;
+  font-family: var(--font-mono);
+  font-weight: 400;
+  font-size: var(--text-xs);
+  color: var(--text-3);
+  margin-top: 2px;
+}
+
+/* Its own full-width row under badge · question · exit: the one line a driver reads first. */
+.answer__headline {
+  margin: -4px 0 0;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.25rem, 1.05rem + 0.6vw, 1.5rem);
+  line-height: 1.12;
+  letter-spacing: 0.005em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  overflow-wrap: break-word;
+  hyphens: manual;
+  color: var(--answer-text, var(--text));
+}
+
+.answer__headline:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: var(--r-1); }
+
+.answer--dicht { --answer-text: var(--v-dicht-text); }
+.answer--rijbaan { --answer-text: var(--v-rijbaan-text); }
+.answer--hinder { --answer-text: var(--v-hinder-text); }
+.answer--geen { --answer-text: var(--v-geen-text); }
+.answer--onbekend { --answer-text: var(--text-2); }
+
+.answer__exit {
+  min-height: 40px;
+  padding: 0 var(--s-3);
+  flex: none;
+}
+
+.answer__specifics {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text);
+}
+
+.answer__specifics li {
+  position: relative;
+  padding-left: 16px;
+  overflow-wrap: break-word;
+}
+
+.answer__specifics li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.55em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vpill-color);
+}
+
+.answer__hidden {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
+@media (max-width: 768px) {
+  .answer__top { grid-template-columns: auto minmax(0, 1fr); }
+  .answer__exit { grid-column: 1 / -1; justify-self: start; }
+}

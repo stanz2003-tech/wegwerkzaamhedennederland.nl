@@ -1,9 +1,14 @@
 /**
- * Road number detection. Order (docs/onderzoek.md §2.3):
+ * Road number detection. Order (docs/onderzoek.md §2.3, revised 2026-09-13):
  *   1. `sit:roadOrJunctionNumber` (rerouting records; "N33", "N7 Weg der Verenigde Naties")
  *   2. VILD ROADNUMBER of the AlertC location
- *   3. regex `\b([AN]\d{1,3})\b` on title / description / cause / source
- *   4. reverse-geocoded street name that looks like an A/N/s number
+ *   3. publishers that manage numbered roads (Rijkswaterstaat, provinces): regex
+ *      `\b([AN]\d{1,3})\b` on title / description / cause / source, then the geocoded street
+ *   4. everyone else (gemeenten, waterschappen, unknown): the reverse-geocoded street name
+ *      when it looks like an A/N/s number; the text only when the item was not geocoded at
+ *      all. A gemeente cannot publish a motorway measure, so "A4" in its text is a landmark
+ *      or a detour — before this rule 51 of the 1,021 A-road `rijbaan` items were local
+ *      streets that merely mentioned a motorway (e.g. NDW03_232949, Gemeente 's-Gravenhage).
  * roadType: A = rijksweg, N = provinciale weg, S = stadsroute (Amsterdam s100…),
  * E = Europese weg, lokaal = everything else.
  */
@@ -97,15 +102,34 @@ export function roadFromStreet(street) {
 }
 
 /**
+ * Publishers whose free text may name the road a measure is on: Rijkswaterstaat (including
+ * the RWS/NDW system names) and the provinces — the road authorities of the A- and N-roads.
+ * @param {string | undefined} src   display name from `friendlySource()`
+ */
+export function publisherMayNameRoad(src) {
+  return /^(Rijkswaterstaat|Provincie\s)/.test(src ?? '');
+}
+
+/**
  * @param {object} input
  * @param {string=} input.roadNr      sit:roadOrJunctionNumber
  * @param {string=} input.vildRoad    VILD ROADNUMBER
  * @param {(string | undefined)[]=} input.texts
- * @param {string=} input.street      geocoded straatnaam
+ * @param {string=} input.street      geocoded straatnaam (undefined = not geocoded)
+ * @param {string=} input.publisher   display name of the publisher (`friendlySource().src`)
  * @returns {{ road?: string, roadType: RoadType }}
  */
-export function detectRoad({ roadNr, vildRoad, texts = [], street }) {
-  const road =
-    roadFromRoadNumberField(roadNr) ?? normalizeVildRoad(vildRoad) ?? roadFromTexts(texts) ?? roadFromStreet(street);
+export function detectRoad({ roadNr, vildRoad, texts = [], street, publisher }) {
+  const positional = roadFromRoadNumberField(roadNr) ?? normalizeVildRoad(vildRoad);
+  if (positional) return typed(positional);
+  if (publisherMayNameRoad(publisher)) return typed(roadFromTexts(texts) ?? roadFromStreet(street));
+  const fromStreet = roadFromStreet(street);
+  if (fromStreet) return typed(fromStreet);
+  // A geocoded street that is not a road number contradicts any road mentioned in the text.
+  return typed(street ? undefined : roadFromTexts(texts));
+}
+
+/** @param {string | undefined} road */
+function typed(road) {
   return road ? { road, roadType: roadTypeOf(road) } : { roadType: 'lokaal' };
 }

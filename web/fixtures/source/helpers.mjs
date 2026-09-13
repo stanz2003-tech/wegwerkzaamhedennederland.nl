@@ -116,3 +116,49 @@ export function midpointOf(geometry) {
   return coords[Math.floor(coords.length / 2)];
 }
 
+
+/* ------------------------------ contract v3 helpers ------------------------------ */
+
+/** Same rule as web/src/data/types.ts slugify(): lowercase, diacritics stripped, [^a-z0-9] → "-". */
+export function slugify(input) {
+  return input
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** "A12 hrb" → "A12"; null when not a road number (mirrors data/entity.ts roadKey). */
+export function roadKey(road) {
+  const m = /^([ANSE])\s*0*(\d{1,3})/i.exec((road ?? '').trim());
+  return m ? `${m[1].toUpperCase()}${Number(m[2])}` : null;
+}
+
+const VEHICLES = new Set(['car', 'lorry', 'bicycle', 'moped', 'bus', 'agricultural', 'other']);
+const HINDER_SUBS = new Set(['laneClosures', 'narrowLanes', 'speedRestrictionInOperation', 'contraflow']);
+
+/**
+ * Impact verdict of a fixture spec (mirrors the pipeline rules documented on `Impact` in
+ * web/src/data/types.ts). An explicit `spec.imp` wins.
+ */
+export function impactOf(spec) {
+  if (spec.imp) return spec.imp;
+  if (spec.cat === 'brug') return 'dicht';
+  if (spec.cat === 'file' || spec.cat === 'incident') return 'hinder';
+  if (spec.sub === 'roadClosed') return 'dicht';
+  if (spec.sub === 'carriagewayClosures') return spec.roadType === 'A' || spec.roadType === 'N' ? 'rijbaan' : 'dicht';
+  if (spec.closed) return 'dicht';
+  const d = spec.d ?? {};
+  if ((d.lanes && d.lanes.closed > 0) || d.speed || HINDER_SUBS.has(spec.sub)) return 'hinder';
+  if (d.delay && d.delay !== 'negligible') return 'hinder';
+  if (spec.cat === 'evenement' || spec.cat === 'overig') return 'geen';
+  return 'onbekend';
+}
+
+/** Vehicle groups of a spec: explicit `veh`, else the contract groups found in `d.vehicles`. */
+export function vehiclesOf(spec) {
+  const raw = spec.veh ?? spec.d?.vehicles ?? [];
+  const out = [...new Set(raw.filter((v) => VEHICLES.has(v)))];
+  return out.length > 0 ? out : undefined;
+}

@@ -9,6 +9,8 @@ export interface ToggleSwitch {
   root: HTMLElement;
   set(on: boolean): void;
   get(): boolean;
+  /** Renames the switch (the relevance switch follows the vehicle mode). */
+  setLabel(label: string): void;
 }
 
 export function mountSwitch(root: HTMLElement, label: string, initial: boolean, onChange: (on: boolean) => void): ToggleSwitch {
@@ -35,6 +37,10 @@ export function mountSwitch(root: HTMLElement, label: string, initial: boolean, 
       render();
     },
     get: () => on,
+    setLabel(label) {
+      const el = btn.querySelector<HTMLElement>('.switch__label');
+      if (el) el.textContent = label;
+    },
   };
 }
 

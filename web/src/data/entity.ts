@@ -44,7 +44,12 @@ function propsFromIndexItem(it: IndexItem): ItemProperties {
     title: it.title,
     start: it.start,
     src: 'NDW',
+    imp: it.imp,
   };
+  if (it.veh && it.veh.length > 0) p.veh = [...it.veh];
+  if (it.per) p.per = true;
+  if (it.spd !== null) p.spd = it.spd;
+  if (it.lc !== null) p.lc = it.lc;
   if (it.sub !== null) p.sub = it.sub;
   if (it.road !== null) p.road = it.road;
   if (it.roadType !== null) p.roadType = it.roadType;

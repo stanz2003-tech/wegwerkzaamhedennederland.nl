@@ -34,7 +34,12 @@ describe('index files', () => {
   it('every row has the positional shape of IndexRow', () => {
     for (const row of data.indexAll.rows) {
       assert.equal(isIndexRow(row), true, `${row[0]} row shape`);
-      assert.equal(row.length, 17, `${row[0]} row length`);
+      assert.equal(row.length, 22, `${row[0]} row length (contract v3)`);
+      assert.ok(['dicht', 'rijbaan', 'hinder', 'geen', 'onbekend'].includes(row[17]), `${row[0]} imp`);
+      assert.ok(row[18] === null || (Array.isArray(row[18]) && row[18].every((v) => ['car', 'lorry', 'bicycle', 'moped', 'bus', 'agricultural', 'other'].includes(v))), `${row[0]} veh`);
+      assert.ok(row[19] === 0 || row[19] === 1, `${row[0]} per flag`);
+      assert.ok(row[20] === null || (Number.isInteger(row[20]) && row[20] > 0), `${row[0]} spd`);
+      assert.ok(row[21] === null || (Number.isInteger(row[21]) && row[21] > 0), `${row[0]} lc`);
       assert.ok(CATEGORY_SET.has(row[1]));
       assert.ok(row[2] === null || typeof row[2] === 'string');
       assert.ok(Number.isInteger(row[3]));
@@ -53,8 +58,8 @@ describe('index files', () => {
       const f = features.get(row[0]);
       const p = f.properties;
       assert.deepEqual(
-        [row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[14], row[15]],
-        [p.cat, p.sub ?? null, p.sev, p.title, p.road ?? null, p.roadType ?? null, p.gemeente ?? null, p.woonplaats ?? null, p.prov ?? null, p.start, p.end ?? null, p.closed ? 1 : 0, p.hind ?? null],
+        [row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10], row[11], row[14], row[15], row[17], row[18], row[19], row[20], row[21]],
+        [p.cat, p.sub ?? null, p.sev, p.title, p.road ?? null, p.roadType ?? null, p.gemeente ?? null, p.woonplaats ?? null, p.prov ?? null, p.start, p.end ?? null, p.closed ? 1 : 0, p.hind ?? null, p.imp, p.veh ?? null, p.per ? 1 : 0, p.spd ?? null, p.lc ?? null],
         `row of ${row[0]}`,
       );
       const mid = midpointOf(f.geometry);
@@ -193,6 +198,82 @@ describe('detail shards', () => {
   });
 });
 
+describe('EntityFiles (roads/<slug>.json, gemeenten/<slug>.json)', () => {
+  const { isEntityFile } = dataLoad;
+  const entityFiles = data.files.filter((f) => f.startsWith('roads/') || f.startsWith('gemeenten/'));
+  const ids = new Set(allFeatures.map((f) => f.properties.id));
+  const activeIds = new Set(activeFeatures.map((f) => f.properties.id));
+  const details = loadDetails(data.detailFiles);
+  const roadKeyOf = (road) => {
+    const m = /^([ANSE])\s*0*(\d{1,3})/i.exec(road ?? '');
+    return m ? `${m[1].toUpperCase()}${Number(m[2])}` : null;
+  };
+
+  it('exist for the A2 and the gemeente Utrecht and pass the validator', () => {
+    assert.ok(entityFiles.includes('roads/a2.json'));
+    assert.ok(entityFiles.includes('gemeenten/utrecht.json'));
+    for (const file of entityFiles) {
+      const ef = readJson(file);
+      assert.equal(isEntityFile(ef), true, `${file} validator`);
+      assert.equal(ef.generated, data.meta.generated, `${file} generated`);
+      assert.equal(ef.kind, file.startsWith('roads/') ? 'road' : 'gemeente', `${file} kind`);
+      assert.equal(file, `${ef.kind === 'road' ? 'roads' : 'gemeenten'}/${ef.slug}.json`, `${file} slug matches the path`);
+      assert.ok(ef.items.length > 0, `${file} has items`);
+    }
+  });
+
+  it('every item references an existing id and carries geometry plus the same detail as the shard', () => {
+    for (const file of entityFiles) {
+      for (const { f, d } of readJson(file).items) {
+        assert.ok(ids.has(f.properties.id), `${file}: unknown item ${f.properties.id}`);
+        assert.ok(['Point', 'LineString', 'MultiLineString'].includes(f.geometry.type), `${file}: ${f.id} geometry`);
+        assert.equal(d.id, f.properties.id, `${file}: detail id`);
+        assert.deepEqual(d, details.get(f.properties.id).detail, `${file}: detail equals the shard entry of ${f.properties.id}`);
+      }
+    }
+  });
+
+  it('lists active items first, then by start, and belongs entirely to its entity', () => {
+    for (const file of entityFiles) {
+      const ef = readJson(file);
+      let seenPlanned = false;
+      let previousStart = '';
+      for (const { f } of ef.items) {
+        const active = activeIds.has(f.properties.id);
+        if (!active) seenPlanned = true;
+        else assert.equal(seenPlanned, false, `${file}: active item ${f.id} after a planned one`);
+        if (!active) {
+          assert.ok(f.properties.start >= previousStart, `${file}: planned items sorted by start`);
+          previousStart = f.properties.start;
+        }
+        if (ef.kind === 'road') assert.equal(roadKeyOf(f.properties.road), ef.key, `${file}: ${f.id} is on ${ef.key}`);
+        else assert.equal(f.properties.gemeente, ef.key, `${file}: ${f.id} lies in ${ef.key}`);
+      }
+    }
+  });
+
+  it('covers every road and gemeente that has items', () => {
+    const roads = new Set(allFeatures.map((f) => roadKeyOf(f.properties.road)).filter(Boolean).map((r) => r.toLowerCase()));
+    for (const r of roads) assert.ok(entityFiles.includes(`roads/${r}.json`), `roads/${r}.json`);
+    const gemeenten = new Set(allFeatures.map((f) => f.properties.gemeente).filter(Boolean).map(slugify));
+    for (const g of gemeenten) assert.ok(entityFiles.includes(`gemeenten/${g}.json`), `gemeenten/${g}.json`);
+  });
+
+  it('the A2 file holds the rijbaan closure with its detour geometry; the nightly A12 work keeps its periods', () => {
+    const a2 = readJson('roads/a2.json');
+    const rijbaan = a2.items.find((it) => it.f.properties.id === 'NDW03_2100002');
+    assert.ok(rijbaan, 'A2 rijbaan closure present');
+    assert.ok(Array.isArray(rijbaan.d.detourGeom) && rijbaan.d.detourGeom.length >= 2 && rijbaan.d.detourGeom.length <= 12);
+    for (const [lon, lat] of rijbaan.d.detourGeom) {
+      assert.ok(lon >= NL_BBOX[0] && lon <= NL_BBOX[2] && lat >= NL_BBOX[1] && lat <= NL_BBOX[3], 'detour inside NL');
+    }
+    const a12 = readJson('roads/a12.json');
+    const nightly = a12.items.find((it) => it.f.properties.id === 'NDW03_2200001');
+    assert.equal(nightly.f.properties.per, true);
+    assert.equal(nightly.d.periods.length, 10);
+  });
+});
+
 describe('bruggen.json', () => {
   it('passes the validator and has five bridges', () => {
     assert.equal(isBridgeFile(data.bruggen), true);
@@ -268,7 +349,7 @@ describe('the generator and the committed fixtures', () => {
     const winter = Date.parse('2026-12-24T08:30:00Z');
     const built = new Map(buildFixtures(winter));
     const actueel = built.get('werk-actueel.geojson');
-    assert.equal(actueel.features.length, 40);
+    assert.equal(actueel.features.length, 41);
     for (const f of actueel.features) assert.equal(isActiveAt(f.properties, winter), true, `${f.id} active in December`);
     const nightly = Object.values(built.get(`detail/${String(shardFromHashPrefix(sha1('NDW03_2200001'))).padStart(2, '0')}.json`)).find((d) => d.id === 'NDW03_2200001');
     const summary = periodsMod.summarizePeriods(nightly.periods, winter);

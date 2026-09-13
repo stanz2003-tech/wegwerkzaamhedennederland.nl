@@ -188,7 +188,7 @@ describe('window ids and data age', () => {
     for (const w of TIME_WINDOWS) assert.equal(isTimeWindowId(w.id), true);
     assert.equal(isTimeWindowId('nooit'), false);
     assert.equal(isTimeWindowId(''), false);
-    assert.equal(TIME_WINDOWS.length, 5);
+    assert.equal(TIME_WINDOWS.length, 6);
     assert.equal(DEFAULT_TIME_WINDOW, 'nu');
   });
 

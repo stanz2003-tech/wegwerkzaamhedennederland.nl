@@ -125,10 +125,13 @@ via `https://data.<domein>/v1/…`.
 4.1 **R2 activeren.** Dashboard → **Storage & databases** → **R2** → *Overview* → doorloop het
 scherm om R2 aan je account toe te voegen (gratis plan). Cloudflare kan hierbij om een
 betaalmethode vragen **(controleer)**; binnen de gratis limieten (10 GB opslag, 1 miljoen
-schrijf- en 10 miljoen leesoperaties per maand) wordt niets afgeschreven. Ons gemeten gebruik:
-minder dan 100 MB opslag en ≈ 440.000 schrijfoperaties per maand (52 bestanden per run waarvan
-er gemeten 50 elke run wijzigen, × ≈ 8.640 runs). Dat is 44 % van de gratis grens; zet in je
-agenda om dit één keer per kwartaal te bekijken (*R2 > Overview*).
+schrijf- en 10 miljoen leesoperaties per maand) wordt niets afgeschreven. Ons gemeten gebruik
+(13 september 2026): minder dan 100 MB opslag en ≈ 820.000 schrijfoperaties per maand — per run
+(≈ 8.640 per maand) veranderen ≈ 50 kernbestanden, en de 692 weg- en gemeentebestanden worden
+alleen geüpload op de ≈ 2.880 runs per maand waarin de NDW-planningsfeed is veranderd (dan
+≈ 135 stuks). Dat is 82 % van de gratis grens; zet in je agenda om dit één keer per kwartaal te
+bekijken (*R2 > Overview*). Zit het boven ± 950.000, dan kan een ontwikkelaar de weg- en
+gemeentebestanden minder vaak laten uploaden (`infra/README.md`, "R2 Class A operations").
 
 4.2 **Bucket maken.** *R2 > Overview* → **Create bucket** → naam `wegwerk-data` (kleine letters,
 cijfers en streepjes; 3–63 tekens) → *Location*: **Automatic** (kies níet *Specify jurisdiction*;

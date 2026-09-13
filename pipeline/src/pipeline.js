@@ -22,6 +22,14 @@ import { loadVild } from './vild.js';
 
 export const DEFAULT_CACHE_DIR = fileURLToPath(new URL('../cache', import.meta.url));
 const DEFAULT_PLAATSEN_PATH = fileURLToPath(new URL('../static/plaatsen.json', import.meta.url));
+const DEFAULT_WEGEN_PATH = fileURLToPath(new URL('../static/wegen.json', import.meta.url));
+/**
+ * Bumped whenever `src/parse.js` starts reading something new: a cached parse
+ * (`cache/last/<source>.ndjson`) written by an older parser lacks the new
+ * fields, so it is not replayed on HTTP 304 — the feed is downloaded instead.
+ * 2 = alternativeRoute captured as `detourLine` (contract v3).
+ */
+export const PARSER_VERSION = 2;
 const CATEGORIES = ['werk', 'afsluiting', 'file', 'incident', 'brug', 'evenement', 'overig'];
 const LIVE_CATS = new Set(['file', 'incident', 'brug']);
 
@@ -40,6 +48,7 @@ const LIVE_CATS = new Set(['file', 'incident', 'brug']);
  * @property {string=} vildPath
  * @property {string=} registryPath
  * @property {string=} plaatsenPath
+ * @property {string=} wegenPath
  * @property {ReturnType<typeof createLogger>=} log
  */
 
@@ -59,7 +68,9 @@ export async function runPipeline(options) {
   const fetchImpl = options.fetchImpl ?? fetch;
 
   const vild = loadVild(options.vildPath);
-  const provOfGemeente = loadGemeenteProvinces(options.plaatsenPath ?? DEFAULT_PLAATSEN_PATH, log);
+  const plaatsen = loadPlaatsen(options.plaatsenPath ?? DEFAULT_PLAATSEN_PATH, log);
+  const provOfGemeente = plaatsen.provOfGemeente;
+  const roads = loadRoads(options.wegenPath ?? DEFAULT_WEGEN_PATH, log);
   const geocoder = createGeocoder({
     cachePath: join(cacheDir, 'geocode.json'),
     maxNew: options.geocodeMax ?? DEFAULT_GEOCODE_MAX,
@@ -169,7 +180,7 @@ export async function runPipeline(options) {
   const generated = new Date(nowMs).toISOString().replace(/\.\d{3}Z$/, 'Z');
 
   try {
-    writeOutputs({ outDir, generated, actueel, gepland, live, bridges: bridgeEntries, meta });
+    writeOutputs({ outDir, generated, actueel, gepland, live, bridges: bridgeEntries, roads, gemeenten: plaatsen.gemeenten, meta });
   } catch (err) {
     sampler.stop();
     return { exitCode: 1, summary: `error writing outputs: ${err instanceof Error ? err.message : String(err)}` };
@@ -285,7 +296,8 @@ async function ingestSource(def, ctx) {
       return { meta };
     }
   } else {
-    const canReuse = def.conditional && !ctx.force && prior?.etag !== undefined && existsSync(lastPath);
+    const canReuse =
+      def.conditional && !ctx.force && prior?.etag !== undefined && prior?.parser === PARSER_VERSION && existsSync(lastPath);
     const res = await fetchFeed(def.url, { ifNoneMatch: canReuse ? prior?.etag : undefined, fetchImpl: ctx.fetchImpl, log });
     if (res.status === 'unchanged') {
       reuse = true;
@@ -322,7 +334,9 @@ async function ingestSource(def, ctx) {
       if (publicationTime) meta.publicationTime = publicationTime;
       if (lastModified) meta.lastModified = lastModified;
       if (etag) meta.etag = etag;
-      if (!ctx.fromFile) etags[def.name] = compact({ etag, lastModified, publicationTime, fetchedAt: new Date(ctx.nowMs).toISOString() });
+      if (!ctx.fromFile) {
+        etags[def.name] = compact({ etag, lastModified, publicationTime, fetchedAt: new Date(ctx.nowMs).toISOString(), parser: PARSER_VERSION });
+      }
       return { meta, stage };
     } catch (err) {
       await writer.abort();
@@ -394,25 +408,48 @@ function countByCat(items) {
 }
 
 /**
- * gemeente name → province from static/plaatsen.json (when present) so Melvin
- * items get a province without a geocoder round trip.
+ * static/plaatsen.json (when present): gemeente name → province, so Melvin
+ * items get a province without a geocoder round trip, plus the gemeente list
+ * the entity files are written for.
  * @param {string} path
  * @param {ReturnType<typeof createLogger>} log
+ * @returns {{ provOfGemeente?: (gemeente: string) => { prov: string, provCode: string } | undefined, gemeenten: import('./entities.js').GemeenteEntry[] }}
  */
-function loadGemeenteProvinces(path, log) {
-  if (!existsSync(path)) return undefined;
+function loadPlaatsen(path, log) {
+  if (!existsSync(path)) return { gemeenten: [] };
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8'));
     /** @type {Map<string, { prov: string, provCode: string }>} */
     const map = new Map();
+    /** @type {import('./entities.js').GemeenteEntry[]} */
+    const gemeenten = [];
     for (const g of parsed.gemeenten ?? []) {
+      if (!g.naam) continue;
       const prov = normalizeProvince(g.prov);
-      if (g.naam && prov) map.set(String(g.naam).toLowerCase(), { prov: prov.name, provCode: prov.code });
+      if (prov) map.set(String(g.naam).toLowerCase(), { prov: prov.name, provCode: prov.code });
+      if (g.slug) gemeenten.push({ naam: String(g.naam), slug: String(g.slug) });
     }
-    return (/** @type {string} */ gemeente) => map.get(gemeente.toLowerCase());
+    return { provOfGemeente: (/** @type {string} */ gemeente) => map.get(gemeente.toLowerCase()), gemeenten };
   } catch (err) {
     log.warn('plaatsen.json unreadable, provinces of gemeenten unknown', { path, error: err instanceof Error ? err.message : String(err) });
-    return undefined;
+    return { gemeenten: [] };
+  }
+}
+
+/**
+ * static/wegen.json (when present): the roads the entity files are written for.
+ * @param {string} path
+ * @param {ReturnType<typeof createLogger>} log
+ * @returns {import('./entities.js').RoadEntry[]}
+ */
+function loadRoads(path, log) {
+  if (!existsSync(path)) return [];
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8'));
+    return (parsed.roads ?? []).filter((/** @type {any} */ r) => r.road && r.slug).map((/** @type {any} */ r) => ({ road: String(r.road), slug: String(r.slug) }));
+  } catch (err) {
+    log.warn('wegen.json unreadable, no road entity files', { path, error: err instanceof Error ? err.message : String(err) });
+    return [];
   }
 }
 

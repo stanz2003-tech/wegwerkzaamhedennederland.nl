@@ -114,6 +114,12 @@ jobs:
             *) echo "::error::Pipeline failed (exit $code): nothing published." ; exit "$code" ;;
           esac
 
+      # The uploader reads pipeline/out/meta.json itself: when the planning feed was not
+      # re-downloaded (sources.planning.reused = true, NDW answered 304) the entity files
+      # roads/*.json and gemeenten/*.json are deferred to the next run in which it changed —
+      # about every 15 minutes — and everything else is uploaded every run. That keeps the R2
+      # Class A operations well inside the free 1,000,000/month (numbers: infra/README.md).
+      # `--no-entities-when-planning-changed` would upload them every run again.
       - name: Upload changed files to R2
         id: upload
         env:

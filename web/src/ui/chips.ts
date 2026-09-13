@@ -1,8 +1,7 @@
 /**
- * Chip groups: category chips (multi-toggle with counts) and time chips (single select).
+ * Category chips: multi-toggle with counts. (The "Wanneer?" row lives in ui/when-control.ts.)
  */
 import type { Category } from '../data/types';
-import { TIME_WINDOWS, type TimeWindowId } from '../data/time';
 import { ALL_CATEGORIES, CATEGORY_META } from './categories';
 import { esc, formatCount } from './format';
 
@@ -81,69 +80,6 @@ export function mountCategoryChips(
         el.hidden = n === 0;
         btn.classList.toggle('is-empty', n === 0);
       });
-    },
-  };
-}
-
-export interface TimeChips {
-  root: HTMLElement;
-  setSelected(id: TimeWindowId): void;
-}
-
-export function mountTimeChips(root: HTMLElement, initial: TimeWindowId, onChange: (id: TimeWindowId) => void): TimeChips {
-  root.classList.add('chips', 'chips--time');
-  root.setAttribute('role', 'radiogroup');
-  root.setAttribute('aria-label', 'Periode');
-  let current = initial;
-
-  root.innerHTML = TIME_WINDOWS.map(
-    (w) =>
-      `<button type="button" class="chip chip--time" role="radio" data-time="${w.id}" aria-checked="false" title="${esc(w.title)}">${esc(w.label)}</button>`,
-  ).join('');
-
-  const render = (): void => {
-    root.querySelectorAll<HTMLButtonElement>('[data-time]').forEach((btn) => {
-      const on = btn.dataset.time === current;
-      btn.setAttribute('aria-checked', on ? 'true' : 'false');
-      btn.classList.toggle('is-on', on);
-      btn.tabIndex = on ? 0 : -1;
-    });
-  };
-
-  const select = (id: TimeWindowId, focus: boolean): void => {
-    if (id === current) return;
-    current = id;
-    render();
-    if (focus) root.querySelector<HTMLButtonElement>(`[data-time="${id}"]`)?.focus();
-    onChange(id);
-  };
-
-  root.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-time]');
-    if (btn) select(btn.dataset.time as TimeWindowId, false);
-  });
-
-  // Radio-group keyboard behaviour: arrows move the selection.
-  root.addEventListener('keydown', (e) => {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
-    e.preventDefault();
-    const ids = TIME_WINDOWS.map((w) => w.id);
-    const i = ids.indexOf(current);
-    let next = i;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i - 1 + ids.length) % ids.length;
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % ids.length;
-    if (e.key === 'Home') next = 0;
-    if (e.key === 'End') next = ids.length - 1;
-    const id = ids[next];
-    if (id) select(id, true);
-  });
-
-  render();
-  return {
-    root,
-    setSelected(id) {
-      current = id;
-      render();
     },
   };
 }

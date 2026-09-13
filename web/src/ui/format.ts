@@ -157,6 +157,20 @@ export function statusLine(p: TimeSpan, now: number): StatusLine {
 }
 
 /**
+ * The "when" of a list row, without the "Nu actief" preamble the verdict pill already implies:
+ * "nog 2 u 15 min" / "tot en met vr 25 sep" / "langdurig · tot 31 mei 2031" / "start za 13 sep 22:00".
+ */
+export function whenLabel(p: TimeSpan, now: number): string {
+  return statusLine(p, now)
+    .text.replace(/^Nu actief · /, '')
+    .replace(new RegExp(`^${LONG_RUNNING_LABEL} · `), `${LONG_RUNNING_TAG} · `)
+    .replace(new RegExp(` · ${LONG_RUNNING_LABEL_LOWER}$`), ` · ${LONG_RUNNING_TAG}`)
+    .replace(/^Start /, 'start ')
+    .replace(/^Afgelopen · /, 'afgelopen · ')
+    .replace(/^Gepland$/, 'gepland');
+}
+
+/**
  * Middle label of the detail timeline. Kept in the same words as `statusLine` so the list line
  * and the timeline cannot contradict each other ("nog 2 jaar" vs "5 jaar").
  */

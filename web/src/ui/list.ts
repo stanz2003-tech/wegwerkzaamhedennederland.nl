@@ -2,6 +2,7 @@
  * The result list: batches of 40 with "Toon meer", skeleton while loading, empty state with a
  * reset action, error banner with retry. Items are buttons (keyboard: arrows move between them).
  */
+import type { VehicleMode } from '../data/verdict';
 import { esc, plural } from './format';
 import { ICONS } from './icons';
 import { renderListItem, type ListItemModel } from './list-item';
@@ -14,11 +15,19 @@ export interface ListCallbacks {
   onHover(id: string | null): void;
   onReset(): void;
   onRetry(): void;
+  /** A road badge inside a row was clicked: enter road mode for that road. */
+  onRoad?(road: string): void;
+}
+
+export interface ListRenderOptions {
+  mode?: VehicleMode;
+  /** The moment the verdicts are computed for (defaults to `now`). */
+  at?: number;
 }
 
 export interface ListView {
   root: HTMLElement;
-  setItems(items: readonly ListItemModel[], now: number, selectedId: string | null): void;
+  setItems(items: readonly ListItemModel[], now: number, selectedId: string | null, opts?: ListRenderOptions): void;
   setLoading(): void;
   setError(message: string): void;
   setSelected(id: string | null): void;
@@ -37,10 +46,20 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
   let shown = 0;
   let now = Date.now();
   let selectedId: string | null = null;
+  let renderOpts: ListRenderOptions = {};
 
   const renderMore = (): void => {
     const next = items.slice(shown, shown + LIST_BATCH);
-    const html = next.map((m, i) => renderListItem(m, now, { selected: m.id === selectedId, index: shown === 0 ? i : 99 })).join('');
+    const html = next
+      .map((m, i) =>
+        renderListItem(m, now, {
+          selected: m.id === selectedId,
+          index: shown === 0 ? i : 99,
+          mode: renderOpts.mode ?? 'auto',
+          ...(renderOpts.at !== undefined ? { at: renderOpts.at } : {}),
+        }),
+      )
+      .join('');
     const more = root.querySelector<HTMLElement>('.list__more');
     const container = root.querySelector<HTMLElement>('.list__items');
     if (!container) return;
@@ -88,6 +107,13 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
       root.querySelector<HTMLElement>(`.item:nth-child(${before + 1})`)?.focus();
       return;
     }
+    const badge = target.closest<HTMLElement>('.item__badge[data-road]');
+    if (badge?.dataset.road && cb.onRoad) {
+      e.preventDefault();
+      e.stopPropagation();
+      cb.onRoad(badge.dataset.road);
+      return;
+    }
     const item = target.closest<HTMLElement>('.item[data-id]');
     if (item?.dataset.id) cb.onSelect(item.dataset.id);
   });
@@ -118,10 +144,11 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
 
   return {
     root,
-    setItems(next, at, selected) {
+    setItems(next, at, selected, opts = {}) {
       items = next;
       now = at;
       selectedId = selected;
+      renderOpts = opts;
       renderAll();
     },
     setLoading() {

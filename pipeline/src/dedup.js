@@ -262,8 +262,8 @@ function provenTwin(actual, byBase, byId, consumed) {
  * fields that describe *what is happening right now* (cat, sub, sev, closed,
  * start, end) always stay the actual measure's own.
  */
-const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov']);
-const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'periods', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works']);
+const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov', 'veh', 'per', 'spd', 'lc']);
+const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'periods', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
 
 /**
  * @param {import('./item.js').Item} survivor
@@ -272,6 +272,12 @@ const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'periods', 'lanes', 'spee
  */
 export function absorb(survivor, dropped) {
   let filled = false;
+  // `imp` is always set; only an actual measure that says nothing ("onbekend")
+  // takes the verdict of the planning object it replaces.
+  if (survivor.props.imp === 'onbekend' && dropped.props.imp !== undefined && dropped.props.imp !== 'onbekend') {
+    survivor.props.imp = dropped.props.imp;
+    filled = true;
+  }
   for (const key of ABSORB_PROPS) {
     if (survivor.props[key] === undefined && dropped.props[key] !== undefined) {
       survivor.props[key] = dropped.props[key];

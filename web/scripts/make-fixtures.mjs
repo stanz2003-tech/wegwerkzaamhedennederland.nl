@@ -15,20 +15,21 @@
  *           chosen so "vandaag" still has hours left and the weekend window lies ahead.
  *   --out   output directory (default web/fixtures/data).
  *
- * Produced files: meta.json, werk-actueel.geojson, werk-gepland.geojson, live.geojson,
+ * Produced files (contract v3): meta.json, werk-actueel.geojson, werk-gepland.geojson, live.geojson,
  * index/all.json, index/prov/<PVxx>.json (13 codes incl. `_`), detail/<NN>.json for the
- * occupied shards only, bruggen.json and manifest.json (sha1 per file, written last).
+ * occupied shards only, bruggen.json, roads/<slug>.json and gemeenten/<slug>.json (EntityFile per
+ * road / gemeente that has items) and manifest.json (sha1 per file, written last).
  */
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  MIN, PROVINCES, PROVINCE_CODES, compact, iso, midpointOf, round5, sha1, shardOf,
+  MIN, PROVINCES, PROVINCE_CODES, compact, impactOf, iso, midpointOf, roadKey, round5, sha1, shardOf, slugify, vehiclesOf,
 } from '../fixtures/source/helpers.mjs';
 import { activeItems, bridges, liveItems, plannedItems } from '../fixtures/source/items.mjs';
 
 const DEFAULT_NOW = '2026-09-09T12:00:00Z';
-const DATA_VERSION = '1';
+const DATA_VERSION = '3';
 
 /* -------------------------------- assembling -------------------------------- */
 
@@ -50,6 +51,12 @@ function propertiesOf(spec, nowMs) {
     hind: spec.hind,
     prob: spec.prob,
     src: spec.src,
+    // Contract v3 impact data.
+    imp: impactOf(spec),
+    veh: vehiclesOf(spec),
+    per: spec.d?.periods ? true : undefined,
+    spd: spec.d?.speed,
+    lc: spec.d?.lanes?.closed > 0 ? spec.d.lanes.closed : undefined,
   });
 }
 
@@ -64,7 +71,38 @@ function rowOf(spec, nowMs, active) {
     p.id, p.cat, p.sub ?? null, p.sev, p.title, p.road ?? null, p.roadType ?? null, p.gemeente ?? null,
     p.woonplaats ?? null, p.prov ?? null, p.start, p.end ?? null, round5(lon), round5(lat),
     p.closed ? 1 : 0, p.hind ?? null, active,
+    // v3 positions 17–21.
+    p.imp, p.veh ?? null, p.per ? 1 : 0, p.spd ?? null, p.lc ?? null,
   ];
+}
+
+/**
+ * EntityFiles: every item of one road (`roads/<slug>.json`) or gemeente (`gemeenten/<slug>.json`)
+ * with geometry AND full detail, active items first, then by start. Slugs follow the static
+ * lists: the road number lower-cased ("A2" → "a2"), `slugify(gemeente)` for gemeenten.
+ */
+function entityFiles(specsWithActive, nowMs) {
+  const groups = new Map();
+  const add = (kind, key, slug, entry) => {
+    const id = `${kind}:${slug}`;
+    if (!groups.has(id)) groups.set(id, { kind, key, slug, entries: [] });
+    groups.get(id).entries.push(entry);
+  };
+  for (const [spec, active] of specsWithActive) {
+    const entry = { spec, active };
+    const road = roadKey(spec.road);
+    if (road) add('road', road, road.toLowerCase(), entry);
+    if (spec.gemeente) add('gemeente', spec.gemeente, slugify(spec.gemeente), entry);
+  }
+  const files = [];
+  for (const g of [...groups.values()].sort((a, b) => (a.kind + a.slug < b.kind + b.slug ? -1 : 1))) {
+    const items = g.entries
+      .sort((a, b) => (a.active !== b.active ? (a.active ? -1 : 1) : a.spec.s - b.spec.s || (a.spec.id < b.spec.id ? -1 : 1)))
+      .map(({ spec }) => ({ f: featureOf(spec, nowMs), d: detailOf(spec, nowMs) }));
+    const dir = g.kind === 'road' ? 'roads' : 'gemeenten';
+    files.push([`${dir}/${g.slug}.json`, { generated: iso(nowMs), kind: g.kind, key: g.key, slug: g.slug, items }]);
+  }
+  return files;
 }
 
 function detailOf(spec, nowMs) {
@@ -168,6 +206,7 @@ export function buildFixtures(nowMs) {
   }
 
   files.push(['bruggen.json', { generated, bridges: bridges(nowMs) }]);
+  files.push(...entityFiles([...active.map((s) => [s, 1]), ...live.map((s) => [s, 1]), ...planned.map((s) => [s, 0])], nowMs));
   files.push(['meta.json', metaOf(nowMs, active, planned, live)]);
   return files;
 }

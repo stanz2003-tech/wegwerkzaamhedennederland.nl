@@ -5,6 +5,7 @@
 import type { IndexItem } from '../data/index';
 import {
   lookupPlace,
+  normalizeRoadQuery,
   searchLocal,
   suggestPlaces,
   zoomForPlaceType,
@@ -25,9 +26,17 @@ export interface SearchCallbacks {
   localItems(): Promise<readonly IndexItem[]>;
   onPickItem(hit: LocalHit): void;
   onPickPlace(loc: PlaceLocation, zoom: number): void;
+  /** A road number was chosen (typed, or a PDOK "weg" result): enter road mode. */
+  onPickRoad?(road: string): void;
   /** Enter without a highlighted option → filter the list on the text. */
   onQuery(query: string): void;
   onFocus?(): void;
+}
+
+/** "A27" from a PDOK road name such as "A27, Gorinchem" or "Rijksweg A27"; null when none. */
+export function roadFromName(name: string): string | null {
+  const m = /(?:^|[\s,(])([ANSE]\s?\d{1,3})(?=$|[\s,)])/i.exec(name);
+  return m ? normalizeRoadQuery(m[1] ?? '') : null;
 }
 
 export interface SearchBox {
@@ -36,7 +45,7 @@ export interface SearchBox {
   focus(): void;
 }
 
-type Option = { kind: 'query'; query: string } | LocalHit | PlaceHit;
+type Option = { kind: 'query'; query: string } | { kind: 'road'; road: string } | LocalHit | PlaceHit;
 
 const PLACE_TYPE_LABEL: Record<string, string> = {
   weg: 'weg',
@@ -49,6 +58,9 @@ function renderOption(o: Option, i: number, active: boolean): string {
   const base = `role="option" id="search-opt-${i}" data-i="${i}" aria-selected="${active ? 'true' : 'false'}" class="search__opt${active ? ' is-active' : ''}"`;
   if (o.kind === 'query') {
     return `<li ${base} data-kind="query">${ICONS.search}<span class="search__opt-main">Filter de lijst op “${esc(o.query)}”</span></li>`;
+  }
+  if (o.kind === 'road') {
+    return `<li ${base} data-kind="road">${roadBadge(o.road, null, { size: 'sm' })}<span class="search__opt-main">Alleen de ${esc(o.road)}: kan ik erdoor?</span><span class="search__opt-sub">weg</span></li>`;
   }
   if (o.kind === 'item') {
     const meta = CATEGORY_META[o.cat];
@@ -119,6 +131,12 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
       close();
       return;
     }
+    if (o.kind === 'road') {
+      input.value = o.road;
+      close();
+      cb.onPickRoad?.(o.road);
+      return;
+    }
     if (o.kind === 'item') {
       input.value = o.title;
       cb.onPickItem(o);
@@ -127,6 +145,11 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
     }
     input.value = o.name;
     close();
+    const road = o.type === 'weg' ? roadFromName(o.name) : null;
+    if (road && cb.onPickRoad) {
+      cb.onPickRoad(road);
+      return;
+    }
     controller?.abort();
     controller = new AbortController();
     lookupPlace(o.id, controller.signal)
@@ -146,8 +169,15 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
       suggestPlaces(q, signal, 6).catch(() => [] as PlaceHit[]),
     ]);
     if (seq !== requestSeq) return;
-    options = [{ kind: 'query', query: q }, ...local, ...places];
-    active = -1;
+    const road = cb.onPickRoad ? normalizeRoadQuery(q) : null;
+    options = [
+      ...(road ? [{ kind: 'road' as const, road }] : []),
+      { kind: 'query', query: q },
+      ...local,
+      ...places,
+    ];
+    // A road number is the most likely intent: preselect it so Enter goes straight to road mode.
+    active = road ? 0 : -1;
     render();
   };
 

@@ -54,7 +54,7 @@ function main() {
   now.setUTCSeconds(0, 0);
   const iso = now.toISOString().replace(/\.000Z$/, 'Z');
   for (const file of walk(target)) {
-    if (/meta\.json$|index[\\/].*\.json$|bruggen\.json$/.test(file)) stampGenerated(file, iso);
+    if (/meta\.json$|index[\\/].*\.json$|bruggen\.json$|(roads|gemeenten)[\\/].*\.json$/.test(file)) stampGenerated(file, iso);
   }
   console.log(`[ensure-data] fixtures gekopieerd naar public/data (generated = ${iso})`);
 }

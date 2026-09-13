@@ -198,3 +198,62 @@
     --danger-text: #ff8a7a;
   }
 }
+
+/* ---------------------------------------------------------------------------------------- */
+/* Appended (contract v3): verdict colours and the detour line.                              */
+/* The verdict answers "kan ik hier langs?" — red = weg dicht, orange-red = rijbaan dicht,   */
+/* amber = doorrijden met hinder, green = geen hinder, grey = geldt niet voor jou, slate =   */
+/* onbekend. `--omleiding` colours the dashed detour line; ui/categories.ts mirrors its hex   */
+/* for MapLibre paint. Pill text always sits on a tinted surface of the same hue (12 %), so   */
+/* the *-text variants below are what carries the label (≥ 4.5:1 on both themes).            */
+/* ---------------------------------------------------------------------------------------- */
+
+:root {
+  --v-dicht: #d8232a;
+  --v-rijbaan: #e8571c;
+  --v-hinder: #c98a00;
+  --v-geen: #1e8e3e;
+  --v-nvt: #7a8290;
+  --v-onbekend: #5b6470;
+  --v-dicht-text: #a8161c;
+  --v-rijbaan-text: #a63a0c;
+  --v-hinder-text: #7a5200;
+  --v-geen-text: #17703a;
+  --v-nvt-text: #5b6470;
+  --v-onbekend-text: #4a4f58;
+  --omleiding: #1f5fbf;
+}
+
+:root[data-theme="dark"] {
+  --v-dicht: #ff6b62;
+  --v-rijbaan: #ff8a4c;
+  --v-hinder: #f2b23c;
+  --v-geen: #4fbf6a;
+  --v-nvt: #8b939f;
+  --v-onbekend: #8b939f;
+  --v-dicht-text: #ffb3ad;
+  --v-rijbaan-text: #ffc2a1;
+  --v-hinder-text: #ffd27a;
+  --v-geen-text: #8fe0a3;
+  --v-nvt-text: #c2c6cd;
+  --v-onbekend-text: #c2c6cd;
+  --omleiding: #78aaff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --v-dicht: #ff6b62;
+    --v-rijbaan: #ff8a4c;
+    --v-hinder: #f2b23c;
+    --v-geen: #4fbf6a;
+    --v-nvt: #8b939f;
+    --v-onbekend: #8b939f;
+    --v-dicht-text: #ffb3ad;
+    --v-rijbaan-text: #ffc2a1;
+    --v-hinder-text: #ffd27a;
+    --v-geen-text: #8fe0a3;
+    --v-nvt-text: #c2c6cd;
+    --v-onbekend-text: #c2c6cd;
+    --omleiding: #78aaff;
+  }
+}

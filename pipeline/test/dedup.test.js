@@ -186,9 +186,16 @@ test('the survivor absorbs what only the planning item knew, and nothing else', 
   const actual = item({ id: 'RWS01_SM1_D2_WWA', role: 'live', cat: 'werk' });
   actual.props.sub = 'laneClosures';
   actual.detail.speed = 70;
+  actual.props.imp = 'hinder';
+  actual.props.spd = 70;
   const planning = item({ id: 'RWS01_SM1_D2', role: 'planning', cat: 'afsluiting' });
   Object.assign(planning.props, { hind: 'C', prob: 'probable', gemeente: 'Harlingen', woonplaats: 'Harlingen', prov: 'Friesland', closed: true, sub: 'roadClosed', sev: 4 });
+  Object.assign(planning.props, { imp: 'dicht', veh: ['bicycle'], per: true, spd: 30, lc: 1 });
   Object.assign(planning.detail, { desc: 'Groot onderhoud', detour: 'Volg de gele borden', url: 'https://melvin.ndw.nu/x', status: 'running', speed: 30 });
+  planning.detail.detourGeom = [
+    [5.4, 53.09],
+    [5.41, 53.1],
+  ];
 
   const { stats } = dedupeDoublePublications([planning, actual]);
   assert.equal(stats.merged, 1);
@@ -201,8 +208,14 @@ test('the survivor absorbs what only the planning item knew, and nothing else', 
   assert.equal(actual.detail.detour, 'Volg de gele borden');
   assert.equal(actual.detail.url, 'https://melvin.ndw.nu/x');
   assert.equal(actual.detail.status, 'running');
+  assert.deepEqual(actual.detail.detourGeom, planning.detail.detourGeom, 'the detour geometry of the planning object is kept');
+  assert.deepEqual(actual.props.veh, ['bicycle']);
+  assert.equal(actual.props.per, true);
+  assert.equal(actual.props.lc, 1);
   // never overwritten: the survivor describes what is happening right now
   assert.equal(actual.detail.speed, 70);
+  assert.equal(actual.props.spd, 70);
+  assert.equal(actual.props.imp, 'hinder', 'a verdict is never downgraded or upgraded by the planning object');
   assert.equal(actual.props.sub, 'laneClosures');
   assert.equal(actual.cat, 'werk');
   assert.equal(actual.props.sev, 2);
@@ -210,6 +223,22 @@ test('the survivor absorbs what only the planning item knew, and nothing else', 
   assert.equal(actual.props.title, 'RWS01_SM1_D2_WWA', 'the title stays the survivor’s own');
   // absorb() itself is idempotent
   assert.equal(absorb(actual, planning), false);
+});
+
+test('absorb: only an "onbekend" survivor takes the verdict of the planning object', () => {
+  const unknown = item({ id: 'RWS01_SM2_D2_WWA', role: 'live' });
+  unknown.props.imp = 'onbekend';
+  const planning = item({ id: 'RWS01_SM2_D2', role: 'planning' });
+  planning.props.imp = 'rijbaan';
+  assert.equal(absorb(unknown, planning), true);
+  assert.equal(unknown.props.imp, 'rijbaan');
+  // an "onbekend" planning object adds nothing
+  const still = item({ id: 'RWS01_SM3_D2_WWA', role: 'live' });
+  still.props.imp = 'onbekend';
+  const vague = item({ id: 'RWS01_SM3_D2', role: 'planning' });
+  vague.props.imp = 'onbekend';
+  assert.equal(absorb(still, vague), false);
+  assert.equal(still.props.imp, 'onbekend');
 });
 
 test('helpers: baseId strips only the actual-measure suffix; distance is metres', () => {

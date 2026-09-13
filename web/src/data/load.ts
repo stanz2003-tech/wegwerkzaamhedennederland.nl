@@ -3,7 +3,7 @@
  * and a Dutch error message. Essential at start: meta.json + werk-actueel.geojson; live.geojson
  * is optional (a warning), werk-gepland.geojson is lazy.
  */
-import type { BridgeFile, IndexFile, IndexRow, ItemCollection, ItemFeature, Meta } from './types';
+import type { BridgeFile, EntityFile, IndexFile, IndexRow, ItemCollection, ItemFeature, Meta } from './types';
 import { DATA_FILES } from './types';
 
 const FETCH_TIMEOUT_MS = 20_000;
@@ -66,8 +66,20 @@ export function isMeta(v: unknown): v is Meta {
   return isRecord(v) && typeof v.generated === 'string' && isRecord(v.counts);
 }
 
+/** Accepts both the 17-column v2 row and the 22-column v3 row (positions 17–21 are optional). */
 export function isIndexRow(r: unknown): r is IndexRow {
   return Array.isArray(r) && r.length >= 17 && typeof r[0] === 'string' && typeof r[1] === 'string' && typeof r[4] === 'string';
+}
+
+/** `roads/<slug>.json` / `gemeenten/<slug>.json` (contract v3). */
+export function isEntityFile(v: unknown): v is EntityFile {
+  return (
+    isRecord(v) &&
+    typeof v.generated === 'string' &&
+    (v.kind === 'road' || v.kind === 'gemeente') &&
+    typeof v.key === 'string' &&
+    Array.isArray(v.items)
+  );
 }
 
 export function isIndexFile(v: unknown): v is IndexFile {

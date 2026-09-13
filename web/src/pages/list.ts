@@ -89,6 +89,12 @@ async function liveExtras(known: ReadonlySet<string>): Promise<IndexItem[]> {
       p.closed === true ? 1 : 0,
       p.hind ?? null,
       1,
+      // Contract v3 positions; `imp` is absent in v2 files and then read as `onbekend`.
+      p.imp ?? 'onbekend',
+      p.veh ?? null,
+      p.per ? 1 : 0,
+      p.spd ?? null,
+      p.lc ?? null,
     ];
     if (isIndexRow(row)) extras.push(indexItemFromRow(row));
   }

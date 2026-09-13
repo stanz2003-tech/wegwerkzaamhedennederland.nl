@@ -11,7 +11,12 @@
  *   index/prov/<PVxx>.json    IndexFile — same rows, per province (PV20..PV31, `_` = unknown)
  *   detail/<00..31>.json      DetailShard — full details per item, shard = sha1(id) % 32
  *   bruggen.json              BridgeFile — bridge registry with upcoming openings
+ *   roads/<slug>.json         EntityFile — every item on one road, geometry + full detail
+ *   gemeenten/<slug>.json     EntityFile — every item in one municipality, geometry + full detail
  *   manifest.json             Record<path, sha1> of every file above (used by the uploader)
+ *
+ * Contract v3 (2026-09-13): `imp`/`veh`/`per`/`spd`/`lc` on every item (impact verdict),
+ * `detourGeom` in the detail, the per-road and per-gemeente EntityFiles. Meta.version = "3".
  */
 
 export type Category =
@@ -54,6 +59,27 @@ export type DelayBand =
 /** Melvin hindrance category: A = most hindrance … E = least. */
 export type Hindrance = 'A' | 'B' | 'C' | 'D' | 'E';
 
+/**
+ * What the measure means for someone who wants to drive there, computed by the pipeline
+ * (`pipeline/src/impact.js`) from the DATEX records of the whole situation:
+ *
+ *   dicht    – the road is closed: `roadClosed`, or `carriagewayClosures` on a local street /
+ *              stadsroute (single carriageway), or a bridge opening.
+ *   rijbaan  – one carriageway/direction is closed on an A- or N-road; the other direction may
+ *              be open (`carriagewayClosures` with roadType A or N).
+ *   hinder   – passable with hindrance: lane(s) closed, narrowed or deviated, a temporary speed
+ *              limit, a queue/incident, or an expected delay of ten minutes or more.
+ *   geen     – no or negligible effect on traffic (events without measures, `negligible` delay).
+ *   onbekend – not enough information in the records.
+ *
+ * Combine with `veh`: when `veh` is present the measure only applies to those vehicle groups
+ * (a `dicht` with `veh: ['bicycle','moped']` is a closed cycle path, not a closed road).
+ */
+export type Impact = 'dicht' | 'rijbaan' | 'hinder' | 'geen' | 'onbekend';
+
+/** Vehicle groups a measure applies to (DATEX `forVehiclesWithCharacteristicsOf`). Absent = everyone. */
+export type Vehicle = 'car' | 'lorry' | 'bicycle' | 'moped' | 'bus' | 'agricultural' | 'other';
+
 /** Compact properties shipped inside the GeoJSON files (keep small: ~15 keys). */
 export interface ItemProperties {
   /** DATEX II situation id, stable across runs (prefix tells the publisher: NDW03_, RWS01_, NLRWS_, BMS01_ …). */
@@ -84,6 +110,16 @@ export interface ItemProperties {
   prob?: Probability;
   /** Short publisher name, e.g. "Rijkswaterstaat", "Gemeente Breda", "Provincie Utrecht". */
   src: string;
+  /** Impact verdict, see `Impact`. */
+  imp: Impact;
+  /** Vehicle groups the measure applies to; absent = all traffic. */
+  veh?: Vehicle[];
+  /** True when the measure only applies during recurring sub-periods (e.g. nightly); details in `ItemDetail.periods`. */
+  per?: true;
+  /** Temporary speed limit in km/h, when set. */
+  spd?: number;
+  /** Number of lanes closed, when known (> 0). */
+  lc?: number;
 }
 
 /** Full details, loaded on demand from detail/<shard>.json. */
@@ -124,6 +160,13 @@ export interface ItemDetail {
    * Absent when nothing was merged. See `pipeline/src/dedup.js` and `pipeline/README.md`.
    */
   related?: string[];
+  /**
+   * Signed detour route (`sit:alternativeRoute` of the rerouting record) as a simplified
+   * `[lon, lat]` polyline of at most 12 points, WGS84, 5 decimals. Used to draw the detour on
+   * the map and to open it as a Google Maps route with waypoints. Absent when the wegbeheerder
+   * published no detour geometry.
+   */
+  detourGeom?: [number, number][];
   /** Last change of the situation, ISO 8601 UTC. */
   upd: string;
 }
@@ -136,9 +179,11 @@ export type ItemCollection = GeoJSON.FeatureCollection<ItemGeometry, ItemPropert
 
 /**
  * Compact index row (positional, to keep index/all.json small):
- * [id, cat, sub, sev, title, road, roadType, gemeente, woonplaats, prov, start, end, lon, lat, closed, hind, active]
+ * [id, cat, sub, sev, title, road, roadType, gemeente, woonplaats, prov, start, end, lon, lat, closed, hind, active,
+ *  imp, veh, per, spd, lc]
  * `lon`/`lat` = representative point (midpoint of the geometry), 5 decimals.
  * `active` = 1 when in werk-actueel or live, 0 when in werk-gepland.
+ * Positions 17–21 were added in contract v3; readers must treat a 17-element row as `imp: 'onbekend'`.
  */
 export type IndexRow = [
   id: string,
@@ -158,6 +203,11 @@ export type IndexRow = [
   closed: 0 | 1,
   hind: Hindrance | null,
   active: 0 | 1,
+  imp: Impact,
+  veh: Vehicle[] | null,
+  per: 0 | 1,
+  spd: number | null,
+  lc: number | null,
 ];
 
 export interface IndexFile {
@@ -188,6 +238,30 @@ export interface BridgeEntry {
 export interface BridgeFile {
   generated: string;
   bridges: BridgeEntry[];
+}
+
+/** One item with everything a page needs: compact feature (with geometry) plus its full detail. */
+export interface EntityItem {
+  f: ItemFeature;
+  d: ItemDetail;
+}
+
+/**
+ * All items of one entity (a road such as "A2", or a gemeente), active or planned within 30 days,
+ * so an entity page can answer "kan ik op <datum> over de A2?" exactly: it has the geometry for
+ * its map, the impact verdict and vehicle groups, and the recurring `periods` for nightly works,
+ * without loading the national collections or 32 detail shards.
+ * `roads/<slug>.json` for every road in pipeline/static/wegen.json that has items;
+ * `gemeenten/<slug>.json` for every gemeente in pipeline/static/plaatsen.json that has items.
+ * Items are sorted: active first, then by start. Absent file = no items for that entity.
+ */
+export interface EntityFile {
+  generated: string;
+  kind: 'road' | 'gemeente';
+  /** Display key, e.g. "A2" or "Utrecht". */
+  key: string;
+  slug: string;
+  items: EntityItem[];
 }
 
 export interface SourceMeta {
@@ -255,6 +329,8 @@ export const DATA_FILES = {
   indexProv: (provCode: string) => `index/prov/${provCode}.json`,
   detail: (shard: number) => `detail/${String(shard).padStart(2, '0')}.json`,
   bruggen: 'bruggen.json',
+  road: (slug: string) => `roads/${slug}.json`,
+  gemeente: (slug: string) => `gemeenten/${slug}.json`,
   manifest: 'manifest.json',
 } as const;
 

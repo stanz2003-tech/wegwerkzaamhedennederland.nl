@@ -31,7 +31,37 @@ describe('indexItemFromRow', () => {
       id: 'id1', cat: 'afsluiting', sub: 'roadClosed', sev: 4, title: 'A2 dicht', road: 'A2', roadType: 'A',
       gemeente: 'Utrecht', woonplaats: 'Utrecht', prov: 'Utrecht', start: '2026-09-09T06:00:00Z',
       end: '2026-09-09T18:00:00Z', lon: 5.12, lat: 52.09, closed: true, hind: 'B', active: true,
+      // A 17-column (v2) row: no impact data → onbekend, no vehicle groups.
+      imp: 'onbekend', veh: null, per: false, spd: null, lc: null,
     });
+  });
+
+  it('reads the five v3 positions of a 22-column row', () => {
+    const item = indexItemFromRow(['id2', 'werk', 'laneClosures', 2, 'A12 · Duiven', 'A12', 'A', 'Duiven', 'Duiven', 'Gelderland', '2026-09-09T06:00:00Z', null, 6.0, 51.95, 0, 'D', 1, 'hinder', ['lorry'], 1, 90, 1]);
+    assert.equal(item.imp, 'hinder');
+    assert.deepEqual(item.veh, ['lorry']);
+    assert.equal(item.per, true);
+    assert.equal(item.spd, 90);
+    assert.equal(item.lc, 1);
+  });
+
+  it('tolerates garbage in the v3 positions (unknown impact, unknown vehicles, zero lanes)', () => {
+    const item = indexItemFromRow(['id3', 'werk', null, 1, 't', null, null, null, null, null, '2026-09-09T06:00:00Z', null, 5, 52, 0, null, 1, 'gesloten', ['tank', 'car'], 0, 0, 0]);
+    assert.equal(item.imp, 'onbekend');
+    assert.deepEqual(item.veh, ['car']);
+    assert.equal(item.per, false);
+    assert.equal(item.spd, null);
+    assert.equal(item.lc, null);
+  });
+
+  it('rowsToItems accepts a mix of 17- and 22-column rows', () => {
+    const v2 = ['v2', 'werk', null, 1, 'oud', null, null, null, null, null, '2026-09-09T06:00:00Z', null, 5, 52, 0, null, 1];
+    const v3 = [...v2.slice(0, 16), 1, 'geen', null, 0, null, null];
+    v3[0] = 'v3';
+    const items = rowsToItems([v2, v3]);
+    assert.equal(items.length, 2);
+    assert.equal(items[0].imp, 'onbekend');
+    assert.equal(items[1].imp, 'geen');
   });
 
   it('rowsToItems skips rows that do not have the right shape', () => {

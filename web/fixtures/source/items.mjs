@@ -1,5 +1,5 @@
 /**
- * The fixture item set: ~40 items that are active now, ~20 planned within 25 days, 9 live
+ * The fixture item set: 41 items that are active now, ~20 planned within 25 days, 9 live
  * records (3 files, 4 incidents, 2 bridge openings) and 5 bridges. All times are offsets in
  * milliseconds from the base timestamp (`s` start, `e` end or null = open ended,
  * `d.upd` last change), so the same table works for any `--now`.
@@ -74,6 +74,8 @@ export function highwayItems() {
       d: {
         desc: 'Beide rijbanen zijn dicht tussen knooppunt Hintham en Vught. Het verkeer wordt omgeleid.',
         detour: 'Omleiding via de A59 en de N65.', lanes: { closed: 3, total: 3 },
+        // Signed detour route (contract v3 `detourGeom`): a simplified polyline of at most 12 points.
+        detourGeom: [[5.31402, 51.66218], [5.29014, 51.67812], [5.26212, 51.66014], [5.24418, 51.62212], [5.27016, 51.58414], [5.33212, 51.55216], [5.39012, 51.56087]],
         delay: 'betweenThirtyMinutesAndOneHour', delaySec: 2400, from: 'Hintham', to: 'Vught', dir: 'both',
         status: 'running', works: 'maintenanceWork', upd: -20 * MIN,
       },
@@ -92,7 +94,7 @@ export function highwayItems() {
     {
       id: 'NDW03_2100004', cat: 'werk', sub: 'narrowLanes', sev: 2, title: 'A12 · versmalde rijstroken bij Duiven',
       road: 'A12', roadType: 'A', gemeente: 'Duiven', woonplaats: 'Duiven', prov: 'PV25',
-      src: 'Rijkswaterstaat Oost-Nederland', s: -2 * DAY, e: 20 * DAY, hind: 'D', prob: 'certain',
+      src: 'Rijkswaterstaat Oost-Nederland', s: -2 * DAY, e: 20 * DAY, hind: 'D', prob: 'certain', veh: ['lorry'],
       g: multiline([
         [[5.94012, 51.96214], [6.01238, 51.95012], [6.08512, 51.94318]],
         [[6.08512, 51.94218], [6.01238, 51.94912], [5.94012, 51.96114]],
@@ -174,7 +176,7 @@ export function highwayItems() {
     {
       id: 'AND01_2100013', cat: 'werk', sub: 'installationWork', sev: 1, title: 'Warmtenet Kanaleneiland',
       roadType: 'lokaal', gemeente: 'Utrecht', woonplaats: 'Utrecht', prov: 'PV26', src: 'Gemeente Utrecht',
-      s: -12 * DAY, e: 40 * DAY, hind: 'D', prob: 'probable', g: point(5.10214, 52.06814),
+      s: -12 * DAY, e: 40 * DAY, hind: 'D', prob: 'probable', veh: ['bicycle'], g: point(5.10214, 52.06814),
       d: { desc: 'Aanleg van het warmtenet. De straat is per fase deels open.', vehicles: ['bicycle', 'pedestrian'], status: 'running', works: 'installationWork', upd: -6 * DAY },
     },
     {
@@ -188,6 +190,17 @@ export function highwayItems() {
       roadType: 'lokaal', prov: null, src: 'Onbekende wegbeheerder', s: -5 * HOUR, e: 30 * HOUR, hind: 'E', prob: 'probable',
       g: point(6.02214, 52.72014),
       d: { desc: 'Kleine reparatie aan het wegdek.', status: 'published', works: 'repairWork', upd: -5 * HOUR },
+    },
+    {
+      id: 'AND01_2100016', cat: 'afsluiting', sub: 'roadClosed', sev: 2, title: 'Fietspad Vechtdijk dicht',
+      roadType: 'lokaal', gemeente: 'Utrecht', woonplaats: 'Utrecht', prov: 'PV26', src: 'Gemeente Utrecht',
+      s: -3 * DAY, e: 11 * DAY, closed: true, hind: 'C', prob: 'certain', veh: ['bicycle', 'moped'],
+      g: line([[5.10912, 52.11214], [5.11412, 52.11814], [5.11912, 52.12314]]),
+      d: {
+        desc: 'Het fietspad langs de Vecht is dicht voor herstel van de oever. Autoverkeer kan gewoon door.',
+        detour: 'Fietsers volgen de borden via het Zandpad.', vehicles: ['bicycle', 'moped'], dir: 'both',
+        status: 'running', works: 'maintenanceWork', upd: -2 * DAY,
+      },
     },
   ];
 }
@@ -237,6 +250,8 @@ export function plannedItems(nowMs) {
       id: 'NDW03_2200001', cat: 'werk', sub: 'resurfacingWork', sev: 3, title: 'A12 · nachtwerk tussen Bunnik en Driebergen',
       road: 'A12', roadType: 'A', gemeente: 'Bunnik', woonplaats: 'Bunnik', prov: 'PV26',
       src: 'Rijkswaterstaat Midden-Nederland', s: 3 * DAY + 7 * HOUR, e: 13 * DAY, hind: 'B', prob: 'certain',
+      // Every lane is closed during the nightly periods: the road is dicht, not merely hindered.
+      imp: 'dicht',
       g: line([[5.19214, 52.05812], [5.24012, 52.05214], [5.28814, 52.04612]]),
       d: {
         desc: 'Tien nachten achter elkaar nieuw asfalt. Elke nacht van 21:00 tot 05:00 is de weg dicht.',

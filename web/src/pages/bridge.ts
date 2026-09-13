@@ -144,6 +144,8 @@ function bridgeFeature(entry: BridgeEntry, openings: readonly Opening[]): ItemFe
       id: entry.id,
       cat: 'brug',
       sev: BRIDGE_SEVERITY,
+      // An open bridge closes the road for everyone (contract v3 impact rule for `brug`).
+      imp: 'dicht',
       title: entry.name,
       start: first ? new Date(first.start).toISOString() : new Date().toISOString(),
       ...(first ? { end: new Date(first.end).toISOString() } : {}),

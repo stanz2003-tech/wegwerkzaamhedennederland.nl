@@ -1,13 +1,18 @@
 /**
  * Shared list-item component: used as <button> in the app panel and as <a href="/?id=…"> on the
- * generated pages. Badge · title · status line · tags (category with icon, place, hindrance).
+ * generated pages. Verdict-first:
+ *   line 1  verdict pill + specifics ("Doorrijden mogelijk · 1 rijstrook dicht · tot 10 min")
+ *   line 2  road badge + place/section + when ("nog 2 u 15 min" / "start za 13 sep 22:00")
+ *   line 3  (muted) category icon + label + wegbeheerder
  */
 import type { IndexItem } from '../data/index';
-import type { Category, Hindrance, ItemProperties, RoadType } from '../data/types';
+import type { Category, Hindrance, Impact, ItemProperties, RoadType, Vehicle } from '../data/types';
+import { cleanVehicles, isImpact, verdictFor, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
 import { isLongRunning } from '../data/time';
-import { LONG_RUNNING_LABEL_LOWER, LONG_RUNNING_TAG, esc, hindLabel, statusLine, subLabel } from './format';
+import { LONG_RUNNING_TAG, esc, statusLine, subLabel, whenLabel } from './format';
+import { renderVerdictPill } from './verdict-pill';
 
 export interface ListItemModel {
   id: string;
@@ -24,6 +29,12 @@ export interface ListItemModel {
   closed: boolean;
   hind: Hindrance | null;
   src: string | null;
+  /** Contract v3 impact data (v2: `onbekend`, nulls). */
+  imp: Impact;
+  veh: Vehicle[] | null;
+  per: boolean;
+  spd: number | null;
+  lc: number | null;
 }
 
 export function modelFromProps(p: ItemProperties): ListItemModel {
@@ -42,6 +53,11 @@ export function modelFromProps(p: ItemProperties): ListItemModel {
     closed: p.closed === true,
     hind: p.hind ?? null,
     src: p.src,
+    imp: isImpact(p.imp) ? p.imp : 'onbekend',
+    veh: cleanVehicles(p.veh),
+    per: p.per === true,
+    spd: typeof p.spd === 'number' ? p.spd : null,
+    lc: typeof p.lc === 'number' ? p.lc : null,
   };
 }
 
@@ -61,6 +77,11 @@ export function modelFromIndexItem(it: IndexItem): ListItemModel {
     closed: it.closed,
     hind: it.hind,
     src: null,
+    imp: it.imp,
+    veh: it.veh,
+    per: it.per,
+    spd: it.spd,
+    lc: it.lc,
   };
 }
 
@@ -70,9 +91,18 @@ export interface ListItemOptions {
   selected?: boolean;
   /** Stagger index for the entrance animation (only the first few get one). */
   index?: number;
+  /** Vehicle mode the verdict pill is computed for (default: auto). */
+  mode?: VehicleMode;
+  /** Recurring periods when the caller has them (EntityFile / detail shard). */
+  periods?: readonly (readonly [string, string])[] | null;
+  /** Direction / section from the detail, when known. */
+  to?: string;
+  from?: string;
+  /** The moment the verdict is asked for (period check); defaults to `now`. */
+  at?: number;
 }
 
-/** Place shown in the tags: woonplaats when it adds information beyond the title, else gemeente. */
+/** Place shown next to the section: woonplaats when it adds information beyond the title, else gemeente. */
 export function placeTag(m: Pick<ListItemModel, 'title' | 'gemeente' | 'woonplaats'>): string | null {
   const t = m.title.toLowerCase();
   if (m.woonplaats && !t.includes(m.woonplaats.toLowerCase())) return m.woonplaats;
@@ -80,37 +110,51 @@ export function placeTag(m: Pick<ListItemModel, 'title' | 'gemeente' | 'woonplaa
   return null;
 }
 
+/** "Vinkeveen → Holendrecht" from "A2 · Vinkeveen → Holendrecht"; the full title otherwise. */
+export function sectionOf(m: Pick<ListItemModel, 'title' | 'road'>): string {
+  if (m.road) {
+    const prefix = `${m.road} · `;
+    if (m.title.toLowerCase().startsWith(prefix.toLowerCase())) return m.title.slice(prefix.length).trim();
+  }
+  return m.title;
+}
+
 export function renderListItem(m: ListItemModel, now: number, opts: ListItemOptions = {}): string {
   const meta = CATEGORY_META[m.cat];
   const span = { start: m.start, end: m.end };
   const status = statusLine(span, now);
-  const tags: string[] = [];
-  const sub = subLabel(m.sub);
-  tags.push(
-    `<span class="tag tag--cat" style="--tag-color: var(${meta.color})">${meta.icon}<span>${esc(sub && m.cat !== 'file' && m.cat !== 'incident' ? `${meta.label} · ${sub}` : sub ?? meta.label)}</span></span>`,
-  );
+  const at = opts.at ?? now;
+  const verdict = verdictFor(m, opts.mode ?? 'auto', {
+    periods: opts.periods ?? null,
+    now: at,
+    ...(opts.to ? { to: opts.to } : {}),
+  });
+
+  const where: string[] = [];
+  if (opts.from && opts.to) where.push(`${opts.from} → ${opts.to}`);
+  else where.push(sectionOf(m));
   const place = placeTag(m);
-  if (place) tags.push(`<span class="tag">${esc(place)}</span>`);
-  const hind = hindLabel(m.hind);
-  if (hind) tags.push(`<span class="tag tag--hind tag--hind-${m.hind}">${esc(hind)}</span>`);
-  if (m.closed && m.cat !== 'afsluiting') tags.push(`<span class="tag tag--closed">dicht</span>`);
-  // Explains why a high-severity item can rank low: it has been standing for months. Skipped
-  // when the status line already says so in words, so the row never repeats itself.
-  if (isLongRunning(span, now) && !status.text.toLowerCase().includes(LONG_RUNNING_LABEL_LOWER)) {
-    tags.push(`<span class="tag tag--long" title="Deze maatregel loopt langer dan 90 dagen">${LONG_RUNNING_TAG}</span>`);
-  }
+  if (place && !where.join(' ').toLowerCase().includes(place.toLowerCase())) where.push(place);
+
+  const line3: string[] = [];
+  const sub = subLabel(m.sub);
+  line3.push(esc(sub && m.cat !== 'file' && m.cat !== 'incident' ? `${meta.label} · ${sub}` : (sub ?? meta.label)));
+  if (m.src) line3.push(esc(m.src));
+  if (isLongRunning(span, now)) line3.push(`<span class="tag tag--long" title="Deze maatregel loopt langer dan 90 dagen">${LONG_RUNNING_TAG}</span>`);
 
   const tag = opts.href ? 'a' : 'button';
   const attrs = opts.href
     ? `href="${esc(opts.href)}"`
     : `type="button" aria-pressed="${opts.selected ? 'true' : 'false'}"`;
   const style = opts.index !== undefined && opts.index < 8 ? ` style="--i:${opts.index}"` : '';
-  return `<${tag} class="item${opts.selected ? ' is-selected' : ''}" data-id="${esc(m.id)}" data-cat="${m.cat}" ${attrs}${style}>
-    ${roadBadge(m.road, m.roadType, { place: m.woonplaats ?? m.gemeente })}
+  const badge = m.road
+    ? `<span class="item__badge" data-road="${esc(m.road)}" title="Alleen de ${esc(m.road)} tonen">${roadBadge(m.road, m.roadType, { size: 'sm', place: m.woonplaats ?? m.gemeente })}</span>`
+    : roadBadge(null, m.roadType, { size: 'sm', place: m.woonplaats ?? m.gemeente });
+  return `<${tag} class="item${opts.selected ? ' is-selected' : ''}" data-id="${esc(m.id)}" data-cat="${m.cat}" data-verdict="${verdict.level}" ${attrs}${style}>
     <span class="item__body">
-      <span class="item__title">${esc(m.title)}</span>
-      <span class="item__status item__status--${status.kind}">${esc(status.text)}</span>
-      <span class="item__tags">${tags.join('')}</span>
+      <span class="item__verdict">${renderVerdictPill(verdict, { size: 'sm' })}${verdict.detail ? `<span class="item__verdict-detail">${esc(verdict.detail)}</span>` : ''}</span>
+      <span class="item__where">${badge}<span class="item__title">${esc(where.join(' · '))}</span><span class="item__when item__when--${status.kind}">${esc(whenLabel(span, now))}</span></span>
+      <span class="item__meta" style="--tag-color: var(${meta.color})">${meta.icon}<span>${line3.join(' <span aria-hidden="true">·</span> ')}</span></span>
     </span>
     <span class="item__chevron" aria-hidden="true"></span>
   </${tag}>`;

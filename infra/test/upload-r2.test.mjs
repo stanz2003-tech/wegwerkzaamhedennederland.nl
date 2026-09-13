@@ -100,7 +100,7 @@ test('first publish uploads every file and manifest.json last, then caches the m
   assert.equal(puts.at(-1), 'v1/manifest.json', 'manifest.json must be uploaded last');
   assert.equal(puts.filter((k) => k === 'v1/manifest.json').length, 1);
   assert.deepEqual([...puts.slice(0, -1)].sort(), Object.keys(manifest).map((p) => `v1/${p}`).sort());
-  assert.match(lines.at(-1), /^upload ok uploaded=7 skipped=0 removed=0 bytes=\d+ prev=none ms=\d+$/);
+  assert.match(lines.at(-1), /^upload ok uploaded=7 skipped=0 deferred=0 removed=0 bytes=\d+ prev=none ms=\d+$/);
   const cached = JSON.parse(await readFile(join(cacheDir, 'last', 'manifest.json'), 'utf8'));
   assert.deepEqual(cached, manifest);
 });
@@ -139,7 +139,7 @@ test('unchanged files are skipped: only the changed one and the manifest are upl
   // Assert
   assert.equal(code, 0);
   assert.deepEqual(f.puts(), ['v1/meta.json', 'v1/manifest.json']);
-  assert.match(lines.at(-1), /^upload ok uploaded=2 skipped=5 removed=1 bytes=\d+ prev=r2 /);
+  assert.match(lines.at(-1), /^upload ok uploaded=2 skipped=5 deferred=0 removed=1 bytes=\d+ prev=r2 /);
   assert.equal(f.calls[0].method, 'GET', 'the previous manifest is read from R2 first');
   assert.equal(f.calls[0].key, 'v1/manifest.json');
 });
@@ -153,7 +153,7 @@ test('an identical previous manifest uploads nothing at all', async () => {
 
   assert.equal(code, 0);
   assert.deepEqual(f.puts(), []);
-  assert.match(lines.at(-1), /^upload ok uploaded=0 skipped=6 removed=0 bytes=0 prev=r2 /);
+  assert.match(lines.at(-1), /^upload ok uploaded=0 skipped=6 deferred=0 removed=0 bytes=0 prev=r2 /);
 });
 
 test('a failed upload exits 1 and never updates manifest.json', async () => {
@@ -166,7 +166,7 @@ test('a failed upload exits 1 and never updates manifest.json', async () => {
 
   assert.equal(code, 1);
   assert.ok(!f.puts().includes('v1/manifest.json'), 'manifest.json must not be uploaded after a failure');
-  assert.match(lines.at(-1), /^upload failed uploaded=5 failed=1 skipped=0 bytes=\d+ /);
+  assert.match(lines.at(-1), /^upload failed uploaded=5 failed=1 skipped=0 deferred=0 removed=0 bytes=\d+ /);
   await assert.rejects(readFile(join(cacheDir, 'last', 'manifest.json')), { code: 'ENOENT' });
 });
 
@@ -231,7 +231,7 @@ test('--dry-run prints the plan, uploads nothing and touches no network', async 
 
   assert.equal(code, 0);
   assert.equal(f.calls.length, 0, 'a dry run must not make any request');
-  assert.equal(lines.at(-1), 'upload dry-run to-upload=6 unchanged=0 orphaned=0 prev=none');
+  assert.equal(lines.at(-1), 'upload dry-run to-upload=6 unchanged=0 deferred=0 removed=0 prev=none');
   assert.ok(errs.some((l) => /PUT\s+v1\/manifest\.json\s+\(uploaded last\)/.test(l)));
   assert.ok(errs.some((l) => /public, max-age=60/.test(l)));
 });
@@ -307,6 +307,134 @@ test('--prefix and R2_PREFIX change the key prefix; --prev none skips the R2 rea
   const g = fakeFetch();
   await run(['--out', outDir, '--cache', cacheDir, '--prev', 'none'], { ...ENV, R2_PREFIX: 'data' }, { fetchImpl: g.impl, log: silent });
   assert.deepEqual(g.puts(), ['data/meta.json', 'data/manifest.json']);
+});
+
+/** Output with entity files next to the core files, plus a meta.json with the planning flag. */
+const ENTITY_OUTPUT = {
+  ...OUTPUT,
+  'roads/a2.json': '{"kind":"road","key":"A2","items":[1]}',
+  'roads/n57.json': '{"kind":"road","key":"N57","items":[2]}',
+  'gemeenten/utrecht.json': '{"kind":"gemeente","key":"Utrecht","items":[3]}',
+};
+
+/** A meta.json whose planning source was (or was not) replayed from cache. */
+const metaWithPlanning = (reused) =>
+  JSON.stringify({ generated: '2026-09-13T14:55:42Z', version: '3', sources: { planning: { ok: true, situations: 16750, ...(reused === undefined ? {} : { reused }) } } });
+
+/**
+ * Previous manifest in which every file differs from the new output — the situation on a
+ * normal run, where the actueel feed moved on and every hash changed.
+ */
+const allOlder = (manifest) => Object.fromEntries(Object.keys(manifest).map((p) => [p, sha1(`older ${p}`)]));
+
+test('planning feed unchanged (meta.json reused=true): entity files are deferred and keep their R2 hash in the manifest', async () => {
+  // Arrange
+  const { outDir, cacheDir, manifest } = await makeOut({ ...ENTITY_OUTPUT, 'meta.json': metaWithPlanning(true) });
+  const previous = allOlder(manifest);
+  const f = fakeFetch({ getBody: JSON.stringify(previous) });
+  const { log, lines } = capture();
+
+  // Act
+  const code = await run(['--out', outDir, '--cache', cacheDir], ENV, { fetchImpl: f.impl, log });
+
+  // Assert
+  assert.equal(code, 0);
+  const puts = f.puts();
+  assert.ok(!puts.some((k) => k.startsWith('v1/roads/') || k.startsWith('v1/gemeenten/')), `no entity file may be uploaded, got ${puts}`);
+  assert.equal(puts.length, Object.keys(OUTPUT).length + 1, 'the core files and the manifest');
+  assert.equal(puts.at(-1), 'v1/manifest.json');
+  assert.match(lines.at(-1), /^upload ok uploaded=7 skipped=0 deferred=3 removed=0 bytes=\d+ prev=r2 /);
+  // The uploaded manifest describes R2: new hashes for what was uploaded, the previous hash for what was deferred.
+  const uploaded = JSON.parse(f.calls.find((c) => c.method === 'PUT' && c.key === 'v1/manifest.json').body.toString());
+  for (const path of Object.keys(OUTPUT)) assert.equal(uploaded[path], manifest[path], path);
+  for (const path of ['roads/a2.json', 'roads/n57.json', 'gemeenten/utrecht.json']) assert.equal(uploaded[path], previous[path], `${path} keeps the R2 hash`);
+  assert.deepEqual(JSON.parse(await readFile(join(cacheDir, 'last', 'manifest.json'), 'utf8')), uploaded, 'the local copy is the same merged manifest');
+});
+
+test('the next run in which the planning feed changed uploads exactly the deferred files', async () => {
+  // Arrange: R2 holds the merged manifest of the previous (deferring) run.
+  const { outDir, cacheDir, manifest } = await makeOut({ ...ENTITY_OUTPUT, 'meta.json': metaWithPlanning(false) });
+  const previous = { ...manifest, 'roads/a2.json': sha1('older'), 'gemeenten/utrecht.json': sha1('older'), 'meta.json': sha1('older meta') };
+  const f = fakeFetch({ getBody: JSON.stringify(previous) });
+  const { log, lines } = capture();
+
+  // Act
+  const code = await run(['--out', outDir, '--cache', cacheDir], ENV, { fetchImpl: f.impl, log });
+
+  // Assert
+  assert.equal(code, 0);
+  assert.deepEqual(f.puts().sort(), ['v1/gemeenten/utrecht.json', 'v1/manifest.json', 'v1/meta.json', 'v1/roads/a2.json']);
+  assert.match(lines.at(-1), /^upload ok uploaded=4 skipped=6 deferred=0 removed=0 /);
+});
+
+test('no deferral when meta.json says reused=false, lacks the flag, or is missing', async () => {
+  for (const meta of [metaWithPlanning(false), metaWithPlanning(undefined), '{"generated":"x"}']) {
+    const { outDir, cacheDir, manifest } = await makeOut({ ...ENTITY_OUTPUT, 'meta.json': meta });
+    const f = fakeFetch({ getBody: JSON.stringify(allOlder(manifest)) });
+    const { log, lines } = capture();
+
+    const code = await run(['--out', outDir, '--cache', cacheDir], ENV, { fetchImpl: f.impl, log });
+
+    assert.equal(code, 0);
+    assert.equal(f.puts().filter((k) => k.startsWith('v1/roads/') || k.startsWith('v1/gemeenten/')).length, 3, meta);
+    assert.match(lines.at(-1), /deferred=0 /);
+  }
+  // meta.json absent from the output altogether (it is always in the manifest, so drop it there too)
+  const { outDir, cacheDir, manifest } = await makeOut(Object.fromEntries(Object.entries(ENTITY_OUTPUT).filter(([p]) => p !== 'meta.json')));
+  const f = fakeFetch({ getBody: JSON.stringify(allOlder(manifest)) });
+  const { log, lines } = capture();
+  const code = await run(['--out', outDir, '--cache', cacheDir], ENV, { fetchImpl: f.impl, log });
+  assert.equal(code, 0);
+  assert.match(lines.at(-1), /deferred=0 /);
+});
+
+test('--no-entities-when-planning-changed uploads the entity files even on a reused planning feed', async () => {
+  const { outDir, cacheDir, manifest } = await makeOut({ ...ENTITY_OUTPUT, 'meta.json': metaWithPlanning(true) });
+  const f = fakeFetch({ getBody: JSON.stringify(allOlder(manifest)) });
+  const { log, lines } = capture();
+
+  const code = await run(['--out', outDir, '--cache', cacheDir, '--no-entities-when-planning-changed'], ENV, { fetchImpl: f.impl, log });
+
+  assert.equal(code, 0);
+  assert.equal(f.puts().length, Object.keys(ENTITY_OUTPUT).length + 1);
+  assert.match(lines.at(-1), /deferred=0 /);
+});
+
+test('--skip-prefix defers changed files under the prefixes unconditionally, but never a file R2 does not have', async () => {
+  // Arrange: detail/00.json is in R2 (older), roads/a2.json is not in R2 at all.
+  const { outDir, cacheDir, manifest } = await makeOut({ ...ENTITY_OUTPUT, 'meta.json': metaWithPlanning(false) });
+  const previous = allOlder(manifest);
+  delete previous['roads/a2.json'];
+  const f = fakeFetch({ getBody: JSON.stringify(previous) });
+  const { log, lines } = capture();
+
+  // Act
+  const code = await run(['--out', outDir, '--cache', cacheDir, '--skip-prefix', 'detail/, roads/'], ENV, { fetchImpl: f.impl, log });
+
+  // Assert
+  assert.equal(code, 0);
+  const puts = f.puts();
+  assert.ok(!puts.includes('v1/detail/00.json'), 'detail/ is deferred');
+  assert.ok(!puts.includes('v1/roads/n57.json'), 'roads/n57.json is in R2 and deferred');
+  assert.ok(puts.includes('v1/roads/a2.json'), 'a file R2 does not have yet is uploaded regardless');
+  assert.ok(puts.includes('v1/gemeenten/utrecht.json'), 'gemeenten/ was not named');
+  assert.match(lines.at(-1), /^upload ok uploaded=8 skipped=0 deferred=2 removed=0 /, 'seven files plus the manifest');
+});
+
+test('--dry-run names the deferred count and lists deferred files in the plan', async () => {
+  const { outDir, cacheDir, manifest } = await makeOut({ ...ENTITY_OUTPUT, 'meta.json': metaWithPlanning(true) });
+  await mkdir(join(cacheDir, 'last'), { recursive: true });
+  await writeFile(join(cacheDir, 'last', 'manifest.json'), JSON.stringify(allOlder(manifest)));
+  const lines = [];
+  const errs = [];
+
+  const code = await run(['--out', outDir, '--cache', cacheDir, '--dry-run'], {}, { log: { out: (m) => lines.push(m), err: (m) => errs.push(m) } });
+
+  assert.equal(code, 0);
+  assert.equal(lines.at(-1), 'upload dry-run to-upload=6 unchanged=0 deferred=3 removed=0 prev=local');
+  assert.ok(errs.some((l) => /planning feed unchanged this run/.test(l)), 'explains why');
+  assert.equal(errs.filter((l) => /^\s+defer v1\/(roads|gemeenten)\//.test(l)).length, 3);
+  assert.ok(errs.some((l) => /Summary: 6 to upload .* 0 unchanged, 3 deferred, 0 orphaned/.test(l)));
 });
 
 test('R2_JURISDICTION selects the jurisdiction-specific endpoint', async () => {

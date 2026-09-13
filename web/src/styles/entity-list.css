@@ -89,3 +89,95 @@
   outline-offset: -2px;
   border-radius: var(--r-1);
 }
+
+/* ------------------------------------------------------------------ v3: forecast block */
+/* Under the hero of a road / place page: mode · answer card · 7-day strip · date input. */
+.forecast {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-6);
+}
+
+.forecast__mode .mode { width: 100%; display: flex; }
+.forecast__mode .mode__btn { flex: 1 1 0; }
+
+.forecast__strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--s-1);
+}
+
+.forecast__day {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  min-height: var(--touch);
+  padding: var(--s-2) var(--s-2) var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  text-align: left;
+  color: var(--text-2);
+  transition: border-color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
+}
+
+.forecast__day:hover { border-color: var(--text-3); }
+.forecast__day.is-on { border-color: var(--text); background: color-mix(in srgb, var(--vpill-color) 12%, var(--surface)); }
+.forecast__day:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.forecast__day-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.forecast__day-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--vpill-color);
+}
+
+.forecast__day--leeg .forecast__day-bar { background: var(--border); }
+
+.forecast__day-verdict {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
+}
+
+.forecast__day--leeg .forecast__day-verdict { color: var(--text-3); font-weight: 400; }
+
+.forecast__day-counts {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.forecast__date {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  max-width: 34rem;
+}
+
+.forecast.has-moment .forecast__date { border-color: var(--chrome); background: color-mix(in srgb, var(--accent) 14%, var(--surface)); }
+.forecast__date-label { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); font-weight: 500; color: var(--text-2); white-space: nowrap; }
+.forecast__date-label svg { width: 16px; height: 16px; color: var(--text-3); }
+.forecast__input { min-height: 40px; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-family: var(--font-mono); font-size: var(--text-sm); }
+.forecast__clear { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--r-1); color: var(--text-2); }
+.forecast__clear svg { width: 16px; height: 16px; }
+
+@media (max-width: 640px) {
+  .forecast__strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .forecast__day-counts { display: none; }
+}

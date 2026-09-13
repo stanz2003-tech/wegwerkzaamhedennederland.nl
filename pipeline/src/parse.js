@@ -8,7 +8,9 @@
  * local name + namespace URI, never on prefix. Unknown elements are ignored.
  *
  * `sit:alternativeRoute` (detour geometry) is deliberately NOT parsed as a
- * location — it must never become an item's geometry.
+ * location — it must never become an item's geometry. It is captured
+ * separately as `detourLine` on the rerouting record (src/detour.js reduces it
+ * to `ItemDetail.detourGeom`).
  */
 
 import { SaxesParser } from 'saxes';
@@ -58,6 +60,7 @@ export const NS = Object.freeze({
  * @property {number=} lanesOperational
  * @property {string=} rerouteType
  * @property {string=} detour
+ * @property {[number, number][]=} detourLine   alternativeRoute itinerary parts concatenated, [lon, lat], unrounded
  * @property {string=} roadNr           roadOrJunctionNumber
  * @property {string[]=} vehicles
  * @property {number=} speed            temporarySpeedLimit
@@ -305,6 +308,7 @@ function recordFromNode(node) {
     lanesOperational: num(child(impact, 'numberOfOperationalLanes')),
     rerouteType: text(child(node, 'reroutingManagementType')),
     detour: multilingual(child(node, 'reroutingItineraryDescription')),
+    detourLine: detourLineFromNode(child(node, 'alternativeRoute')),
     roadNr: text(child(node, 'roadOrJunctionNumber')),
     vehicles: vehicles.length > 0 ? vehicles : undefined,
     speed: num(child(node, 'temporarySpeedLimit')),
@@ -341,6 +345,25 @@ export function locationsFromNode(node) {
   }
   const loc = singleLocation(node);
   return loc ? [loc] : [];
+}
+
+/**
+ * `sit:alternativeRoute` of a rerouting record: the same location shapes as a
+ * `locationReference` (usually an itinerary of `LinearLocation`s), but kept
+ * apart from `locs` — it is the detour, not the place of the measure. The
+ * parts are concatenated in itinerary order into one unrounded line.
+ * @param {Node | undefined} node
+ * @returns {[number, number][] | undefined}
+ */
+export function detourLineFromNode(node) {
+  if (!node) return undefined;
+  /** @type {[number, number][]} */
+  const line = [];
+  for (const loc of locationsFromNode(node)) {
+    if (loc.kind === 'line' && loc.line) line.push(...loc.line);
+    else if (loc.kind === 'point' && loc.point) line.push(loc.point);
+  }
+  return line.length >= 2 ? line : undefined;
 }
 
 /** @param {Node} node @returns {Location | undefined} */

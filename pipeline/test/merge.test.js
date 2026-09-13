@@ -23,6 +23,14 @@ test('RWS planning: parent supplies period/source/status, children supply lanes/
   assert.equal(m.upd, '2026-08-28T09:05:35Z');
   assert.ok(m.locations.length >= 2);
   assert.equal(m.locations[0].kind, 'line');
+  // what the impact verdict reads: every record, reduced, in record order, without locations
+  assert.deepEqual(m.measures, [
+    { type: 'MaintenanceWorks' },
+    { type: 'SpeedManagement', speedType: 'speedRestrictionInOperation', speed: 30 },
+    { type: 'RoadOrCarriagewayOrLaneManagement', lane: 'laneClosures', lanesRestricted: 0 },
+    { type: 'RoadOrCarriagewayOrLaneManagement', lane: 'lanesDeviated' },
+  ]);
+  assert.equal(m.detourGeom, undefined);
 });
 
 test('Melvin: warning comment → title input, other comments → desc, urls, detours, hindrance', async () => {
@@ -70,6 +78,43 @@ test('single period equal to the overall window is dropped; distinct periods kep
     ['2026-09-10T20:00:00Z', '2026-09-11T05:00:00Z'],
     ['2026-09-20T20:00:00Z', '2026-09-21T05:00:00Z'],
   ]);
+});
+
+test('repeated identical validPeriods collapse; two copies of the whole window are no sub-periods', async () => {
+  // real Almelo record: the whole window published twice as validPeriod → no periods, so `per` stays off
+  const almelo = mergeSituation(await parseFixture('fiets_dicht.xml'));
+  assert.equal(almelo.periods, undefined);
+  const rec = (periods) => ({ id: 'P', recs: [{ id: 'P_1', type: 'MaintenanceWorks', start: '2026-09-01T00:00:00Z', end: '2026-09-30T00:00:00Z', periods, locs: [] }] });
+  const night = ['2026-09-10T20:00:00Z', '2026-09-11T05:00:00Z'];
+  assert.deepEqual(mergeSituation(rec([night, night, night])).periods, [night]);
+  assert.deepEqual(mergeSituation(rec([night, ['2026-09-10T20:00:00Z', undefined], night])).periods, [night, ['2026-09-10T20:00:00Z', undefined]]);
+  assert.equal(mergeSituation(rec([[undefined, '2026-09-11T05:00:00Z']])).periods, undefined);
+});
+
+test('back-to-back or overlapping phases that together cover the whole window are no sub-periods either', () => {
+  const rec = (periods, start = '2026-09-01T00:00:00Z', end = '2026-09-30T00:00:00Z') => ({ id: 'P', recs: [{ id: 'P_1', type: 'MaintenanceWorks', start, end, periods, locs: [] }] });
+  // real Melvin patterns: fase 1 + fase 2 meeting exactly; two overlapping spans; three chained phases
+  assert.equal(mergeSituation(rec([['2026-09-01T00:00:00Z', '2026-09-15T00:00:00Z'], ['2026-09-15T00:00:00Z', '2026-09-30T00:00:00Z']])).periods, undefined);
+  assert.equal(mergeSituation(rec([['2026-09-01T00:00:00Z', '2026-09-03T00:00:00Z'], ['2026-09-02T00:00:00Z', '2026-09-30T00:00:00Z']])).periods, undefined);
+  assert.equal(
+    mergeSituation(rec([['2026-09-20T00:00:00Z', '2026-09-30T00:00:00Z'], ['2026-09-01T00:00:00Z', '2026-09-10T00:00:00Z'], ['2026-09-10T00:00:00Z', '2026-09-20T00:00:00Z']])).periods,
+    undefined,
+  );
+  // a one-minute rounding slack is allowed at both ends …
+  assert.equal(mergeSituation(rec([['2026-09-01T00:00:30Z', '2026-09-15T00:00:00Z'], ['2026-09-15T00:00:00Z', '2026-09-29T23:59:30Z']])).periods, undefined);
+  // … but a real gap or a real margin keeps the phases as periods (sorted)
+  const gap = [['2026-09-15T00:00:00Z', '2026-09-30T00:00:00Z'], ['2026-09-01T00:00:00Z', '2026-09-14T00:00:00Z']];
+  assert.deepEqual(mergeSituation(rec(gap)).periods, [gap[1], gap[0]]);
+  const margin = [['2026-09-01T00:00:00Z', '2026-09-15T00:00:00Z'], ['2026-09-15T00:00:00Z', '2026-09-28T00:00:00Z']];
+  assert.deepEqual(mergeSituation(rec(margin)).periods, margin);
+  // an open-ended period or an open-ended window never triggers the rule
+  const open = [['2026-09-01T00:00:00Z', undefined]];
+  assert.deepEqual(mergeSituation(rec(open)).periods, open);
+  const noEnd = [['2026-09-01T00:00:00Z', '2026-09-15T00:00:00Z'], ['2026-09-15T00:00:00Z', '2026-09-30T00:00:00Z']];
+  const openWindow = { id: 'P', recs: [{ id: 'P_1', type: 'MaintenanceWorks', start: '2026-09-01T00:00:00Z', periods: noEnd, locs: [] }] };
+  assert.deepEqual(mergeSituation(openWindow).periods, noEnd);
+  // unparseable timestamps fall back to the plain string comparison of the single-period rule
+  assert.deepEqual(mergeSituation(rec([['x', 'y'], ['y', 'z']])).periods, [['x', 'y'], ['y', 'z']]);
 });
 
 test('files: queue/delay from the AbnormalTraffic record; open end stays open', async () => {

@@ -79,23 +79,65 @@ function assertSafeRelativePath(path, label) {
 }
 
 /**
+ * The entity files (`roads/<slug>.json`, `gemeenten/<slug>.json`) are the planning-derived
+ * pages; the uploader defers them to the runs in which the planning feed actually changed.
+ */
+export const ENTITY_PREFIXES = Object.freeze(['roads/', 'gemeenten/']);
+
+/**
  * Diff two validated manifests.
  * `changed` never contains manifest.json — the caller uploads it last, and only when
  * `manifestChanged` is true.
  *
+ * `skipPrefixes`: a changed file under one of these prefixes is **deferred** — not uploaded
+ * this run — provided R2 already holds a version of it (it is in `prev`). A file R2 does not
+ * have yet is uploaded regardless, so a page never points at a missing file. `manifest` is
+ * the manifest to publish: `next`, with the previous hash kept for every deferred file, so it
+ * always describes what is really in R2 and the next non-deferring run uploads exactly those.
+ *
  * @param {Record<string, string>} next  the freshly generated manifest
  * @param {Record<string, string>} prev  what is currently in R2 (or {} on first deploy)
+ * @param {readonly string[]} [skipPrefixes]
  */
-export function planUploads(next, prev) {
+export function planUploads(next, prev, skipPrefixes = []) {
   const changed = [];
   const unchanged = [];
+  const deferred = [];
+  /** @type {Record<string, string>} */
+  const manifest = {};
   for (const [path, sha] of Object.entries(next)) {
     if (path === MANIFEST_FILE) continue;
-    (prev[path] === sha ? unchanged : changed).push(path);
+    if (prev[path] === sha) {
+      unchanged.push(path);
+      manifest[path] = sha;
+    } else if (path in prev && skipPrefixes.some((prefix) => path.startsWith(prefix))) {
+      deferred.push(path);
+      manifest[path] = prev[path]; // R2 keeps its current version until a later run
+    } else {
+      changed.push(path);
+      manifest[path] = sha;
+    }
   }
   const removed = Object.keys(prev).filter((p) => p !== MANIFEST_FILE && !(p in next));
-  const manifestChanged = JSON.stringify(sortEntries(next)) !== JSON.stringify(sortEntries(prev));
-  return { changed, unchanged, removed, manifestChanged };
+  const manifestChanged = JSON.stringify(sortEntries(manifest)) !== JSON.stringify(sortEntries(withoutManifest(prev)));
+  return { changed, unchanged, deferred, removed, manifest, manifestChanged };
+}
+
+/**
+ * Comma-separated `--skip-prefix` value → trimmed, non-empty prefixes.
+ * @param {string | undefined} value
+ */
+export function parsePrefixes(value) {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+}
+
+/** @param {Record<string, string>} obj */
+function withoutManifest(obj) {
+  return Object.fromEntries(Object.entries(obj).filter(([path]) => path !== MANIFEST_FILE));
 }
 
 /** @param {Record<string, string>} obj */

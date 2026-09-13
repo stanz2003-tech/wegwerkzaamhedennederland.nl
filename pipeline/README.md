@@ -23,11 +23,14 @@ bin/run.js                CLI: flags → runPipeline(), one summary line, exit c
     ├── src/time.js            active / upcoming / ended / future, validPeriods, openings
     ├── src/geometry.js        posList/point parsing, NL clipping, rounding, midpoint
     ├── src/vild.js            TMC/AlertC location table (road, road name, from → to, point)
-    ├── src/roads.js           road number + road type detection
+    ├── src/roads.js           road number + road type detection (positional sources first; text only from road authorities)
     ├── src/geocode.js         PDOK reverse geocoder with a persistent cache
     ├── src/sources-friendly.js publisher name → display name + gemeente/province hint
     ├── src/title.js           display title (fallback chain, address clean-up, road prefix, cap)
+    ├── src/impact.js          impact verdict: imp (dicht/rijbaan/hinder/geen/onbekend), veh, per, spd, lc
+    ├── src/detour.js          alternativeRoute → detourGeom (≤ 12 points, Douglas–Peucker + thinning)
     ├── src/item.js            composes the above into ItemProperties + ItemDetail
+    ├── src/entities.js        groups items per road / gemeente for roads/<slug>.json, gemeenten/<slug>.json
     ├── src/output.js          writes every output file, hashes them, manifest last
     ├── src/slug.js            slugify(), identical to the frontend implementation
     ├── src/bridges.js         bridge registry lookup, naming rules, VILD merge, openings, seen ids
@@ -54,11 +57,15 @@ bin/run.js                CLI: flags → runPipeline(), one summary line, exit c
    sources are dropped (first one wins: planning before actueel).
 5. **Reverse geocode** (`src/geocode.js`), live items first, then active, then
    planned, until the per-run cap is reached. Every item is then finalised into
-   the exact `ItemProperties` / `ItemDetail` shapes.
+   the exact `ItemProperties` / `ItemDetail` shapes; the impact verdict
+   (`src/impact.js`) is computed here because it needs the road type, which may
+   rest on the geocoded street name.
 6. **Write** (`src/output.js`): three GeoJSON collections, the index files, 32
-   detail shards, `bruggen.json`, `meta.json` and finally `manifest.json`. Every
-   file is written to `<name>.tmp` and renamed, so a reader never sees a half
-   file.
+   detail shards, `bruggen.json`, one `roads/<slug>.json` per road and one
+   `gemeenten/<slug>.json` per gemeente that has items, `meta.json` and finally
+   `manifest.json`. Every file is written to `<name>.tmp` and renamed, so a
+   reader never sees a half file; entity files of roads/gemeenten that lost
+   their last item are deleted.
 7. **Persist caches**: geocode cache (pruned), bridge seen-ids, ETags.
 
 ## CLI
@@ -83,7 +90,7 @@ node pipeline/bin/run.js --out <dir> [options]
 One line goes to **stdout**, everything else to stderr:
 
 ```
-ok planning=16359 actueel=811 bruggen=1553 active=5494 upcoming=8272 live=107 dropped=0 merged=269 geocoded=2/0 ms=9805 rss=492MB
+ok planning=16750 actueel=1030 bruggen=1376 active=5154 upcoming=8372 live=187 dropped=0 merged=244 geocoded=23/0 ms=10603 rss=418MB
 ```
 
 `geocoded=<new lookups>/<items left without a cached place>`,
@@ -105,23 +112,29 @@ data set: the uploader only ever sees a complete `manifest.json`.
 
 ## Output files
 
-Measured on a real run of 2026-09-09 00:30 (16,355 planning + 860 actueel +
-1,554 bruggen situations → 5,796 active, 8,261 planned, 144 live items;
-14,201 index rows). `gz` is `zlib.gzipSync(level 9)`, which is roughly what
-Cloudflare serves.
+Measured on a real run of 2026-09-13 14:51 (contract v3; 16,750 planning +
+1,030 actueel + 1,376 bruggen situations → 5,154 active, 8,372 planned, 187
+live items; 13,713 index rows). `gz` is `zlib.gzipSync(level 9)`, which is
+roughly what Cloudflare serves.
 
 | File | Raw | Gzip | Content |
 |------|-----|------|---------|
-| `meta.json` | 1.0 KB | 0.5 KB | run metadata, per-source status, counts per category |
-| `werk-actueel.geojson` | 3.61 MB | 0.55 MB | works/closures/events active now (5,796) |
-| `werk-gepland.geojson` | 6.42 MB | 1.05 MB | not active yet, start within 30 days (8,261) |
-| `live.geojson` | 61 KB | 8.8 KB | files, incidents, bridges open right now (144) |
-| `index/all.json` | 2.74 MB | 0.42 MB | one positional `IndexRow` per item (17 fields, 14,201 rows) |
-| `index/prov/<PVxx>.json` | 7 KB – 0.8 MB | — | the same rows per province, `_` = province unknown (1,150 rows) |
-| `detail/00..31.json` | 0.15 MB each | 31 KB each | `ItemDetail` per id, shard = `sha1(id)[0..8] % 32` |
-| `bruggen.json` | 85 KB | 11 KB | bridges with an opening now or within 7 days (56 of the 429 in the registry) |
-| `manifest.json` | 3 KB | 1.4 KB | `path → sha1`, written last; the uploader diffs against it |
-| **total** | **20.6 MB** | **3.4 MB** | 52 files |
+| `meta.json` | 1.0 KB | 0.5 KB | run metadata, per-source status, counts per category, `version: "3"` |
+| `werk-actueel.geojson` | 3.48 MB | 0.58 MB | works/closures/events active now (5,154) |
+| `werk-gepland.geojson` | 7.37 MB | 1.25 MB | not active yet, start within 30 days (8,372) |
+| `live.geojson` | 84 KB | 12 KB | files, incidents, bridges open right now (187) |
+| `index/all.json` | 3.00 MB | 0.51 MB | one positional `IndexRow` per item (22 fields, 13,713 rows) |
+| `index/prov/<PVxx>.json` | 7 KB – 0.9 MB | — | the same rows per province, `_` = province unknown |
+| `detail/00..31.json` | 0.18 MB each (5.74 MB) | 43 KB each (1.34 MB) | `ItemDetail` per id, shard = `sha1(id)[0..8] % 32`; `detourGeom` accounts for 0.97 MB raw / 0.37 MB gzip of that |
+| `bruggen.json` | 80 KB | 10 KB | bridges with an opening now or within 7 days |
+| `roads/<slug>.json` | 5.81 MB (361 files) | 1.15 MB | every item on one road, geometry + detail; median 3.6 KB, largest `a2.json` 505 KB / 58 KB gz (307 items), then `a1` 323 KB, `a28` 305 KB, `a27` 267 KB, `a73` 233 KB |
+| `gemeenten/<slug>.json` | 16.6 MB (331 files) | 2.85 MB | every item in one gemeente; median 29 KB, largest `rotterdam.json` 674 KB / 98 KB gz (754 items), then `utrecht` 582 KB, `groningen` 422 KB, `eindhoven` 421 KB, `tilburg` 320 KB |
+| `manifest.json` | 48 KB | 12 KB | `path → sha1`, written last; the uploader diffs against it |
+| **total** | **45.1 MB** | **8.2 MB** | 743 files |
+
+The entity files are a second copy of every item (each item lands in its
+gemeente file and, when it has a road number, in its road file), which is why
+they are half of the raw bytes. They are served per page and never all at once.
 
 Geometry is WGS84 `[lon, lat]`, 5 decimals (≈ 1 m), clipped to the Netherlands
 bbox `[3.2, 50.5, 7.3, 53.7]`; features that end up without usable coordinates
@@ -134,7 +147,7 @@ are dropped and counted in `meta.dropped`.
 | `gemeente` | 99.99 % | 1 item |
 | `woonplaats` | 88.9 % | 1,546 items (11.2 %) — the Locatieserver has no woonplaats for every cell |
 | `prov` | 100 % | 0 items (`index/prov/_.json` is empty) |
-| `road` | 23.1 % | 10,664 items (76.9 %) — municipal streets have no A/N number |
+| `road` | 22.6 % | 10,739 items (77.4 %) — municipal streets have no A/N number; 75 fewer than before the 2026-09-13 detection change (road numbers in a gemeente's text no longer count) |
 
 Place coverage is a function of the geocode cache: it grew 11.3 % → 2.9 % →
 0.01 % missing over three runs with `--geocode-max 4000`, and is now saturated
@@ -167,6 +180,96 @@ First match wins, per situation (`src/classify.js`, see `docs/onderzoek.md` §2.
   or between start and end when there are no periods) or **upcoming** (start
   within 30 days). One hour of grace after the end keeps items that publishers
   are late to close from bouncing back into "planned".
+
+## Impact verdict (`src/impact.js`, contract v3)
+
+`imp` says what the measure means for someone who wants to use the road. It is
+evaluated over **all** records of the merged situation (a `MaintenanceWorks`
+parent with a `roadClosed` child is `dicht`), first match wins:
+
+| `imp` | When |
+|-------|------|
+| `dicht` | a `roadClosed` record; `carriagewayClosures` on a road that is **not** A or N (local streets and stadsroutes have one carriageway, so "rijbaan dicht" closes the street); or cat `brug` |
+| `rijbaan` | `carriagewayClosures` on an A- or N-road — one direction is closed, the other may be open |
+| `hinder` | `laneClosures`, `lanesDeviated`, `narrowLanes`, `useOfSpecifiedLanesOrCarriagewaysAllowed`, `hardShoulderRunningInOperation`, a `SpeedManagement` record or `temporarySpeedLimit`, `lanes.closed > 0`, cat `file` / `incident`, a delay band of `upToTenMinutes` or worse on a `werk` item |
+| `geen` | delay band `negligible` and none of the above; events without any traffic measure |
+| `onbekend` | nothing applies |
+
+Interpretation decisions that go beyond the literal list (all in the module
+header of `src/impact.js`, all covered by `test/impact.test.js`):
+
+* `temporaryTrafficLights` / `trafficBeingManuallyDirected` and a lone
+  `ReroutingManagement` record count as `hinder` — the road is usable, with
+  lights, a regulator or a detour.
+* A delay band on an `evenement` / `overig` item only counts from
+  `betweenTenMinutesAndThirtyMinutes`: Melvin's default for every planning
+  object is `upToTenMinutes`, which would otherwise turn every festival into
+  `hinder`. On `werk` items `upToTenMinutes` is `hinder`, as specified.
+* `veh` is the union of `forVehiclesWithCharacteristicsOf/vehicleType` over
+  the records that produced the winning verdict — but only when **every** one
+  of them restricts vehicles (one unrestricted `roadClosed` next to a
+  `roadClosed` for bicycles still closes the road for everyone). Mapping:
+  `car`, `lorry|heavyGoodsVehicle|heavyVehicle → lorry`, `bicycle`, `moped`,
+  `bus`, `agriculturalVehicle → agricultural`, anything else `other`.
+  Fallback: when none of the winning records has a vehicle list, the vehicle
+  list of the `ReroutingManagement` record is used (it says who the *detour* is
+  for, which in ~80 % of the situations that carry both lists equals who the
+  closure is for) — only when every rerouting record agrees.
+* `per` is set exactly when `ItemDetail.periods` is present: recurring
+  sub-periods that do not span the whole window. Melvin publishes the same
+  `validPeriod` once per record copy, so identical pairs are collapsed first
+  (`src/merge.js`); two copies of the whole window are not a recurring measure.
+* `spd` = temporary speed limit in km/h, `lc` = lanes closed, only when > 0.
+
+Distribution on the run above (13,715 items, after the road-detection change
+of 2026-09-13): `dicht` 6,235 (45 %), `hinder` 4,720 (34 %), `rijbaan` 1,497
+(11 %), `geen` 1,263 (9 %), `onbekend` 0. Per road type (dicht / rijbaan /
+hinder / geen): A 55 / 993 / 757 / 3, N 23 / 504 / 733 / 46, S 14 / 0 / 10 / 0,
+lokaal 6,143 / 0 / 3,220 / 1,214. Per category:
+all `afsluiting` items are `dicht` (5,088) or `rijbaan` (1,531), `werk` is
+`hinder` (4,422) or `geen` (718), `evenement` splits into `dicht` 1,085 /
+`geen` 545 / `hinder` 72 / `rijbaan` 13. `veh` on 1,103 items: bicycle 510,
+car 298, moped 195, lorry 105, bus 27, agricultural 14, other 3 (914 of them
+`dicht` — mostly closed cycle paths and streets closed for cars only; the
+common combinations are single groups, `car+bicycle` 19 and `bicycle+moped`
+10). `per` 1,198, `spd` 3,234 (30 km/h 1,706, 70 755, 50 455, 10 235), `lc`
+712 (1 lane 487, 2 lanes 174, 3 lanes 48, 4 lanes 3).
+
+## Detour geometry (`src/detour.js`)
+
+`sit:alternativeRoute` of a `ReroutingManagement` record is still never an
+item's location (`src/parse.js` keeps it apart as `detourLine`), but the first
+rerouting record with a usable route becomes `ItemDetail.detourGeom`: the
+itinerary parts concatenated, lat-first `posList` turned into `[lon, lat]`,
+clipped to the NL bbox, rounded to 5 decimals, and reduced to at most 12
+points — Douglas–Peucker with a doubling tolerance first, uniform thinning if
+a zigzag still does not fit; first and last point always survive. 5,337 of the
+13,713 items carry one (5,644 have detour text), 1,070 of them at the 12-point
+cap; the shards grow by 0.97 MB raw / 0.37 MB gzip (+20 % / +37 %). `PARSER_VERSION` in `src/pipeline.js` is bumped with this
+kind of change, so a cached parse from an older parser is downloaded again
+instead of replayed on HTTP 304.
+
+## Entity files (`src/entities.js`)
+
+`roads/<slug>.json` for every road in `static/wegen.json` and
+`gemeenten/<slug>.json` for every gemeente in `static/plaatsen.json` that has
+≥ 1 item (active or planned within 30 days), shape `EntityFile`: the compact
+feature **with geometry** plus the full detail per item, active first, then by
+start. Absent file = no items, so files of entities that lost their last item
+are removed each run.
+
+* **Road matching** goes through `normalizeVildRoad()`: carriageway variants
+  and branch letters fold onto the base road, so an item on "A12 hrb" lands in
+  `roads/a12.json` (and in `roads/a12-hrb.json` too, if the registry had such
+  an entry). Case and spaces do not matter.
+* **Gemeente matching** is `slugify(item.gemeente) === slugify(gemeente.naam)`,
+  the same `slugify` as the page generator.
+* **`generated`** is the latest `ItemDetail.upd` of the file's items, so the
+  bytes depend on the items only (see "Known limitations" on churn); the run
+  time is used only for a file whose items all lack `upd`.
+* **Churn**: see "Known limitations" — the actueel feed changes every minute,
+  so the entity files of the affected roads/gemeenten change with it; the
+  uploader defers them to the runs in which the planning feed changed.
 
 ## Static lists (`pipeline/static/`, committed)
 
@@ -221,12 +324,18 @@ their situations are already in `actueel_beeld`.
 npm test -w @wegwerk/pipeline      # node:test + line coverage of src/
 ```
 
-147 tests, ≈ 98.6 % line coverage of `src/` (`title.js`, `bridges.js` and
-`dedup.js` at 100 %). Everything runs offline: the XML fixtures in
-`test/fixtures/` are real (anonymised only by shortening) situations from the
-NDW feeds, `test/pipeline.test.js` runs the whole pipeline from generated
-fixture feeds — through both `--from-file` and a mocked `fetch` that answers
-HTTP 304 — and network code is always exercised with an injected `fetchImpl`.
+187 tests, ≈ 98.9 % line coverage of `src/` (`impact.js`, `detour.js`,
+`entities.js`, `title.js`, `bridges.js`, `dedup.js`, `roads.js` and `item.js`
+at 100 %). `test/item.test.js` runs a real gemeente record through
+`buildItem()`/`finalizeItem()` with the 's-Gravenhage wording, once as a
+gemeente (lokaal, dicht) and once as Rijkswaterstaat (A4, rijbaan). Everything
+runs offline: the XML fixtures in `test/fixtures/` are real (anonymised only
+by shortening) situations from the NDW feeds, `test/pipeline.test.js` runs the
+whole pipeline from generated fixture feeds — through both `--from-file` and a
+mocked `fetch` that answers HTTP 304 — and network code is always exercised
+with an injected `fetchImpl`. `test/output.test.js` parses
+`web/src/data/types.ts` and asserts that every emitted key and every
+`IndexRow` position exists in the contract.
 
 On Windows, always pass an explicit glob (`node --test "test/**/*.test.js"`);
 `node --test test/` fails there.
@@ -274,9 +383,10 @@ On Windows, always pass an explicit glob (`node --test "test/**/*.test.js"`);
   pays for genuinely new locations — a handful per run. Items whose publisher is
   a `Gemeente …` or `Provincie …` also get their gemeente/province without any
   lookup.
-* **Geocoding is the slow part.** Measured end to end: a cold run (download +
-  parse 208 MB of XML) needs ~10 s for the data itself, a warm run that reuses
-  the unchanged planning feed 2.8 s — but 1,500 new PDOK lookups add another
+* **Geocoding is the slow part.** Measured end to end on 2026-09-13: a cold
+  run (download + parse 208 MB of XML, 97 new PDOK lookups, entity files)
+  took 31 s at 571 MB peak RSS; a warm run that reuses the unchanged planning
+  feed (HTTP 304) 10.6 s at 418 MB. 1,500 new PDOK lookups would add another
   ~140 s. The default `--geocode-max 400` keeps a scheduled run around 40 s.
 * **Coordinate rounding in the geocode cache.** Two items less than ~110 m
   apart share one cache entry, so a street name can be off by a street near a
@@ -299,4 +409,66 @@ On Windows, always pass an explicit glob (`node --test "test/**/*.test.js"`);
   that no opening data is published for them.
 * **`peakRssMb` is sampled** every 250 ms, so it is an approximation. The
   planning feed (208 MB of XML) is streamed, but the finished items are all held
-  in memory: expect 400–500 MB peak RSS on a full run.
+  in memory: expect 500–600 MB peak RSS on a full run (the entity files add the
+  second copy of every item at write time).
+* **The impact verdict rests on the road type.** `carriagewayClosures` is
+  `rijbaan` on A/N roads and `dicht` everywhere else; an N-road whose number
+  the geocoder did not return is `lokaal` and therefore `dicht`. The rule set
+  cannot tell a fully closed dual carriageway (both directions published as
+  `carriagewayClosures`) from a one-direction closure — both are `rijbaan`.
+  Single-carriageway N-roads (many provincial roads) are the same problem in
+  the other direction: their `carriagewayClosures` is really `dicht`.
+* **Road numbers in free text are only trusted from road authorities.**
+  `detectRoad()` (`src/roads.js`) takes the road from the positional sources
+  first — `roadOrJunctionNumber`, the VILD location, the geocoded street when
+  it *is* a road number ("Rijksweg A20", "N57"). A road number that only
+  appears in the publisher's text counts when the publisher is Rijkswaterstaat
+  or a province, or when the item was not geocoded at all; a gemeente or
+  waterschap cannot publish a motorway measure, so its "A4" is a landmark or a
+  detour and the item stays `lokaal`. Before this rule (2026-09-13) 51 of the
+  1,021 A-road `rijbaan` items were gemeente-published local streets that
+  merely mentioned a motorway (`NDW03_232949`, "A4 · Breedtebeperking < 2m",
+  Gemeente 's-Gravenhage, geocoded to the Binckhorstlaan). Measured on the
+  14:55 run: 75 items change `road` (44 A → lokaal, 30 N → lokaal, 1 A → other
+  A), 47 of them flip `imp` from `rijbaan` to `dicht`; A-road `rijbaan` goes
+  1,021 → 993, and every one of the 16 gemeente-published A-road `rijbaan`
+  items left has a VILD location or a geocoded motorway street (on/off-ramps
+  in Rotterdam, Utrecht, Amsterdam). The remaining risk is the reverse: a
+  gemeente item on a motorway ramp that was neither VILD-referenced nor
+  geocoded to the motorway now reads as `lokaal`/`dicht`; and a gemeente item
+  that was not geocoded at all still takes the road from its text.
+* **`veh` is only as good as the publisher's vehicle list.** Melvin fills
+  `forVehiclesWithCharacteristicsOf` on ~8 % of the situations; the other
+  92 % read as "everyone", which for a street closed for cars but open for
+  cyclists is the conservative answer.
+* **Entity-file churn and R2 Class A operations.** Every item lives in two
+  entity files, so a change in the actueel feed (published every minute)
+  touches the files of every affected road and gemeente. Two measures keep
+  that affordable:
+  * **Deterministic bytes.** `generated` of an entity file is the latest
+    `upd` of its items (`entityGenerated()` in `src/output.js`), not the run
+    time, so a file whose items did not change is byte-identical to the
+    previous run's and the uploader skips it — also in GitHub Actions, where
+    `pipeline/out` is a fresh directory every run and no previous file exists
+    to compare with. (An earlier version kept the old file on disk when only
+    `generated` differed; that only worked locally.) With the run time in
+    every file all 692 entity files would be re-uploaded every run: measured
+    742 of 743 files changed between two runs — ≈ 6.4 million Class A
+    operations per month against a free tier of 1,000,000.
+  * **Deferral.** The uploader (`infra/upload-r2.mjs`) only uploads
+    `roads/*.json` and `gemeenten/*.json` on runs in which the planning feed
+    actually changed (`meta.json` → `sources.planning.reused` is not `true`),
+    roughly every 15 minutes; on the runs in between every change in those
+    files comes from the actueel feed and waits for the next planning change.
+
+  Measured content churn (`generated` masked) on 2026-09-13: 68 of 692 entity
+  files over 5 minutes without a planning change (14:51 → 14:55), 143 over
+  8 minutes and 127 over 12 minutes each spanning one planning publication
+  (14:55 → 15:03 → 15:15). Per month (8,640 runs): ~50 core uploads per run
+  (`meta.json`, the collections, 14 index files, all or nearly all 32 detail
+  shards, `manifest.json`) ≈ 430,000, plus ≈ 135 entity uploads on each of the
+  2,880 planning-changed runs ≈ 390,000 — **≈ 820,000 Class A operations per
+  month**, 82 % of the free tier ($4.50 per further million). The
+  consequences for readers: `generated` inside an entity file is the latest
+  publisher update among its items, and a road/gemeente page can lag the map
+  by up to ~15 minutes for live items.

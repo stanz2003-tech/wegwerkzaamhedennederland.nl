@@ -300,3 +300,56 @@
   position: relative;
   min-height: 260px;
 }
+
+/* ------------------------------------------------------------------ v3: "Uitleg" affordance */
+/* Bottom-centre of the stage, above the attribution and clear of the zoom buttons (right) and
+   the desktop panel (left). On a phone it sits just above the sheet, like the map controls. */
+.map__uitleg {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: var(--s-4);
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--touch);
+  padding: 0 var(--s-4);
+  border-radius: var(--r-pill);
+  background: var(--chrome);
+  color: var(--chrome-text);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  box-shadow: var(--shadow-2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+}
+
+.map__uitleg::before {
+  content: '';
+  width: 10px;
+  height: 22px;
+  border-radius: 2px;
+  background: var(--stripe);
+  background-size: 8px 8px;
+}
+
+.map__uitleg:hover { background: var(--asfalt-2); }
+.map__uitleg:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 769px) {
+  /* Centre in the part of the stage the panel leaves free. */
+  .map__uitleg { left: calc(50% + (var(--panel-w) + var(--s-4)) / 2); }
+}
+
+@media (max-width: 768px) {
+  .map .map__uitleg {
+    bottom: min(calc(var(--sheet-visible, var(--sheet-peek)) + var(--s-3) + env(safe-area-inset-bottom, 0px)), calc(100% - 132px));
+    font-size: var(--text-xs);
+    min-height: 40px;
+    padding: 0 var(--s-3);
+  }
+}

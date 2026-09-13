@@ -21,6 +21,7 @@ const USER_AGENT = 'wegwerk-pipeline (+https://github.com/wegwerk)';
  * @property {string=} lastModified
  * @property {string=} publicationTime
  * @property {string=} fetchedAt
+ * @property {number=} parser           PARSER_VERSION that wrote the cached parse (pipeline.js)
  */
 
 /**

@@ -75,10 +75,13 @@ Alle hostingonderdelen vallen ruim binnen gratis tiers; alleen de domeinnaam kos
     maand van ± 1 minuut (de omzetting zelf duurde gemeten 9,7 seconden).
   - **Cloudflare R2** — gratis tot 10 GB opslag, 1 miljoen schrijf- en 10 miljoen
     leesoperaties per maand; dataverkeer naar bezoekers is gratis. Wij: de pipeline maakt
-    52 bestanden van samen ≈ 19,5 MB, en tussen twee opeenvolgende momenten veranderen er
-    gemeten 50 van de 51 (de live-data zit in bijna elk bestand). Dat is ≈ 440.000
-    schrijfoperaties per maand: ruim binnen de gratis grens van 1 miljoen, maar met minder
-    marge dan een eerdere schatting van 52.000 suggereerde. Opslag blijft onder 100 MB.
+    743 bestanden van samen ≈ 45 MB (waarvan 692 per weg/gemeente), en de uploader zet alleen
+    gewijzigde bestanden neer. Gemeten op 13 september 2026: per run veranderen ≈ 50
+    kernbestanden (kaartlagen, index, details), en de weg-/gemeentebestanden worden alleen
+    geüpload op de runs waarin de planningsfeed van NDW is veranderd (≈ elk kwartier, dan
+    ≈ 135 bestanden). Dat is **≈ 820.000 schrijfoperaties per maand**: binnen de gratis grens
+    van 1 miljoen, maar met ± 18 % marge — daarom staat de kwartaalcontrole hieronder.
+    Rekensom en meting: `infra/README.md`. Opslag blijft onder 100 MB.
   - **Cloudflare Pages** — 500 builds per maand, 20.000 bestanden per project, 25 MiB per
     bestand. Wij: bouwen alleen bij een codewijziging, en de site heeft **3.907 pagina's**
     (618 wegen, 2.503 woonplaatsen, 342 gemeenten, 429 bruggen plus 15 vaste pagina's).
@@ -168,7 +171,7 @@ nummers komen overeen.
 | Wanneer | Wat | Hoe lang |
 |---|---|---|
 | **Wekelijks** | Open de site: staat er een recente tijd bij "Bijgewerkt"? Geen e-mail van healthchecks.io of UptimeRobot betekent dat alles werkt. | 1 minuut |
-| **Elk kwartaal** | Cloudflare → *R2 object storage* → *Overview*: staan de Class A-operaties van deze maand ruim onder 1 miljoen en de opslag onder 10 GB? (Verwacht: ± 440.000 en < 100 MB.) | 2 minuten |
+| **Elk kwartaal** | Cloudflare → *R2 object storage* → *Overview*: staan de Class A-operaties van deze maand onder 1 miljoen en de opslag onder 10 GB? (Verwacht: ± 820.000 en < 100 MB. Komt het boven ± 950.000: laat een ontwikkelaar de weg-/gemeentebestanden minder vaak uploaden — `infra/README.md`, "R2 Class A operations".) | 2 minuten |
 | **Jaarlijks (a)** | TransIP: staat automatisch verlengen nog aan en is de betaalkaart geldig? Dit is het grootste risico voor de site. | 5 minuten |
 | **Jaarlijks (b)** | Optioneel: vervang het R2-token en het Cloudflare-token — nieuw token maken (handleiding §4.6 en §5.2), secrets bijwerken, *Run workflow*, oud token verwijderen. | 20 minuten |
 | **Jaarlijks (c)** | Kijk of GitHub of Cloudflare de gratis limieten hebben gewijzigd. `docs/onderzoek.md` §5.5 beschrijft per risico de uitwijkmogelijkheid (bijvoorbeeld Backblaze B2 in plaats van R2). | 10 minuten |

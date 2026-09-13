@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { gzipSync } from 'node:zlib';
 import { parseCli } from '../bin/run.js';
 import { wrapFixture } from '../src/parse.js';
-import { runPipeline } from '../src/pipeline.js';
+import { PARSER_VERSION, runPipeline } from '../src/pipeline.js';
 import { SOURCES } from '../src/sources.js';
 import { fixture, VILD_SAMPLE } from './helpers.js';
 
@@ -55,7 +55,20 @@ function writeStatics(dir) {
       ],
     }),
   );
-  return { vildPath, plaatsenPath, registryPath };
+  const wegenPath = join(dir, 'wegen.json');
+  writeFileSync(
+    wegenPath,
+    JSON.stringify({
+      version: '1',
+      roads: [
+        { road: 'A7', slug: 'a7', type: 'A' },
+        { road: 'A7 hrb', slug: 'a7-hrb', type: 'A' },
+        { road: 'A9', slug: 'a9', type: 'A' },
+        { road: 'A2', slug: 'a2', type: 'A' },
+      ],
+    }),
+  );
+  return { vildPath, plaatsenPath, registryPath, wegenPath };
 }
 
 /** One full offline run from local fixture feeds. */
@@ -82,8 +95,28 @@ test('end to end: exit 0, every output file, counts and manifest', async () => {
   assert.match(summary, / dropped=0 merged=12 geocoded=0\/\d+ ms=\d+ rss=\d+MB$/);
 
   const manifest = readJson(join(outDir, 'manifest.json'));
-  assert.equal(Object.keys(manifest).length, 6 + 13 + 32, 'meta+3 geojson+index/all+bruggen, 13 provinces, 32 shards');
+  const entityFiles = Object.keys(manifest).filter((k) => k.startsWith('roads/') || k.startsWith('gemeenten/'));
+  assert.equal(Object.keys(manifest).length, 6 + 13 + 32 + entityFiles.length, 'meta+3 geojson+index/all+bruggen, 13 provinces, 32 shards, entity files');
   for (const rel of Object.keys(manifest)) assert.ok(existsSync(join(outDir, rel)), `${rel} in the manifest but not on disk`);
+  // roads with items: A7 (rws_plan/rws_live, also under the "A7 hrb" entry), A9 (the file), A2 (a live fixture via VILD 7874).
+  // gemeenten with items: Zwolle (afsl), Utrecht (melvin_multi), Haarlem (and01).
+  assert.deepEqual(entityFiles.sort(), ['gemeenten/haarlem.json', 'gemeenten/utrecht.json', 'gemeenten/zwolle.json', 'roads/a2.json', 'roads/a7-hrb.json', 'roads/a7.json', 'roads/a9.json']);
+  assert.equal(readJson(join(outDir, 'roads/a2.json')).items.length, 12);
+  const a7 = readJson(join(outDir, 'roads/a7.json'));
+  assert.equal(a7.kind, 'road');
+  assert.equal(a7.key, 'A7');
+  assert.notEqual(a7.generated, NOW, 'entity generated is the latest publisher update of its items, not the run time');
+  assert.equal(a7.generated, a7.items.map((i) => i.d.upd).sort().at(-1));
+  assert.equal(a7.items.length, 200 - 12 + 12, 'rws_plan copies minus the 12 merged into their rws_live actual measures, plus those 12');
+  assert.ok(a7.items.every((i) => i.f.type === 'Feature' && i.f.geometry && i.d.id === i.f.id && i.f.properties.road === 'A7'));
+  assert.deepEqual(readJson(join(outDir, 'roads/a7-hrb.json')).items, a7.items);
+  const utrecht = readJson(join(outDir, 'gemeenten/utrecht.json'));
+  assert.equal(utrecht.items.length, 200);
+  assert.ok(utrecht.items.every((i) => i.f.properties.gemeente === 'Utrecht' && i.f.properties.imp === 'dicht' && i.d.detourGeom.length <= 12));
+  // active items come first, then planned, each by start
+  const activeById = new Map(readJson(join(outDir, 'index/all.json')).rows.map((r) => [r[0], r[16]]));
+  const states = a7.items.map((i) => activeById.get(i.f.id));
+  assert.deepEqual(states, [...states].sort((x, y) => y - x));
 
   // 5 of the 6 planning fixtures produce an item (rws_initial starts in 2027 → future)
   const actueel = readJson(join(outDir, 'werk-actueel.geojson'));
@@ -109,12 +142,24 @@ test('end to end: exit 0, every output file, counts and manifest', async () => {
   assert.equal(meta.sources.actueel.publicationTime, '2026-09-08T16:00:00Z');
   assert.ok(meta.runMs >= 0 && meta.peakRssMb > 0);
 
-  // index/all.json has one row per feature and the rows are (id, cat, …) tuples of 17
+  // index/all.json has one row per feature and the rows are (id, cat, …, imp, veh, per, spd, lc) tuples of 22
   const all = readJson(join(outDir, 'index/all.json'));
   assert.equal(all.rows.length, actueel.features.length + gepland.features.length + live.features.length);
   assert.equal(all.generated, NOW);
-  for (const row of all.rows.slice(0, 20)) assert.equal(row.length, 17);
+  for (const row of all.rows) {
+    assert.equal(row.length, 22);
+    assert.ok(['dicht', 'rijbaan', 'hinder', 'geen', 'onbekend'].includes(row[17]), `imp ${row[17]}`);
+    assert.ok(row[18] === null || Array.isArray(row[18]));
+    assert.ok(row[19] === 0 || row[19] === 1);
+  }
   assert.equal(all.rows.filter((r) => r[16] === 0).length, 200);
+  assert.equal(readJson(join(outDir, 'meta.json')).version, '3');
+  // every feature carries a verdict; the e2e fixtures are closures, works with measures, files, incidents and a bridge
+  const imps = new Set([...actueel.features, ...gepland.features, ...live.features].map((f) => f.properties.imp));
+  assert.deepEqual([...imps].sort(), ['dicht', 'hinder']);
+  assert.ok(gepland.features.every((f) => f.properties.imp === 'dicht' && f.properties.closed === true), 'the Melvin closure is dicht');
+  assert.ok(live.features.filter((f) => f.properties.cat === 'file' || f.properties.cat === 'incident').every((f) => f.properties.imp === 'hinder'));
+  assert.ok(live.features.filter((f) => f.properties.cat === 'brug').every((f) => f.properties.imp === 'dicht'));
 
   // every item id resolves to a detail record in its own shard
   const details = Object.fromEntries(
@@ -288,6 +333,27 @@ test('unchanged planning feed (HTTP 304) reuses the cached parse', async () => {
   const forced = await runPipeline({ outDir: join(dir, 'out3'), cacheDir, now: NOW, geocode: false, force: true, fetchImpl, ...statics });
   assert.equal(forced.meta.sources.planning.reused, undefined);
   assert.equal(calls.filter((c) => c.url === SOURCES.planning.url).at(-1)?.ifNoneMatch, null);
+
+  // a cached parse written by an older parser is not replayed: the feed is downloaded again
+  const etags = readJson(join(cacheDir, 'etags.json'));
+  assert.equal(etags.planning.parser, PARSER_VERSION);
+  writeFileSync(join(cacheDir, 'etags.json'), JSON.stringify({ ...etags, planning: { ...etags.planning, parser: PARSER_VERSION - 1 } }));
+  const stale = await runPipeline({ outDir: join(dir, 'out4'), cacheDir, now: NOW, geocode: false, fetchImpl, ...statics });
+  assert.equal(stale.exitCode, 0, stale.summary);
+  assert.equal(stale.meta.sources.planning.reused, undefined);
+  assert.equal(calls.filter((c) => c.url === SOURCES.planning.url).at(-1)?.ifNoneMatch, null);
+  assert.equal(readJson(join(cacheDir, 'etags.json')).planning.parser, PARSER_VERSION);
+});
+
+test('unreadable wegen.json / plaatsen.json only cost the entity files, not the run', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wegwerk-statics-'));
+  writeFileSync(join(dir, 'broken.json'), '{ not json');
+  const result = await run({ wegenPath: join(dir, 'broken.json'), plaatsenPath: join(dir, 'broken.json') });
+  assert.equal(result.exitCode, 0, result.summary);
+  const manifest = readJson(join(result.outDir, 'manifest.json'));
+  assert.equal(Object.keys(manifest).some((k) => k.startsWith('roads/') || k.startsWith('gemeenten/')), false);
+  const missing = await run({ wegenPath: join(dir, 'missing.json'), plaatsenPath: join(dir, 'missing.json') });
+  assert.equal(missing.exitCode, 0, missing.summary);
 });
 
 test('a failing download falls back to the cached parse of the previous run', async () => {

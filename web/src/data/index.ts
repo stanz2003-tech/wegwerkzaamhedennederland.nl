@@ -4,10 +4,11 @@
  */
 import { normalizeText, sameRoad } from './filter';
 import { fetchJson, isIndexFile, isIndexRow } from './load';
-import type { Category, Hindrance, IndexFile, IndexRow, RoadType, Severity } from './types';
+import type { Category, Hindrance, Impact, IndexFile, IndexRow, RoadType, Severity, Vehicle } from './types';
 import { DATA_FILES } from './types';
+import { cleanVehicles, isImpact } from './verdict';
 
-/** Named view over a positional IndexRow. */
+/** Named view over a positional IndexRow (v2 rows get `imp: 'onbekend'` and no vehicle data). */
 export interface IndexItem {
   id: string;
   cat: Category;
@@ -26,9 +27,24 @@ export interface IndexItem {
   closed: boolean;
   hind: Hindrance | null;
   active: boolean;
+  /** Contract v3 (positions 17–21); `onbekend` / null for a 17-column v2 row. */
+  imp: Impact;
+  veh: Vehicle[] | null;
+  per: boolean;
+  spd: number | null;
+  lc: number | null;
+}
+
+/** Number of positions of a contract v3 row; a v2 row has 17. */
+export const INDEX_ROW_V3 = 22;
+
+function positiveInt(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
 }
 
 export function indexItemFromRow(r: IndexRow): IndexItem {
+  // Positions beyond 16 are optional at runtime (v2 files); read them defensively.
+  const raw = r as readonly unknown[];
   return {
     id: r[0],
     cat: r[1],
@@ -47,6 +63,11 @@ export function indexItemFromRow(r: IndexRow): IndexItem {
     closed: r[14] === 1,
     hind: r[15],
     active: r[16] === 1,
+    imp: isImpact(raw[17]) ? raw[17] : 'onbekend',
+    veh: cleanVehicles(raw[18]),
+    per: raw[19] === 1 || raw[19] === true,
+    spd: positiveInt(raw[20]),
+    lc: positiveInt(raw[21]),
   };
 }
 

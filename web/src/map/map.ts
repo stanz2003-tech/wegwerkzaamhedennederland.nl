@@ -20,7 +20,8 @@ import { bboxOf, padBbox } from '../data/filter';
 import type { ItemFeature } from '../data/types';
 import { attributionOptions, keepAttributionCompact } from './attribution';
 import { isPdokTileFailure, loadBasemap, loadOpenFreeMap, renderStaticFallback, type BasemapKind, type ResolvedBasemap } from './basemap';
-import { HIT_LAYERS, LAYERS, SRC_LINES, SRC_POINTS, ensureOverlay, setOverlayData, splitFeatures, type SplitData } from './layers';
+import { HIT_LAYERS, LAYERS, SRC_LINES, SRC_POINTS, ensureOverlay, setDetourData, setOverlayData, splitFeatures, type SplitData } from './layers';
+import { unionBbox } from '../data/filter';
 import { announceMap } from './ready';
 import type { BasemapTheme } from './restyle';
 
@@ -158,6 +159,8 @@ export class AppMap {
     map.on('touchend', () => this.setHover(null, true));
   }
 
+  private detour: [number, number][] | null = null;
+
   private installOverlay(): void {
     ensureOverlay(this.map, this.data, {
       theme: this.resolved.theme,
@@ -166,7 +169,25 @@ export class AppMap {
       cluster: true,
     });
     setOverlayData(this.map, this.data);
+    setDetourData(this.map, this.detour);
     this.applySelected();
+  }
+
+  /** Draws the detour of the open detail as a dashed line (null removes it). */
+  setDetour(coords: readonly [number, number][] | null): void {
+    this.detour = coords ? coords.map((c) => [c[0], c[1]]) : null;
+    setDetourData(this.map, this.detour);
+  }
+
+  /** Fits the camera to the union of the features' bounds (no-op for an empty list). */
+  fitToFeatures(features: readonly ItemFeature[], maxZoom = 12): void {
+    const boxes: BBox[] = [];
+    for (const f of features) {
+      const bb = bboxOf(f.geometry);
+      if (bb) boxes.push(bb);
+    }
+    const union = unionBbox(boxes);
+    if (union) this.fitBBox(union, maxZoom);
   }
 
   private handleError(e: ErrorEvent): void {

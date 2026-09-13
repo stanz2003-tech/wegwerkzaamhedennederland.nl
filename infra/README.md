@@ -8,7 +8,7 @@ Dutch live in the root `README.md` and `docs/handleiding.md`.
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `Data` (`data.yml`) | cron `1-59/5 * * * *` (every 5 min, offset from the top of the hour), or **Run workflow** with the `force` checkbox | `npm ci` (pipeline workspace only) → `node pipeline/bin/run.js --out pipeline/out --cache pipeline/cache --geocode-max 400` → on exit 0 `node infra/upload-r2.mjs` uploads only changed files to R2 → ping `HEALTHCHECK_URL` → commit `pipeline/cache/{geocode,bruggen-seen,etags}.json` back when changed (`[skip ci]`) → daily keepalive (see below) → step summary. Exit 2 (validation floor) or 1 fails the job **without uploading**; the last good data stays online. `pipeline/cache/last/` (parsed planning feed) is kept between runs with `actions/cache`, keyed on the NDW ETag. |
+| `Data` (`data.yml`) | cron `1-59/5 * * * *` (every 5 min, offset from the top of the hour), or **Run workflow** with the `force` checkbox | `npm ci` (pipeline workspace only) → `node pipeline/bin/run.js --out pipeline/out --cache pipeline/cache --geocode-max 400` (the cap is a ceiling, not a cost: the committed geocode cache holds 12,000+ cells, so a run does 0–40 new PDOK lookups at 80 ms each — a few seconds; 400 would be 32 s) → on exit 0 `node infra/upload-r2.mjs` uploads only changed files to R2, deferring the entity files on runs in which the planning feed was unchanged (see the uploader section) → ping `HEALTHCHECK_URL` → commit `pipeline/cache/{geocode,bruggen-seen,etags}.json` back when changed (`[skip ci]`) → daily keepalive (see below) → step summary. Exit 2 (validation floor) or 1 fails the job **without uploading**; the last good data stays online. `pipeline/cache/last/` (parsed planning feed) is kept between runs with `actions/cache`, keyed on the NDW ETag. |
 | `Deploy` (`deploy.yml`) | push to `main` touching `web/**`, `pipeline/static/**`, `package*.json`; or manual | Checks settings, `npm ci`, `npm run build -w @wegwerk/web` with `VITE_DATA_BASE=${{ vars.DATA_BASE }}`, creates the Pages project through the Cloudflare API if it does not exist yet, then `cloudflare/wrangler-action@v4` → `wrangler pages deploy web/dist --project-name=<CF_PAGES_PROJECT> --branch=main`. |
 | `CI` (`ci.yml`) | every push and pull request (docs and cache commits ignored) | `npm test -w @wegwerk/pipeline`, `node --test "infra/test/**/*.test.mjs"`, `npm run typecheck -w @wegwerk/web`, fixture-data build, `web/dist` artifact (3 days). |
 
@@ -139,6 +139,18 @@ Behaviour:
   and `application/geo+json` (they are in the compressible list at
   developers.cloudflare.com/speed/optimization/content/compression/, checked 2026-09-08), so
   files are stored uncompressed and the CDN serves gzip/brotli/zstd per browser.
+- **Deferred entity files.** `roads/*.json` and `gemeenten/*.json` (692 files, the per-road
+  and per-gemeente pages) are uploaded only on runs in which the planning feed changed. The
+  uploader reads `<out>/meta.json` itself: `sources.planning.reused: true` means NDW answered
+  304 and the pipeline replayed the previous parse, so every change in those files comes from
+  the actueel feed — which the road/gemeente pages do not need at 5-minute freshness. On such a
+  run a changed entity file is *deferred*: not uploaded, and the uploaded `manifest.json`
+  keeps the hash of the version R2 still holds, so the manifest always describes what is
+  really in R2 and the next run with a changed planning feed uploads exactly the files R2 is
+  missing. A file R2 does not have at all is never deferred (a new gemeente/road page never
+  points at a 404). Default on; `--no-entities-when-planning-changed` uploads them every run,
+  `--skip-prefix a/,b/` defers other prefixes unconditionally, `--dry-run` shows
+  `deferred=<n>`. A missing `meta.json` or a missing flag never defers.
 - Files present in R2 but absent from the new manifest are reported ("orphaned") and left in
   place; the file set is stable, and deleting is never needed for correctness.
 - Exit codes: `0` ok · `1` upload failure · `2` usage/config error (missing `--out`, missing
@@ -154,33 +166,66 @@ node infra/upload-r2.mjs --dry-run --out pipeline/out --cache pipeline/cache
 R2_ACCOUNT_ID=… R2_ACCESS_KEY_ID=… R2_SECRET_ACCESS_KEY=… R2_BUCKET=wegwerk-data \
   node infra/upload-r2.mjs --out pipeline/out --cache pipeline/cache
 
-node --test "infra/test/**/*.test.mjs"   # 41 tests, ~3 s
+node --test "infra/test/**/*.test.mjs"   # 50 tests, ~3 s
 # (Node 24 wants a glob here; a bare directory argument is not expanded.)
 ```
 
 `infra/test/` holds four suites: `sigv4.test.mjs` (the official AWS test-suite vectors),
 `plan.test.mjs` (manifest validation, headers per file class, the changed/unchanged/removed
-diff), `r2-client.test.mjs` (signed requests, error mapping, retry/backoff against a fake
-`fetch`) and `upload-r2.test.mjs` (the whole `run()` against a fake `fetch`: manifest.json
-uploaded last, unchanged files skipped, headers per class, a failure leaving manifest.json
-untouched, a retried 503, bounded concurrency, the fallback to the local manifest, and every
-usage/config error). `run()` is exported for those tests; the CLI only starts under
-`import.meta.main`.
+diff, deferral with the merged manifest), `r2-client.test.mjs` (signed requests, error
+mapping, retry/backoff against a fake `fetch`) and `upload-r2.test.mjs` (the whole `run()`
+against a fake `fetch`: manifest.json uploaded last, unchanged files skipped, headers per
+class, a failure leaving manifest.json untouched, a retried 503, bounded concurrency, the
+fallback to the local manifest, every usage/config error, and the deferral: applied when
+`meta.json` says `reused: true`, not when it says `false`/lacks the flag/is missing, the
+deferred files keeping their R2 hash in the uploaded manifest, the next planning-changed run
+uploading exactly those, `--no-entities-when-planning-changed`, `--skip-prefix` never
+deferring a file R2 lacks, and `--dry-run` naming the deferred count). `run()` is exported for
+those tests; the CLI only starts under `import.meta.main`.
 
-### Measured on the real pipeline output (2026-09-09, `pipeline/tmp/out`, 52 files, 19.50 MB)
+### R2 Class A operations — measured (2026-09-13, contract v3, 743 files, 45 MB)
+
+R2's free tier is 1,000,000 Class A operations (PUTs) per month, then $4.50 per million; the
+pipeline runs 8,640 times a month. What changes between runs, measured on real feeds with the
+`churn.mjs` comparison of two manifests (entity files compared on content, `generated` masked):
+
+| Interval | Planning feed | Core files changed (of 51) | Entity files changed (of 692) |
+|---|---|---|---|
+| 14:51 → 14:55 (5 min) | unchanged (304) | ~46 | **68** (24 roads, 44 gemeenten) |
+| 14:55 → 15:03 (8 min) | changed once | 51 | **143** |
+| 15:03 → 15:15 (12 min) | changed once | 50 | **127** |
+
+Core files = `meta.json`, the three collections, `bruggen.json`, 14 index files, 32 detail
+shards, plus `manifest.json`: ~50 PUTs on every run → **≈ 430,000/month**, unavoidable with
+the current file layout. Entity files: deferred to the ~2,880 planning-changed runs a month at
+≈ 135 each → **≈ 390,000/month**. Expected total **≈ 820,000 Class A operations per month
+(82 % of the free tier)** — check it on *R2 > Overview* after the first full month; Sunday
+afternoon churn was measured, weekdays may be higher. If it runs too close: `--skip-prefix
+roads/,gemeenten/` on more runs (e.g. only upload entities on the :01/:31 runs) or a slower
+cron at night are the cheap levers.
+
+Two things this estimate depends on, both in the code: (1) entity files must have
+deterministic bytes — `generated` is the latest item update, not the run time
+(`entityGenerated()` in `pipeline/src/output.js`); with the run time in every file 742 of 743
+files changed every run, ≈ 6.4 million/month, and that is what a GitHub Actions run would have
+done because `pipeline/out` is a fresh directory there; (2) the deferral above — without it
+the entity files alone would cost ≈ 8,640 × 70 ≈ 605,000/month and the total would sit right
+at the free-tier ceiling.
+
+Older measurement (2026-09-09, contract v2, 52 files): 50 of 51 files changed per run,
+≈ 440,000/month.
 
 | Situation | Result |
 |---|---|
-| First publish (no previous manifest) | 51 files + `manifest.json` = **52 PUTs**, 20.445.542 bytes, `manifest.json` last |
-| Previous manifest identical | **0 PUTs**, `upload ok uploaded=0 skipped=51` |
-| Two files changed | **3 PUTs** (`live.geojson`, `meta.json`, `manifest.json`), 49 skipped |
-| Two consecutive live snapshots of the real feeds | **50 of 51 files differ** (only `werk-gepland.geojson` is stable) → ≈ 440.000 R2 Class A operations per month, 44 % of the free 1 M |
+| First publish (no previous manifest) | every file + `manifest.json`, `manifest.json` last |
+| Previous manifest identical | **0 PUTs**, `upload ok uploaded=0 skipped=742 deferred=0` |
+| Planning unchanged, everything else moved on (dry run against run A's manifest) | `to-upload=54 unchanged=0 deferred=689 removed=2` |
 | Missing `R2_*` variables, no `--dry-run` | exit **2**, `Missing environment variable(s): …` |
 
-Headers actually sent, counted per class: `application/geo+json` + `max-age=60` ×1
-(`live.geojson`), `application/geo+json` + `max-age=300` ×2 (`werk-*`), `application/json` +
-`max-age=60` ×2 (`meta.json`, `manifest.json`), `application/json` + `max-age=120` ×1
-(`bruggen.json`), `application/json` + `max-age=300` ×46 (`index/**`, `detail/**`).
+Headers per class: `application/geo+json` + `max-age=60` (`live.geojson`),
+`application/geo+json` + `max-age=300` (`werk-*`), `application/json` + `max-age=60`
+(`meta.json`, `manifest.json`), `application/json` + `max-age=120` (`bruggen.json`),
+`application/json` + `max-age=300` (`index/**`, `detail/**`, `roads/**`, `gemeenten/**`).
 
 ## Testing a workflow by hand
 

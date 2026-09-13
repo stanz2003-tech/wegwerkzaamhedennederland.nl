@@ -299,3 +299,164 @@
   border-radius: var(--r-3) var(--r-3) 0 0;
   transform: none;
 }
+
+/* ------------------------------------------------------------------ v3: mode, wanneer, answer */
+
+/* The vehicle mode sits above the search box: it is the first choice a reader makes. */
+.panel__head > .mode {
+  width: 100%;
+  display: flex;
+}
+
+.panel__head > .mode .mode__btn {
+  flex: 1 1 0;
+}
+
+/* "Wanneer?" row: label · chips · always-visible datetime input. */
+.when {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-2) var(--s-3);
+  align-items: center;
+}
+
+.when__label {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.when__chips {
+  min-width: 0;
+}
+
+.when__date {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+
+.when.has-moment .when__date {
+  border-color: var(--chrome);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
+.when__date-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.when__date-label svg { width: 16px; height: 16px; color: var(--text-3); }
+
+.when__input {
+  min-height: 40px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.when__input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-1); }
+
+.when__clear {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-1);
+  color: var(--text-2);
+}
+
+.when__clear:hover { background: var(--surface); color: var(--text); }
+.when__clear svg { width: 16px; height: 16px; }
+
+.when__hint {
+  grid-column: 1 / -1;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+/* Answer card (road mode). */
+.panel__answer:not([hidden]) {
+  display: block;
+}
+
+/* The verdict sentence above the list wraps: it is a sentence, not a counter. */
+.panel__summary {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.panel.is-road .panel__summary {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+/* Mobile-only link at the bottom of the sheet to the explanation under the map. */
+.panel__more {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  min-height: var(--touch);
+  margin: var(--s-2) var(--s-4) var(--s-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.panel__more:hover { color: var(--text); border-color: var(--text-3); }
+
+@media (max-width: 768px) {
+  .panel__more { display: flex; }
+  .panel[data-snap="peek"] .panel__relevance,
+  .panel[data-snap="peek"] .panel__answer { display: none; }
+  .when { grid-template-columns: 1fr; }
+  .when__label { display: none; }
+  .panel .chips--time { flex-wrap: nowrap; }
+}
+
+/* "12 meldingen alleen voor fietsers verborgen": a button that switches the relevance filter off. */
+.panel__hidden {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 var(--s-2);
+  margin-left: calc(var(--s-1) * -1);
+  border-radius: var(--r-1);
+  font-size: var(--text-xs);
+  color: var(--text-2);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  text-align: left;
+}
+
+.panel__hidden:hover { color: var(--text); background: var(--surface-2); }
+.panel__hidden:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.panel__relevance { display: grid; gap: 0; }

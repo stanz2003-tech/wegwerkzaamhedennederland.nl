@@ -49,6 +49,24 @@ export const CATEGORY_HEX: Record<'light' | 'dark', Record<Category, string>> = 
   },
 };
 
+/**
+ * Verdict colours for the map (data/verdict.ts levels). Mirror the appended `--v-*` tokens in
+ * tokens.css (light / dark); map paint only, the UI uses the tokens.
+ */
+export const VERDICT_HEX: Record<'light' | 'dark', Record<'dicht' | 'rijbaan' | 'hinder' | 'geen' | 'nvt' | 'onbekend', string>> = {
+  light: { dicht: '#d8232a', rijbaan: '#e8571c', hinder: '#c98a00', geen: '#1e8e3e', nvt: '#7a8290', onbekend: '#5b6470' },
+  dark: { dicht: '#ff6b62', rijbaan: '#ff8a4c', hinder: '#f2b23c', geen: '#4fbf6a', nvt: '#8b939f', onbekend: '#8b939f' },
+};
+
+/**
+ * Colour of the dashed detour line drawn when a detail with `detourGeom` is open. Mirrors the
+ * appended `--omleiding` token in tokens.css (light / dark); map paint only.
+ */
+export const DETOUR_HEX: Record<'light' | 'dark', string> = {
+  light: '#1f5fbf',
+  dark: '#78aaff',
+};
+
 export { CATEGORY_PRIORITY } from '../data/filter';
 
 export const ALL_CATEGORIES: readonly Category[] = CATEGORIES;

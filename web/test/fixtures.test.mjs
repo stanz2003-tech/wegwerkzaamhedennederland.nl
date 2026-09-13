@@ -26,7 +26,7 @@ const activeFeatures = data.activeFeatures;
 
 describe('file set and manifest', () => {
   it('contains every file of the contract', () => {
-    for (const required of ['meta.json', 'werk-actueel.geojson', 'werk-gepland.geojson', 'live.geojson', 'index/all.json', 'bruggen.json', 'manifest.json']) {
+    for (const required of ['meta.json', 'werk-actueel.geojson', 'werk-gepland.geojson', 'live.geojson', 'index/all.json', 'bruggen.json', 'manifest.json', 'roads/a2.json', 'gemeenten/utrecht.json']) {
       assert.ok(data.files.includes(required), `missing ${required}`);
     }
   });
@@ -61,7 +61,7 @@ describe('meta.json', () => {
   it('passes the frontend validator and has the agreed shape', () => {
     assert.equal(isMeta(data.meta), true);
     assert.match(data.meta.generated, ISO_MINUTE);
-    assert.equal(data.meta.version, '1');
+    assert.equal(data.meta.version, '3');
     assert.equal(typeof data.meta.dropped, 'number');
     assert.equal(typeof data.meta.runMs, 'number');
     assert.equal(typeof data.meta.peakRssMb, 'number');
@@ -99,7 +99,7 @@ describe('meta.json', () => {
   });
 
   it('has the item volumes the fixture promises', () => {
-    assert.equal(data.actueel.features.length, 40);
+    assert.equal(data.actueel.features.length, 41);
     assert.equal(data.gepland.features.length, 20);
     assert.equal(data.live.features.length, 9);
   });
@@ -146,6 +146,15 @@ describe('GeoJSON collections', () => {
       if (p.hind !== undefined) assert.ok(['A', 'B', 'C', 'D', 'E'].includes(p.hind), `${p.id} hindrance`);
       if (p.prob !== undefined) assert.ok(['certain', 'probable', 'riskOf'].includes(p.prob), `${p.id} probability`);
       if (p.closed !== undefined) assert.equal(p.closed, true, `${p.id} closed is only ever true`);
+      // Contract v3: every item carries a verdict; the optional fields have the agreed shapes.
+      assert.ok(['dicht', 'rijbaan', 'hinder', 'geen', 'onbekend'].includes(p.imp), `${p.id} imp ${p.imp}`);
+      if (p.veh !== undefined) {
+        assert.ok(Array.isArray(p.veh) && p.veh.length > 0, `${p.id} veh is a non-empty array`);
+        for (const v of p.veh) assert.ok(['car', 'lorry', 'bicycle', 'moped', 'bus', 'agricultural', 'other'].includes(v), `${p.id} vehicle ${v}`);
+      }
+      if (p.per !== undefined) assert.equal(p.per, true, `${p.id} per is only ever true`);
+      if (p.spd !== undefined) assert.ok(Number.isInteger(p.spd) && p.spd > 0, `${p.id} spd`);
+      if (p.lc !== undefined) assert.ok(Number.isInteger(p.lc) && p.lc > 0, `${p.id} lc`);
       assert.equal(Object.values(p).some((v) => v === null), false, `${p.id} has no null values`);
     }
   });
@@ -169,6 +178,25 @@ describe('GeoJSON collections', () => {
       }
       assert.notEqual(bboxOf(f.geometry), null, `${f.id} has a bbox`);
     }
+  });
+
+  it('exercises every verdict path: a closed cycle path, a lorry-only measure, an A-road rijbaan with a detour, nightly work', () => {
+    const byId = new Map(allFeatures.map((f) => [f.properties.id, f.properties]));
+    const cycle = byId.get('AND01_2100016');
+    assert.equal(cycle.imp, 'dicht');
+    assert.deepEqual(cycle.veh, ['bicycle', 'moped']);
+    const lorry = byId.get('NDW03_2100004');
+    assert.equal(lorry.imp, 'hinder');
+    assert.deepEqual(lorry.veh, ['lorry']);
+    assert.equal(lorry.spd, 90);
+    const rijbaan = byId.get('NDW03_2100002');
+    assert.equal(rijbaan.imp, 'rijbaan');
+    assert.equal(rijbaan.lc, 3);
+    const nightly = byId.get('NDW03_2200001');
+    assert.equal(nightly.per, true);
+    assert.equal(nightly.imp, 'dicht');
+    const imps = new Set(allFeatures.map((f) => f.properties.imp));
+    for (const imp of ['dicht', 'rijbaan', 'hinder', 'geen', 'onbekend']) assert.ok(imps.has(imp), `fixture has an item with imp=${imp}`);
   });
 
   it('has all three geometry types and a mix of categories', () => {

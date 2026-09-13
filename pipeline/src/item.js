@@ -1,12 +1,14 @@
 /**
  * Situation → Item: composes classify, merge, geometry, VILD, time window and
  * source hints into the internal item; `finalizeItem()` adds the geocoder
- * result, road detection and the display title and produces the exact
- * `ItemProperties` / `ItemDetail` shapes of the contract.
+ * result, road detection, the display title and the impact verdict
+ * (`src/impact.js`) and produces the exact `ItemProperties` / `ItemDetail`
+ * shapes of the contract.
  */
 
 import { classify } from './classify.js';
 import { buildGeometry, midpoint } from './geometry.js';
+import { impactOf } from './impact.js';
 import { mergeSituation } from './merge.js';
 import { detectRoad } from './roads.js';
 import { friendlySource, normalizeProvince } from './sources-friendly.js';
@@ -101,6 +103,7 @@ export function finalizeItem(item, geo, nowMs) {
     vildRoad: alertC?.road,
     texts: [merged.comment, merged.desc, merged.causeDesc, merged.src],
     street: geo?.straat,
+    publisher: source.src,
   });
 
   const shortComment = merged.comment && merged.comment.length <= TITLE_MAX ? merged.comment : undefined;
@@ -118,6 +121,17 @@ export function finalizeItem(item, geo, nowMs) {
   });
 
   const start = toMinuteIso(merged.start) ?? toMinuteIso(nowMs);
+  const periods = upcomingPeriods(merged.periods, nowMs);
+  // The verdict needs the road type (A/N have two carriageways), which is only
+  // known here: detectRoad() may rest on the geocoded street name.
+  const impact = impactOf(merged.measures, {
+    cat: cls.cat,
+    roadType: road.roadType,
+    delay: merged.delay,
+    hasPeriods: periods !== undefined,
+    lanes: merged.lanes,
+    speed: merged.speed,
+  });
   item.props = compact({
     id: item.id,
     cat: cls.cat,
@@ -135,6 +149,11 @@ export function finalizeItem(item, geo, nowMs) {
     hind: merged.hind,
     prob: merged.prob,
     src: source.src,
+    imp: impact.imp,
+    veh: impact.veh,
+    per: impact.per,
+    spd: impact.spd,
+    lc: impact.lc,
   });
 
   const desc = shortComment === undefined && merged.comment ? joinDesc(merged.comment, merged.desc) : merged.desc;
@@ -142,7 +161,7 @@ export function finalizeItem(item, geo, nowMs) {
     id: item.id,
     desc,
     detour: merged.detour,
-    periods: upcomingPeriods(merged.periods, nowMs),
+    periods,
     lanes: merged.lanes,
     speed: merged.speed,
     delay: merged.delay,
@@ -156,6 +175,7 @@ export function finalizeItem(item, geo, nowMs) {
     url: merged.url,
     vehicles: merged.vehicles,
     works: merged.works,
+    detourGeom: merged.detourGeom,
     upd: toMinuteIso(merged.upd) ?? start,
   });
   delete item.raw;

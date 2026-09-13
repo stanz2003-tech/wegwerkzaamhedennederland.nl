@@ -7,6 +7,7 @@
  */
 
 import { mainRecord } from './classify.js';
+import { detourGeomOf } from './detour.js';
 
 const MAX_DESC = 2000;
 const MAX_PERIODS_KEPT = 400;
@@ -34,6 +35,8 @@ const MAX_PERIODS_KEPT = 400;
  * @property {number=} delaySec
  * @property {number=} queueM
  * @property {string=} roadNr         sit:roadOrJunctionNumber (rerouting records)
+ * @property {[number, number][]=} detourGeom   simplified alternativeRoute of the first rerouting record with one
+ * @property {import('./impact.js').ImpactRecord[]} measures   every record reduced to what the impact verdict reads
  * @property {{p?: string, s?: string, dir?: string}=} alertC
  * @property {string=} ris
  * @property {import('./parse.js').Location[]} locations   main record first
@@ -74,6 +77,8 @@ export function mergeSituation(situation) {
     detour: joinUnique(recs.map((r) => r.detour), '\n'),
     vehicles: uniqueStrings(recs.flatMap((r) => r.vehicles ?? [])),
     roadNr: firstDefined(recs, (r) => r.roadNr),
+    detourGeom: detourGeomOf(recs),
+    measures: recs.map(measureOf),
     upd: situation.ver ?? main.ver,
     locations: ordered.flatMap((r) => (r.type === 'ReroutingManagement' ? [] : r.locs)),
   };
@@ -151,13 +156,82 @@ export function clean(s) {
   return t.length > 0 ? t : undefined;
 }
 
-/** @param {import('./parse.js').SituationRecord} main */
+/**
+ * Recurring sub-periods, or undefined when the record is simply valid for its
+ * whole window. Melvin often repeats the same `validPeriod` (once per record
+ * copy), so identical pairs collapse first — two copies of the whole window
+ * are still "the whole window", not a recurring measure (`per` must stay off).
+ * @param {import('./parse.js').SituationRecord} main
+ */
 function periodsOf(main) {
   const periods = main.periods;
   if (!periods || periods.length === 0) return undefined;
-  if (periods.length === 1 && periods[0][0] === main.start && periods[0][1] === main.end) return undefined;
-  const sorted = periods.filter((p) => p[0]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  const seen = new Set();
+  /** @type {[string, string|undefined][]} */
+  const unique = [];
+  for (const p of periods) {
+    const key = `${p[0]}|${p[1] ?? ''}`;
+    if (!p[0] || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(p);
+  }
+  if (unique.length === 0) return undefined;
+  if (unique.length === 1 && unique[0][0] === main.start && unique[0][1] === main.end) return undefined;
+  const sorted = unique.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  if (coversWholeWindow(sorted, main.start, main.end)) return undefined;
   return sorted.length > MAX_PERIODS_KEPT ? sorted.slice(0, MAX_PERIODS_KEPT) : sorted;
+}
+
+/** Slack for publishers that round the phase boundaries to the minute. */
+const PERIOD_SLACK_MS = 60 * 1000;
+
+/**
+ * Melvin phases ("fase 1" 09-14 → 09-28, "fase 2" 09-28 → 10-05) are published
+ * as validPeriods that meet or overlap and together fill the whole window: the
+ * measure is continuous, so they are no recurring sub-periods either. True
+ * when the union of the (sorted) periods is one interval from start to end.
+ * Open ends (period or window) and unparseable timestamps never match.
+ * @param {[string, string|undefined][]} sorted
+ * @param {string | undefined} start
+ * @param {string | undefined} end
+ */
+function coversWholeWindow(sorted, start, end) {
+  const startMs = Date.parse(start ?? '');
+  const endMs = Date.parse(end ?? '');
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return false;
+  let reach;
+  for (const [s, e] of sorted) {
+    const sMs = Date.parse(s);
+    const eMs = Date.parse(e ?? '');
+    if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return false;
+    if (reach === undefined) {
+      if (sMs > startMs + PERIOD_SLACK_MS) return false;
+    } else if (sMs > reach + PERIOD_SLACK_MS) {
+      return false;
+    }
+    if (reach === undefined || eMs > reach) reach = eMs;
+  }
+  return reach !== undefined && reach >= endMs - PERIOD_SLACK_MS;
+}
+
+/**
+ * The handful of fields `impactOf()` reads, without locations or comments, so
+ * the verdict can be computed after geocoding (it needs the road type) while
+ * the record copies with their coordinates are long gone.
+ * @param {import('./parse.js').SituationRecord} r
+ * @returns {import('./impact.js').ImpactRecord}
+ */
+function measureOf(r) {
+  return compact({
+    type: r.type,
+    lane: r.lane,
+    lanesRestricted: r.lanesRestricted,
+    speedType: r.speedType,
+    speed: r.speed,
+    gnm: r.gnm,
+    rerouteType: r.rerouteType,
+    vehicles: r.vehicles,
+  });
 }
 
 /** @param {import('./parse.js').SituationRecord} main */

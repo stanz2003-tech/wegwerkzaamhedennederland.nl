@@ -5,7 +5,8 @@
  */
 import { countCategories } from '../data/entity';
 import type { IndexItem } from '../data/index';
-import type { Category } from '../data/types';
+import type { Category, ItemDetail } from '../data/types';
+import type { VehicleMode } from '../data/verdict';
 import { esc, formatCount, plural } from './format';
 import { modelFromIndexItem, renderListItem } from './list-item';
 
@@ -70,6 +71,12 @@ export interface EntityListOptions {
   batch?: number;
   /** Extra query parameters appended to the deep link, e.g. `cat=file`. */
   linkQuery?: string;
+  /** Vehicle mode the verdict pills are computed for (default: auto). */
+  mode?: VehicleMode;
+  /** The moment the verdicts are asked for (period check); defaults to `now`. */
+  at?: number;
+  /** Full details by id when the page has them (EntityFile): periods, from/to. */
+  details?: ReadonlyMap<string, ItemDetail>;
 }
 
 function itemHref(id: string, query: string | undefined): string {
@@ -77,10 +84,21 @@ function itemHref(id: string, query: string | undefined): string {
   return `/?id=${encodeURIComponent(id)}${q}`;
 }
 
-function renderBatch(container: HTMLElement, items: readonly IndexItem[], from: number, count: number, now: number, query?: string): void {
+function renderBatch(container: HTMLElement, items: readonly IndexItem[], from: number, count: number, now: number, opts: EntityListOptions): void {
   const slice = items.slice(from, from + count);
   const html = slice
-    .map((it, i) => renderListItem(modelFromIndexItem(it), now, { href: itemHref(it.id, query), index: from === 0 ? i : 99 }))
+    .map((it, i) => {
+      const d = opts.details?.get(it.id);
+      return renderListItem(modelFromIndexItem(it), now, {
+        href: itemHref(it.id, opts.linkQuery),
+        index: from === 0 ? i : 99,
+        mode: opts.mode ?? 'auto',
+        ...(opts.at !== undefined ? { at: opts.at } : {}),
+        ...(d?.periods ? { periods: d.periods } : {}),
+        ...(d?.to ? { to: d.to } : {}),
+        ...(d?.from ? { from: d.from } : {}),
+      });
+    })
     .join('');
   container.insertAdjacentHTML('beforeend', html);
 }
@@ -116,7 +134,7 @@ function buildSection(section: EntitySection, now: number, opts: EntityListOptio
   const items = document.createElement('div');
   items.className = 'entity-list__items';
   group.appendChild(items);
-  renderBatch(items, section.items, 0, batch, now, opts.linkQuery);
+  renderBatch(items, section.items, 0, batch, now, opts);
 
   let shown = Math.min(batch, section.items.length);
   if (shown < section.items.length) {
@@ -129,7 +147,7 @@ function buildSection(section: EntitySection, now: number, opts: EntityListOptio
     label();
     more.addEventListener('click', () => {
       const before = shown;
-      renderBatch(items, section.items, shown, batch, now, opts.linkQuery);
+      renderBatch(items, section.items, shown, batch, now, opts);
       shown = Math.min(shown + batch, section.items.length);
       if (shown >= section.items.length) more.remove();
       else label();

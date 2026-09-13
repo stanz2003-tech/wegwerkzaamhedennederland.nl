@@ -100,6 +100,7 @@
           <li><a href="/afsluitingen/">Afsluitingen</a></li>
           <li><a href="/files/">Files</a></li>
           <li><a href="/veelgestelde-vragen/">Veelgestelde vragen</a></li>
+          <li><a href="/#uitleg" data-scroll-uitleg>Uitleg</a></li>
           <li><a href="/over/">Over</a></li>
         </ul>
       </nav>
@@ -119,6 +120,7 @@
         <section class="map" aria-label="Kaart van Nederland met alle meldingen">
           <div class="map__canvas" id="map" data-map></div>
           <div class="map__notice" data-map-error hidden></div>
+          <a class="map__uitleg" href="#uitleg" data-scroll-uitleg>Uitleg, wegen en plaatsen <span aria-hidden="true">↓</span></a>
           <noscript>
             <div class="map__notice is-visible">
               <p class="map__notice-title">De kaart heeft JavaScript nodig.</p>
@@ -136,44 +138,80 @@
             <span class="panel__grip" aria-hidden="true"></span>
           </button>
           <div class="panel__head">
+            <div data-mode></div>
             <div data-search></div>
+            <div class="panel__answer" data-answer hidden></div>
             <div class="panel__filters">
               <div data-cats></div>
-              <div data-times></div>
+              <div data-when></div>
+            </div>
+            <div class="panel__relevance">
+              <div data-relevant></div>
+              <button type="button" class="panel__hidden" data-hidden hidden></button>
             </div>
             <div class="panel__bar">
               <p class="panel__summary" data-summary aria-live="polite">Meldingen worden geladen…</p>
               <div class="panel__tools">
-                <div data-inview></div>
                 <div data-sort></div>
+                <div data-legend></div>
               </div>
             </div>
           </div>
           <div class="panel__body" data-panel-body>
             <div class="panel__view" data-list></div>
             <div class="panel__view panel__view--detail" data-detail hidden></div>
+            <a class="panel__more" href="#uitleg" data-scroll-uitleg>Meer over deze kaart <span aria-hidden="true">↓</span></a>
           </div>
         </aside>
       </div>
 
-      <section class="home" aria-labelledby="home-title">
+      <section class="home" id="uitleg" aria-labelledby="home-title">
         <div class="home__inner">
           <div class="home__lead">
-            <h1 class="home__title" id="home-title">Alle wegwerkzaamheden van Nederland op één kaart</h1>
+            <h1 class="home__title" id="home-title" tabindex="-1">Kan ik erdoor? Alle wegwerkzaamheden van Nederland op één kaart</h1>
             <p class="home__text">
-              Op deze kaart zie je in één oogopslag waar in Nederland gewerkt wordt aan de weg, welke wegen en
-              rijstroken zijn afgesloten, waar de files staan, waar een incident is en welke bruggen open gaan. Je kunt
-              zoeken op wegnummer of plaats, filteren op categorie en op periode (nu, vandaag, dit weekend of de
-              komende dertig dagen) en elke melding aanklikken voor de details: rijstroken, snelheid, omleiding,
-              wegbeheerder en de exacte periode.
+              Kies bovenaan het paneel voor wie je kijkt (auto, vracht of fiets) en wanneer je wilt rijden. De kaart en de
+              lijst geven dan per melding één oordeel: <strong>weg dicht</strong>, <strong>rijbaan dicht</strong>,
+              <strong>doorrijden mogelijk</strong> (met wat je merkt: rijstroken, snelheid, vertraging) of
+              <strong>geen hinder</strong>. Zoek een wegnummer en je ziet alleen die weg, met het antwoord bovenaan.
             </p>
-            <p class="home__text">
-              De gegevens komen rechtstreeks van de wegbeheerders — Rijkswaterstaat, provincies, gemeenten en
-              waterschappen — via het Nationaal Dataportaal Wegverkeer (NDW). Wij halen die open data elke vijf minuten
-              op en zetten hem om naar deze kaart, zonder handmatige tussenstap. De achtergrondkaart is de BRT
-              Achtergrondkaart van het Kadaster. Wegwerk is geen officiële bron: volg langs de weg altijd de borden en
-              de aanwijzingen van de wegbeheerder.
-            </p>
+            <div class="home__cards">
+              <article class="home__card">
+                <h2 class="home__card-title">Zo lees je de kaart</h2>
+                <ul class="home__pills" aria-label="Betekenis van de kleuren">
+                  <li><span class="vpill vpill--dicht vpill--sm" style="--vpill-color: var(--v-dicht)"><span class="vpill__dot" aria-hidden="true"></span>Weg dicht</span><span>Je kunt er niet langs; volg de omleiding. Op de kaart rood met witte streepjes.</span></li>
+                  <li><span class="vpill vpill--rijbaan vpill--sm" style="--vpill-color: var(--v-rijbaan)"><span class="vpill__dot" aria-hidden="true"></span>Rijbaan dicht</span><span>Eén rijbaan of richting is dicht; de andere kant is meestal open.</span></li>
+                  <li><span class="vpill vpill--hinder vpill--sm" style="--vpill-color: var(--v-hinder)"><span class="vpill__dot" aria-hidden="true"></span>Doorrijden mogelijk</span><span>Je kunt er langs, met minder rijstroken, een lagere snelheid of wat vertraging.</span></li>
+                  <li><span class="vpill vpill--geen vpill--sm" style="--vpill-color: var(--v-geen)"><span class="vpill__dot" aria-hidden="true"></span>Geen hinder</span><span>Gemeld, maar zonder merkbaar gevolg voor het verkeer.</span></li>
+                  <li><span class="vpill vpill--nvt vpill--sm" style="--vpill-color: var(--v-nvt)"><span class="vpill__dot" aria-hidden="true"></span>Geldt niet voor jou</span><span>Alleen voor ander verkeer, bijvoorbeeld een afgesloten fietspad. Vervaagd of verborgen.</span></li>
+                </ul>
+                <p>Files en incidenten houden hun eigen kleur; een blauwe stippellijn is de omleiding van een geopende melding.</p>
+              </article>
+              <article class="home__card">
+                <h2 class="home__card-title">Vooruitkijken</h2>
+                <p>
+                  Bij <strong>Wanneer?</strong> kies je nu, vandaag, morgen, dit weekend of een precieze datum en tijd. De kaart
+                  laat dan zien wat op dát moment geldt. Werk dat alleen 's nachts of op bepaalde dagen geldt, telt alleen
+                  binnen die uren mee zodra de wegbeheerder de tijden heeft gepubliceerd; anders staat er "op bepaalde tijden".
+                </p>
+                <p>
+                  Elke weg heeft een eigen pagina met een zevendaagse strook en een datumcheck: <a href="/wegen/">alle wegen</a>,
+                  bijvoorbeeld <a href="/weg/a2/">de A2</a> of <a href="/weg/a27/">de A27</a>.
+                </p>
+              </article>
+              <article class="home__card">
+                <h2 class="home__card-title">Waar komt de data vandaan</h2>
+                <p>
+                  Rechtstreeks van de wegbeheerders — Rijkswaterstaat, provincies, gemeenten en waterschappen — via het
+                  Nationaal Dataportaal Wegverkeer (NDW). We halen die open data elke vijf minuten op en zetten hem zonder
+                  handmatige stap om naar deze kaart. De achtergrondkaart is de BRT Achtergrondkaart van het Kadaster.
+                </p>
+                <p>
+                  Wegwerk is geen officiële bron: volg langs de weg altijd de borden en de aanwijzingen van de wegbeheerder.
+                  <a href="/over/">Meer over Wegwerk</a> · <a href="/veelgestelde-vragen/">veelgestelde vragen</a>.
+                </p>
+              </article>
+            </div>
           </div>
 
           <div class="home__stats">

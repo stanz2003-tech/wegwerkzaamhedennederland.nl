@@ -2,6 +2,12 @@
  * Lucide icons as inline SVG strings. Imported raw so they ship inside the bundle
  * (no sprite request) and inherit `currentColor`.
  */
+import bike from "lucide-static/icons/bike.svg?raw";
+import calendarClock from "lucide-static/icons/calendar-clock.svg?raw";
+import car from "lucide-static/icons/car.svg?raw";
+import chevronUp from "lucide-static/icons/chevron-up.svg?raw";
+import list from "lucide-static/icons/list.svg?raw";
+import signpost from "lucide-static/icons/signpost.svg?raw";
 import arrowLeft from 'lucide-static/icons/arrow-left.svg?raw';
 import arrowUpDown from 'lucide-static/icons/arrow-up-down.svg?raw';
 import calendar from 'lucide-static/icons/calendar.svg?raw';
@@ -53,6 +59,12 @@ function prep(svg: string): string {
 
 export const ICONS = {
   arrowLeft: prep(arrowLeft),
+  signpost: prep(signpost),
+  list: prep(list),
+  chevronUp: prep(chevronUp),
+  car: prep(car),
+  calendarClock: prep(calendarClock),
+  bike: prep(bike),
   arrowUpDown: prep(arrowUpDown),
   calendar: prep(calendar),
   carFront: prep(carFront),
