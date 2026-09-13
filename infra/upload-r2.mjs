@@ -175,7 +175,10 @@ function readConfig(options, env, log) {
   if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 32) {
     throw usageError('--concurrency must be an integer between 1 and 32');
   }
-  const missing = ENV_REQUIRED.filter((name) => !env[name]);
+  // Secrets pasted into GitHub often carry a trailing newline; an empty secret arrives as "".
+  // Both would otherwise produce an invalid Authorization header or an empty key prefix.
+  const envValue = (name) => (env[name] ?? '').trim();
+  const missing = ENV_REQUIRED.filter((name) => !envValue(name));
   if (missing.length > 0 && !options['dry-run']) {
     throw usageError(
       `Missing environment variable(s): ${missing.join(', ')}.\n` +
@@ -184,7 +187,7 @@ function readConfig(options, env, log) {
     );
   }
   if (missing.length > 0) log.err(`note: ${missing.join(', ')} not set — dry run uses placeholders`);
-  const prefix = (options.prefix ?? env.R2_PREFIX ?? 'v1').replace(/^\/+|\/+$/g, '');
+  const prefix = (options.prefix || envValue('R2_PREFIX') || 'v1').replace(/^\/+|\/+$/g, '');
   return {
     outDir: resolve(options.out),
     cacheDir: resolve(options.cache),
@@ -195,11 +198,11 @@ function readConfig(options, env, log) {
     entitiesWhenPlanningChanged: options['entities-when-planning-changed'],
     dryRun: options['dry-run'],
     r2: {
-      accountId: env.R2_ACCOUNT_ID || 'ACCOUNT_ID',
-      bucket: env.R2_BUCKET || 'BUCKET',
-      accessKeyId: env.R2_ACCESS_KEY_ID || 'ACCESS_KEY_ID',
-      secretAccessKey: env.R2_SECRET_ACCESS_KEY || 'SECRET',
-      jurisdiction: env.R2_JURISDICTION || undefined,
+      accountId: envValue('R2_ACCOUNT_ID') || 'ACCOUNT_ID',
+      bucket: envValue('R2_BUCKET') || 'BUCKET',
+      accessKeyId: envValue('R2_ACCESS_KEY_ID') || 'ACCESS_KEY_ID',
+      secretAccessKey: envValue('R2_SECRET_ACCESS_KEY') || 'SECRET',
+      jurisdiction: envValue('R2_JURISDICTION') || undefined,
     },
   };
 }

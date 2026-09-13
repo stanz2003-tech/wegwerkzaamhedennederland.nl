@@ -309,6 +309,27 @@ test('--prefix and R2_PREFIX change the key prefix; --prev none skips the R2 rea
   assert.deepEqual(g.puts(), ['data/meta.json', 'data/manifest.json']);
 });
 
+test('an empty R2_PREFIX falls back to v1 and whitespace around secrets is trimmed', async () => {
+  // `${{ secrets.R2_PREFIX }}` yields "" for an unset secret, and pasted keys often end in a newline;
+  // run #2 in production uploaded to "<bucket>//" with an invalid Authorization header because of this.
+  const { outDir, cacheDir } = await makeOut({ 'meta.json': '{}' });
+  const f = fakeFetch();
+  const messy = {
+    ...ENV,
+    R2_PREFIX: '',
+    R2_ACCESS_KEY_ID: `${ENV.R2_ACCESS_KEY_ID}\n`,
+    R2_SECRET_ACCESS_KEY: ` ${ENV.R2_SECRET_ACCESS_KEY} `,
+    R2_BUCKET: `${ENV.R2_BUCKET}\r\n`,
+  };
+  const code = await run(['--out', outDir, '--cache', cacheDir, '--prev', 'none'], messy, { fetchImpl: f.impl, log: silent });
+  assert.equal(code, 0);
+  assert.deepEqual(f.puts(), ['v1/meta.json', 'v1/manifest.json']);
+  for (const c of f.calls) {
+    const auth = c.headers instanceof Headers ? c.headers.get('authorization') : (c.headers.authorization ?? c.headers.Authorization);
+    assert.ok(auth && !/[\r\n]/.test(auth) && auth.includes(`Credential=${ENV.R2_ACCESS_KEY_ID}/`), 'access key must be trimmed');
+  }
+});
+
 /** Output with entity files next to the core files, plus a meta.json with the planning flag. */
 const ENTITY_OUTPUT = {
   ...OUTPUT,
