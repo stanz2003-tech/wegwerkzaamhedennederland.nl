@@ -10,10 +10,10 @@
   "refreshMinutes": 5,
   "planningRefreshMinutes": 15,
   "owner": {
-    "name": "[Naam eigenaar / bedrijfsnaam]",
+    "name": "Stan",
     "kvk": "",
     "btw": "",
-    "city": "[Vestigingsplaats]"
+    "city": "Almkerk"
   },
   "ads": {
     "enabled": false,
