@@ -170,3 +170,26 @@ test('veh: a bare ["car"] next to a text naming a fietspad or voetpad is the And
   // a word that merely starts with "fiets" is not a path
   assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Overleg met de Fietsersbond'] }).veh, ['car']);
 });
+
+test('"De A6 is dicht" plus a detour outweighs the absence of a closure record (RWS parent situations)', () => {
+  const texts = ['groot onderhoud A6 HRR Emmeloord-Lemmer nachtafsluiting fase 4A De A6 is dicht.'];
+  // On a dual carriageway road the other direction stays open, so this is `rijbaan`…
+  assert.deepEqual(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', texts }), { imp: 'rijbaan' });
+  // …and on a road with a single carriageway it really is shut.
+  assert.deepEqual(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'lokaal', texts }), { imp: 'dicht' });
+
+  // Without a detour record there is nothing but prose; that is not enough.
+  assert.equal(impactOf([WORK], { cat: 'werk', roadType: 'A', texts }).imp, 'onbekend');
+  // And a real closure record still decides on its own.
+  assert.equal(impactOf([WORK, lane('roadClosed'), reroute()], { cat: 'werk', roadType: 'A', texts }).imp, 'dicht');
+});
+
+test('"dicht bij" means NEAR in Dutch and must not read as a closure', () => {
+  const texts = ['Werkzaamheden aan de rotonde, de afrit is dicht bij Hank'];
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', texts }).imp, 'hinder');
+});
+
+test('the detour of a text-derived closure still says who it is for', () => {
+  const texts = ['Het fietspad is dicht.'];
+  assert.deepEqual(impactOf([WORK, reroute(['bicycle'])], { cat: 'werk', roadType: 'lokaal', texts }), { imp: 'dicht', veh: ['bicycle'] });
+});

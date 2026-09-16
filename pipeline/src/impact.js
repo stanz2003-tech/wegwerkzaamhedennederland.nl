@@ -76,6 +76,17 @@ const LIVE_HINDER_CATS = new Set(['file', 'incident']);
  * Merwedebrug", 10 of 337 fiets/voet items on 2026-09-13). A text that names the path is
  * more specific than that default, so a bare `['car']` becomes the path's users.
  */
+/**
+ * Rijkswaterstaat states the closure in prose on the parent situation and puts the `roadClosed`
+ * records on its children (see src/rollup.js). Where the family link is missing from the feed —
+ * 115 of the 245 such situations on 16 September 2026 — the sentence plus a detour record is all
+ * there is to go on, and it beats printing "doorrijden mogelijk" under the words "De A2 is dicht".
+ *
+ * The negative lookahead is not decoration: in Dutch "is dicht bij Hank" means "is NEAR Hank".
+ * That phrasing does not occur in today's feed, but it is one editorial habit away from turning
+ * every measure near a village into a road closure.
+ */
+const CLOSED_BY_TEXT_RE = /\b(?:is|zijn)\s+dicht\b(?!\s*bij\b)/i;
 const CYCLE_PATH_RE = /\bfiets(?:pad|paden|ers|route|strook|straat|tunnel|brug)\b/i;
 const FOOTPATH_RE = /\bvoet(?:pad|paden|gangers?|gangersbrug|gangerstunnel)\b/i;
 
@@ -112,6 +123,7 @@ export function impactOf(recs, ctx) {
   const closedRecs = recs.filter((r) => r.lane === 'roadClosed' || (r.lane === 'carriagewayClosures' && !dual));
   const carriagewayRecs = recs.filter((r) => r.lane === 'carriagewayClosures' && dual);
   const hinderRecs = recs.filter(isHinderRecord);
+  const rerouteRecs = recs.filter((r) => r.type === 'ReroutingManagement');
 
   /** @type {Impact} */
   let imp;
@@ -123,6 +135,11 @@ export function impactOf(recs, ctx) {
   } else if (carriagewayRecs.length > 0) {
     imp = 'rijbaan';
     winning = carriagewayRecs;
+  } else if (rerouteRecs.length > 0 && CLOSED_BY_TEXT_RE.test(textOf(ctx))) {
+    // Same reading as `carriagewayClosures`: on a road with two carriageways "de A6 is dicht"
+    // means this carriageway, and the other direction stays open.
+    imp = dual ? 'rijbaan' : 'dicht';
+    winning = rerouteRecs;
   } else if (hinderRecs.length > 0 || LIVE_HINDER_CATS.has(ctx.cat) || (ctx.lanes?.closed ?? 0) > 0 || delayIsHinder(ctx)) {
     imp = 'hinder';
     winning = hinderRecs;
@@ -153,10 +170,15 @@ export function impactOf(recs, ctx) {
  */
 function pathUsersOverride(veh, texts) {
   if (!veh || veh.length !== 1 || veh[0] !== 'car' || !texts) return veh;
-  const text = texts.filter(Boolean).join(' ');
+  const text = textOf({ texts });
   if (CYCLE_PATH_RE.test(text)) return ['bicycle'];
   if (FOOTPATH_RE.test(text)) return ['other'];
   return veh;
+}
+
+/** @param {ImpactContext} ctx */
+function textOf(ctx) {
+  return (ctx.texts ?? []).filter(Boolean).join(' ');
 }
 
 /** @param {ImpactRecord} r */

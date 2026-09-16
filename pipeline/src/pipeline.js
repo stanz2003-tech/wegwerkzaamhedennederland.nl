@@ -12,6 +12,7 @@ import { dedupeDoublePublications, spread } from './dedup.js';
 import { fetchFeed, openLocalFile, readEtags, writeEtags } from './fetch.js';
 import { createGeocoder, DEFAULT_GEOCODE_MAX } from './geocode.js';
 import { buildItem, finalizeItem } from './item.js';
+import { rollUpRelatedImpact } from './rollup.js';
 import { createLogger } from './log.js';
 import { createNdjsonWriter, readNdjson, writeOutputs } from './output.js';
 import { parseFeed } from './parse.js';
@@ -139,6 +140,13 @@ export async function runPipeline(options) {
   await geocodeBridges(bridges, geocoder);
   await geocoder.flush();
   const bridgeEntries = bridges.build((lon, lat) => geocoder.cached(lon, lat));
+
+  // A parent situation carries the description and the detour, its children the actual closure
+  // records; without this pass the parent — whose title the visitor reads — says "doorrijden
+  // mogelijk" above the sentence "De A2 is dicht". Runs before dedup so both sides of a merge
+  // already carry the family verdict.
+  const rolled = rollUpRelatedImpact(items);
+  if (rolled.raised > 0) log.info('verdict raised to that of a related situation', rolled);
 
   // RWS publishes a running measure twice (planning object + actual measure).
   const deduped = dedupeDoublePublications(items);
