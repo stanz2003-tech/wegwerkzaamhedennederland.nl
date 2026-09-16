@@ -186,11 +186,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # GitHub disables scheduled workflows in public repositories after 60 days without
-          # repository activity. Re-enabling through the API counts as activity; once a day is plenty.
-          if [ "$(date -u +%H)" != "03" ]; then
-            echo "Keepalive runs during 03:xx UTC only; skipping."
-            exit 0
-          fi
+          # repository activity. Re-enabling through the API counts as activity.
+          #
+          # This used to be gated on the 03:xx UTC hour ("once a day is plenty"), which quietly
+          # never fired: GitHub drops most of the 5-minute schedule, so between 13 and 16 September
+          # 2026 only 19 runs happened and not one of them landed in that hour. One idempotent API
+          # call per run is cheap and removes a failure mode that would have taken the whole site
+          # offline without a single warning.
           gh api --method PUT "/repos/${GITHUB_REPOSITORY}/actions/workflows/data.yml/enable"
           echo "Workflow re-enabled through the API (keepalive)."
 
