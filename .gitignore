@@ -9,12 +9,13 @@ web/public/data/
 pipeline/out/
 pipeline/tmp/
 
-# pipeline caches: geocode.json and bruggen-seen.json ARE committed (they make the
-# scheduled run cheap and keep bridge coverage growing). The parsed-feed snapshots and
-# ETag/manifest bookkeeping are not: planning.ndjson alone is ~50 MB and is rebuilt
-# automatically whenever the feed changes.
+# pipeline caches: geocode.json, bruggen-seen.json and etags.json ARE committed. They make
+# the scheduled run cheap (NDW answers 304), keep bridge coverage growing, and etags.json is
+# what `hashFiles()` in .github/workflows/data.yml keys the parsed-feed cache on — ignoring it
+# silently broke both the cache and the whole "commit updated caches" step (nothing was ever
+# committed in 19 runs). Only the parsed-feed snapshots stay out: planning.ndjson alone is
+# ~50 MB and is rebuilt automatically whenever the feed changes.
 pipeline/cache/last/
-pipeline/cache/etags.json
 
 # generated page lists copied out of pipeline/static
 web/public/lists/

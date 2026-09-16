@@ -175,21 +175,25 @@ describe('filterItems', () => {
   });
 });
 
+// `now` is deliberately passed to every sortItems call: the impact score demotes long-running
+// measures and promotes near-term changes relative to it, so a call that falls back to the real
+// clock quietly changes its answer as the fixtures (dated 2026-09-09) age. That turned this suite
+// red on 2026-09-16 without a single line of production code having changed.
 describe('sortItems', () => {
   it('impact sorts on severity, then category priority, then start', () => {
-    const out = sortItems(ITEMS, 'impact', null).map((f) => f.properties.id);
+    const out = sortItems(ITEMS, 'impact', null, NOW).map((f) => f.properties.id);
     assert.deepEqual(out, ['b', 'c', 'a', 'e', 'd']);
     assert.ok(CATEGORY_PRIORITY.afsluiting < CATEGORY_PRIORITY.werk);
   });
 
   it('start sorts ascending by start time', () => {
-    const out = sortItems(ITEMS, 'start', null).map((f) => f.properties.id);
+    const out = sortItems(ITEMS, 'start', null, NOW).map((f) => f.properties.id);
     assert.equal(out[out.length - 1], 'e');
     assert.equal(out[out.length - 2], 'c');
   });
 
   it('afstand sorts by distance to the map centre', () => {
-    const out = sortItems(ITEMS, 'afstand', [5.12142, 52.09074]).map((f) => f.properties.id);
+    const out = sortItems(ITEMS, 'afstand', [5.12142, 52.09074], NOW).map((f) => f.properties.id);
     assert.equal(out[0], 'd');
     assert.equal(out[out.length - 1], 'e');
   });
