@@ -16,8 +16,12 @@ export type LiveStatus =
   | { kind: 'stale'; generated: string }
   | { kind: 'error' };
 
-/** The pipeline runs every 5 minutes; after 45 minutes without a new file something is wrong. */
-export const STALE_AFTER_MINUTES = 45;
+/**
+ * The wekker (infra/worker) starts the pipeline every ten minutes; three missed cycles in a row
+ * is a fault rather than a hiccup, so the warning appears after half an hour. Keep this in step with
+ * `crons` in infra/worker/wrangler.toml and MAX_DATA_AGE_MINUTES there.
+ */
+export const STALE_AFTER_MINUTES = 30;
 
 export function liveStatusFromMeta(meta: Meta, now = Date.now()): LiveStatus {
   const age = ageMinutes(meta.generated, now);
@@ -43,7 +47,7 @@ function renderLive(el: HTMLElement, status: LiveStatus): void {
       break;
     case 'ok':
       text = `Bijgewerkt ${fmtTime(toMs(status.generated))}`;
-      title = `Laatste update van de gegevens: ${fmtTime(toMs(status.generated))} (elke 5 minuten)`;
+      title = `Laatste update van de gegevens: ${fmtTime(toMs(status.generated))}`;
       break;
     case 'stale':
       text = `Gegevens sinds ${fmtTime(toMs(status.generated))} niet vernieuwd`;

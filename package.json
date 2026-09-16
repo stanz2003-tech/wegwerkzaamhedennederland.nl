@@ -23,6 +23,6 @@
     "pages": "npm run pages -w @wegwerk/web",
     "typecheck": "npm run typecheck -w @wegwerk/web",
     "upload": "node infra/upload-r2.mjs --out web/public/data --cache pipeline/cache",
-    "test": "npm test -w @wegwerk/pipeline && npm test -w @wegwerk/web && node --test \"infra/test/**/*.test.mjs\""
+    "test": "npm test -w @wegwerk/pipeline && npm test -w @wegwerk/web && node --test \"infra/test/**/*.test.mjs\" \"infra/worker/test/**/*.test.mjs\""
   }
 }

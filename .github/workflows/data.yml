@@ -7,8 +7,12 @@
 name: Data
 
 on:
+  # The real clock is a Cloudflare Worker (infra/worker) that dispatches this workflow every ten
+  # minutes: GitHub runs `schedule:` on a best-effort basis and dropped all but 19 of the 860 runs
+  # this cron asked for between 13 and 16 September 2026. The hourly schedule below stays as a
+  # fallback, so the data keeps moving if the Worker or its token ever falls over.
   schedule:
-    - cron: "1-59/5 * * * *"
+    - cron: "7 * * * *"
   workflow_dispatch:
     inputs:
       force:
@@ -179,8 +183,9 @@ jobs:
           echo "::warning::Could not push the cache commit after 3 attempts (data was published fine)."
           exit 1
 
+      # Runs on every event, not just `schedule`: now that the Worker dispatches this workflow,
+      # scheduled runs are the exception and gating on them would bring back the silent expiry.
       - name: Keep the schedule alive
-        if: github.event_name == 'schedule'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
