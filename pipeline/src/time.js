@@ -13,6 +13,42 @@ export const ENDED_GRACE_MS = 60 * 60 * 1000;
 export const MAX_PERIODS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * The published period list is trimmed to whole days in Europe/Amsterdam rather than to the exact
+ * moment of the run. Filtering on the run clock made the output non-deterministic in a way that
+ * cost real money: a period that ended an hour ago dropped out of the list at the next run, so 31
+ * of the 32 detail shards changed within 24 hours without a single measure having changed, and
+ * every one of them was re-uploaded. Quantising to the local day means the list changes once a
+ * day, at midnight, and any other change is a real change — which is also what makes the effect
+ * of every later fix measurable.
+ *
+ * Amsterdam rather than UTC because that is the clock the periods themselves are written in: a
+ * night closure ending at 06:00 local must not survive or vanish an hour early in winter.
+ */
+const DAY_BOUNDARY = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Europe/Amsterdam',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+/**
+ * Local midnight (Europe/Amsterdam) of the day `ms` falls in, as epoch ms.
+ * @param {number} ms
+ */
+export function startOfLocalDay(ms) {
+  const parts = DAY_BOUNDARY.formatToParts(new Date(ms));
+  const get = (/** @type {string} */ type) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const hour = get('hour') % 24;
+  const minute = get('minute');
+  // Subtracting the local wall-clock time of day lands on local midnight without needing to know
+  // the offset, and stays correct across both daylight-saving switches.
+  return ms - (hour * 60 + minute) * 60 * 1000 - (ms % 60000);
+}
+
 /** @typedef {'active'|'upcoming'|'ended'|'future'|'invalid'} WindowState */
 
 /**
@@ -73,7 +109,11 @@ export function windowState(item, nowMs) {
  * @returns {[string, string][] | undefined}
  */
 export function upcomingPeriods(periods, nowMs) {
-  const usable = usablePeriods(periods).filter(([, e]) => e === undefined || e >= nowMs - ENDED_GRACE_MS);
+  // See DAY_BOUNDARY: the cut-off is local midnight, not the run clock, so the list only changes
+  // when the calendar day changes. ENDED_GRACE_MS is no longer needed — a whole day of slack
+  // subsumes it.
+  const floor = startOfLocalDay(nowMs);
+  const usable = usablePeriods(periods).filter(([, e]) => e === undefined || e >= floor);
   if (usable.length === 0) return undefined;
   return usable
     .slice(0, MAX_PERIODS)
