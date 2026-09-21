@@ -176,10 +176,34 @@ function periodsOf(main) {
     unique.push(p);
   }
   if (unique.length === 0) return undefined;
-  if (unique.length === 1 && unique[0][0] === main.start && unique[0][1] === main.end) return undefined;
-  const sorted = unique.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  // An "umbrella" validPeriod that spans the whole window next to the real blocks is a
+  // publication artefact, not evidence that the measure runs continuously. Left in, it wrecks
+  // `coversWholeWindow` below: sorted first, it sets `reach` to the end of the window in one
+  // step, every real block then falls inside it, and the function concludes that the periods are
+  // continuous — so all of them are thrown away. Measured on the feed of 19 September 2026 that
+  // silently flattened 101 published measures, 58 of them `dicht`: the Alexander de Grotelaan in
+  // Utrecht was reported shut from 9 March to 2 October while the municipality had only filed
+  // Tuesday 22 and Thursday 24 September, 07:00-16:00.
+  const real = unique.filter((p) => !spansWholeWindow(p, main.start, main.end));
+  if (real.length === 0) return undefined;
+  const sorted = real.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   if (coversWholeWindow(sorted, main.start, main.end)) return undefined;
   return sorted.length > MAX_PERIODS_KEPT ? sorted.slice(0, MAX_PERIODS_KEPT) : sorted;
+}
+
+/**
+ * True when this single period covers (nearly) the entire window on its own.
+ * @param {[string, string|undefined]} period
+ * @param {string | undefined} start
+ * @param {string | undefined} end
+ */
+function spansWholeWindow([s, e], start, end) {
+  const sMs = Date.parse(s);
+  const eMs = Date.parse(e ?? '');
+  const startMs = Date.parse(start ?? '');
+  const endMs = Date.parse(end ?? '');
+  if (![sMs, eMs, startMs, endMs].every((n) => Number.isFinite(n))) return false;
+  return sMs <= startMs + PERIOD_SLACK_MS && eMs >= endMs - PERIOD_SLACK_MS;
 }
 
 /** Slack for publishers that round the phase boundaries to the minute. */

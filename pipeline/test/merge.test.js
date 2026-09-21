@@ -91,6 +91,35 @@ test('repeated identical validPeriods collapse; two copies of the whole window a
   assert.equal(mergeSituation(rec([[undefined, '2026-09-11T05:00:00Z']])).periods, undefined);
 });
 
+test('an umbrella validPeriod over the whole window does not erase the real blocks', () => {
+  // Real shape from the Alexander de Grotelaan in Utrecht (feed of 2026-09-19): the municipality
+  // publishes one validPeriod covering the entire window plus the two days it actually works.
+  // Sorted first, the umbrella made `coversWholeWindow` report "continuous" and every real block
+  // was discarded — the site then reported the street shut from 9 March to 2 October. This
+  // silently flattened 101 published measures, 58 of them `dicht`.
+  const rec = (periods, start = '2026-09-01T00:00:00Z', end = '2026-09-30T00:00:00Z') => ({
+    id: 'P',
+    recs: [{ id: 'P_1', type: 'MaintenanceWorks', start, end, periods, locs: [] }],
+  });
+  const heel = ['2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z'];
+  const dagA = ['2026-09-22T05:00:00Z', '2026-09-22T14:00:00Z'];
+  const dagB = ['2026-09-24T05:00:00Z', '2026-09-24T14:00:00Z'];
+
+  assert.deepEqual(mergeSituation(rec([heel, dagA, dagB])).periods, [dagA, dagB]);
+  // …also when the umbrella is only nearly exact: publishers round to the minute.
+  const bijna = ['2026-09-01T00:00:30Z', '2026-09-29T23:59:30Z'];
+  assert.deepEqual(mergeSituation(rec([bijna, dagA])).periods, [dagA]);
+
+  // Nothing but umbrellas is still "valid for its whole window", so `per` stays off.
+  assert.equal(mergeSituation(rec([heel])).periods, undefined);
+  assert.equal(mergeSituation(rec([heel, bijna])).periods, undefined);
+
+  // And real phases that genuinely run back to back are still treated as continuous.
+  const fase1 = ['2026-09-01T00:00:00Z', '2026-09-15T00:00:00Z'];
+  const fase2 = ['2026-09-15T00:00:00Z', '2026-09-30T00:00:00Z'];
+  assert.equal(mergeSituation(rec([fase1, fase2])).periods, undefined);
+});
+
 test('back-to-back or overlapping phases that together cover the whole window are no sub-periods either', () => {
   const rec = (periods, start = '2026-09-01T00:00:00Z', end = '2026-09-30T00:00:00Z') => ({ id: 'P', recs: [{ id: 'P_1', type: 'MaintenanceWorks', start, end, periods, locs: [] }] });
   // real Melvin patterns: fase 1 + fase 2 meeting exactly; two overlapping spans; three chained phases
