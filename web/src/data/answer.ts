@@ -37,6 +37,30 @@ export interface Answer {
 
 export const MAX_SPECIFICS = 3;
 
+/**
+ * The moment a question is about: the chosen instant, or the start of the chosen window.
+ * Used to see whether the question lies beyond what the dataset actually covers.
+ */
+function askedFrom(when: When): number {
+  return when.kind === 'moment' ? when.at : when.from;
+}
+
+/**
+ * What to say when the question is about a date the dataset does not reach. The pipeline drops
+ * measures that start more than `Meta.horizon.days` ahead, so for a date past that boundary an
+ * empty result means "not published yet", not "nothing is going on" — and those two must never
+ * share a sentence. Without this the site answered a question about a date six weeks out with
+ * "Geen hinder gemeld", in the same confident wording it uses for a genuinely quiet road, while
+ * 1.765 closures for that period simply were not in its files.
+ */
+export const BEYOND_HORIZON_HEADLINE = 'Nog niet bekend';
+
+function beyondHorizonNote(horizonMs: number): string {
+  const d = new Date(horizonMs);
+  const datum = new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam' }).format(d);
+  return `Wegbeheerders melden hun werk meestal een paar weken vooruit aan; onze planning reikt nu tot ${datum}. Kijk dichter bij de datum nog eens.`;
+}
+
 /** Words after which a free-text title stops naming the place and starts describing the measure. */
 const TITLE_CUT = /\s+(?:dicht|afgesloten|gesloten|geopend|open|versmald|voor|wegens|vanwege|i\.?v\.?m\.?|t\.?b\.?v\.?|tijdens|door|ter hoogte van|thv)(?:\s.*)?$/i;
 
@@ -138,7 +162,18 @@ function uniqueLines(lines: readonly string[]): string[] {
   return Array.from(new Set(lines));
 }
 
-export function answerFor(items: readonly ForecastItem[], mode: VehicleMode, when: When, subject: AnswerSubject, now?: number): Answer {
+/**
+ * @param horizonMs  `Meta.horizon.until` as ms; omit when unknown (older data files). An empty
+ *                   result past this boundary is reported as unknown instead of as "no hindrance".
+ */
+export function answerFor(
+  items: readonly ForecastItem[],
+  mode: VehicleMode,
+  when: When,
+  subject: AnswerSubject,
+  now?: number,
+  horizonMs?: number,
+): Answer {
   const sel = selectWhen(items, mode, when, now);
   const closed = sel.items.filter((x) => x.verdict.level === 'dicht' || x.verdict.level === 'rijbaan');
   const roads = new Set<string>();
@@ -148,10 +183,20 @@ export function answerFor(items: readonly ForecastItem[], mode: VehicleMode, whe
     if (r) roads.add(r.toUpperCase());
     else noRoad += 1;
   }
+  // Only an EMPTY result can be unknown: a measure that already runs and lasts past the horizon
+  // is something we do know about, and its verdict stands.
+  const unknown =
+    sel.items.length === 0 &&
+    typeof horizonMs === 'number' &&
+    Number.isFinite(horizonMs) &&
+    askedFrom(when) > horizonMs;
+
   return {
-    level: sel.worst,
-    headline: headlineFor(sel.items, sel.worst, subject),
-    specifics: uniqueLines(sel.items.map((x) => specificLine(x, subject))).slice(0, MAX_SPECIFICS),
+    level: unknown ? 'onbekend' : sel.worst,
+    headline: unknown ? BEYOND_HORIZON_HEADLINE : headlineFor(sel.items, sel.worst, subject),
+    specifics: unknown
+      ? [beyondHorizonNote(horizonMs as number)]
+      : uniqueLines(sel.items.map((x) => specificLine(x, subject))).slice(0, MAX_SPECIFICS),
     items: sel.items,
     hidden: sel.hidden,
     counts: countLevels(sel.items.map((x) => x.verdict.level)),

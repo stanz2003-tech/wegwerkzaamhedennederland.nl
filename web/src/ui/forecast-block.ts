@@ -15,6 +15,7 @@ import { renderAnswerCard } from './answer-card';
 import { esc, fmtDay, fmtDayTime, fmtWeekdayShort } from './format';
 import { ICONS } from './icons';
 import { mountModeSelect } from './mode-select';
+import { horizonMs } from '../data/horizon';
 
 export type ForecastSelection =
   | { kind: 'all' }
@@ -94,7 +95,7 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
 
   const renderAnswer = (): void => {
     const now = nowFn();
-    const answer = answerFor(items, mode, whenOf(selection, now), opts.subject, now);
+    const answer = answerFor(items, mode, whenOf(selection, now), opts.subject, now, horizonMs());
     answerEl.innerHTML = renderAnswerCard({
       road: opts.subject.kind === 'road' ? opts.subject.name : null,
       roadType: opts.roadType ?? null,

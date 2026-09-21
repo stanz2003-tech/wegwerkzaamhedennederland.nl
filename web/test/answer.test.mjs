@@ -136,3 +136,33 @@ describe('sentences', () => {
     assert.equal(hiddenSentence([], 'auto'), '');
   });
 });
+
+describe('data horizon', () => {
+  it('a question about a date the dataset does not reach is answered "nog niet bekend", never "geen hinder"', () => {
+  // The pipeline drops measures starting more than Meta.horizon.days ahead. Before this, a date
+  // six weeks out produced "Geen hinder gemeld" — the wording of a genuinely quiet road — while
+  // the closures for that period simply were not published yet.
+  const horizon = Date.parse('2026-10-21T18:00:00Z');
+  const buiten = Date.parse('2026-11-20T13:00:00Z');
+  const binnen = Date.parse('2026-10-01T13:00:00Z');
+  const subject = { kind: 'road', name: 'A27' };
+
+  const leegBuiten = answerMod.answerFor([], 'auto', { kind: 'moment', at: buiten }, subject, buiten, horizon);
+  assert.equal(leegBuiten.level, 'onbekend');
+  assert.equal(leegBuiten.headline, answerMod.BEYOND_HORIZON_HEADLINE);
+  assert.match(leegBuiten.specifics[0], /reikt nu tot 21 oktober/);
+
+  // Inside the horizon an empty result really does mean nothing is going on.
+  const leegBinnen = answerMod.answerFor([], 'auto', { kind: 'moment', at: binnen }, subject, binnen, horizon);
+  assert.equal(leegBinnen.level, null);
+  assert.equal(leegBinnen.headline, 'Geen hinder gemeld');
+
+  // Without a horizon (older data files) nothing changes.
+  const zonder = answerMod.answerFor([], 'auto', { kind: 'moment', at: buiten }, subject, buiten);
+  assert.equal(zonder.level, null);
+
+  // A window that starts beyond the horizon counts as beyond it too.
+  const venster = answerMod.answerFor([], 'auto', { kind: 'window', from: buiten, to: buiten + 86400000 }, subject, buiten, horizon);
+  assert.equal(venster.level, 'onbekend');
+  });
+});

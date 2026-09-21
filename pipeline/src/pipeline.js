@@ -18,7 +18,7 @@ import { createNdjsonWriter, readNdjson, writeOutputs } from './output.js';
 import { parseFeed } from './parse.js';
 import { selectSources } from './sources.js';
 import { normalizeProvince } from './sources-friendly.js';
-import { toMs } from './time.js';
+import { toMinuteIso, toMs, UPCOMING_DAYS } from './time.js';
 import { loadVild } from './vild.js';
 
 export const DEFAULT_CACHE_DIR = fileURLToPath(new URL('../cache', import.meta.url));
@@ -180,6 +180,9 @@ export async function runPipeline(options) {
     merged: deduped.stats.merged,
     counts: countByCat([...actueel, ...live]),
     upcoming: countByCat(gepland),
+    // Everything starting beyond this is filtered out by windowState(); the web layer needs the
+    // boundary to tell "nothing is going on" apart from "I have no data for that date yet".
+    horizon: { days: UPCOMING_DAYS, until: toMinuteIso(nowMs + UPCOMING_DAYS * 24 * 60 * 60 * 1000) },
     dropped: totals.dropped,
     unknownTypes,
     runMs,

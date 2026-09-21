@@ -51,6 +51,7 @@ import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
 import { liveStatusFromMeta, mountTopbar } from './ui/topbar';
 import { mountWhenControl } from './ui/when-control';
+import { horizonMs } from './data/horizon';
 
 const REFRESH_MS = 90_000;
 /** Upper bound on list models; the list itself renders in batches of 40. */
@@ -199,7 +200,7 @@ function renderAnswer(roadItems: readonly ItemFeature[], now: number): void {
     panelEl.classList.remove('is-road');
     return;
   }
-  const answer: Answer = answerFor(asForecast(roadItems), url.mode, whenFor(now), { kind: 'road', name: road }, now);
+  const answer: Answer = answerFor(asForecast(roadItems), url.mode, whenFor(now), { kind: 'road', name: road }, now, horizonMs());
   const sample = roadItems.find((f) => f.properties.roadType);
   answerEl.hidden = false;
   panelEl.classList.add('is-road');
@@ -215,7 +216,7 @@ function renderAnswer(roadItems: readonly ItemFeature[], now: number): void {
 }
 
 function renderSummary(inView: readonly ItemFeature[], now: number, shown: number, total: number): void {
-  const answer = answerFor(asForecast(inView), url.mode, whenFor(now), { kind: 'gebied', name: '' }, now);
+  const answer = answerFor(asForecast(inView), url.mode, whenFor(now), { kind: 'gebied', name: '' }, now, horizonMs());
   const text = url.road ? `${plural(total, 'melding', 'meldingen')} op de ${url.road} · ${whenLabel()}` : areaSentence(answer, url.mode, !hideNvt);
   summaryEl.textContent = text;
   summaryEl.title = shown < total ? `${text} — de eerste ${formatCount(shown)} staan in de lijst; zoom in of filter om te verfijnen.` : text;

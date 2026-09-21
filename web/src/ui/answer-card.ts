@@ -35,6 +35,9 @@ function levelOf(a: Answer): VerdictLevel {
 export function renderAnswerCard(m: AnswerCardModel): string {
   const level = levelOf(m.answer);
   const meta = VERDICT_META[level];
+  // `level === null` means the selection was empty within the data we have; `'onbekend'` with an
+  // empty selection means the question was about a date the dataset does not reach yet. The second
+  // must not borrow the reassuring wording of the first.
   const headline = m.answer.level === null ? (m.total === 0 ? 'Niets gemeld' : 'Geen hinder gemeld') : m.answer.headline;
   const specifics = m.answer.specifics.map((s) => `<li>${esc(s)}</li>`).join('');
   const hidden = m.answer.hidden.length;

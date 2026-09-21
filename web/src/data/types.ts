@@ -296,6 +296,14 @@ export interface Meta {
   merged?: number;
   /** Situation record types the classifier did not recognise (went to `overig`). */
   unknownTypes: Record<string, number>;
+  /**
+   * How far ahead the dataset reaches: measures that start later than `until` are not in the
+   * files at all. Without this the site answered a question about a date six weeks out with
+   * "Geen hinder gemeld" — the same sentence it uses for a genuinely quiet road — while it simply
+   * had no data. Absent in older files, in which case the horizon is unknown and the answer
+   * must not claim more than it knows.
+   */
+  horizon?: { days: number; until: string };
   /** Wall time of the run in ms and peak RSS in MB (for monitoring). */
   runMs?: number;
   peakRssMb?: number;

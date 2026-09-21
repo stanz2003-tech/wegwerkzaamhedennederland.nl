@@ -5,6 +5,7 @@
  */
 import type { BridgeFile, EntityFile, IndexFile, IndexRow, ItemCollection, ItemFeature, Meta } from './types';
 import { DATA_FILES } from './types';
+import { setHorizonFromMeta } from './horizon';
 
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -112,7 +113,11 @@ export interface StartData {
 }
 
 export async function loadMeta(signal?: AbortSignal): Promise<Meta> {
-  return fetchJson(DATA_FILES.meta, isMeta, signal);
+  const meta = await fetchJson(DATA_FILES.meta, isMeta, signal);
+  // Every page reaches meta.json through here, so this is the one place the data horizon has to
+  // be recorded for the answer logic (see data/horizon.ts).
+  setHorizonFromMeta(meta);
+  return meta;
 }
 
 export async function loadCollection(file: string, signal?: AbortSignal): Promise<ItemFeature[]> {
