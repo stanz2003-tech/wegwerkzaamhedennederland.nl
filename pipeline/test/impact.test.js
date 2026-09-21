@@ -156,19 +156,23 @@ test('veh fallback: the rerouting record says who the detour is for (real Almere
   assert.deepEqual(impactOf([WORK, reroute()], { cat: 'werk' }), { imp: 'hinder' });
 });
 
-test('veh: a bare ["car"] next to a text naming a fietspad or voetpad is the Andes default and becomes the path users (Merwedebrug, Waterschap Rivierenland)', () => {
+test('the published vehicle list is never rewritten from the free text', () => {
+  // A heuristic that turned a bare ['car'] into ['bicycle'] whenever the description mentioned a
+  // fietspad was removed on 2026-09-21. It touched 37 situations and was right for about five.
+  // The commonest phrasing it hit inverts the meaning outright, so that case is locked down here.
   const closed = lane('roadClosed', { vehicles: ['car'] });
+
+  const omgekeerd = ['Herstel lekkage stadsverwarming. | Verkeersbelemmering: Algemeen - rijbaan dicht muv fietsers en voetgangers'];
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: omgekeerd }), { imp: 'dicht', veh: ['car'] });
+
+  // A genuine cycle-path closure that the publisher filed as ['car'] stays as published: the
+  // source is the only thing that actually knows, and guessing costs more than it saves.
   const fietspad = ['Langdurige afsluiting fietspad Merwedebrug westzijde i.v.m. met de bouw van de nieuwe brug.'];
-  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: fietspad }), { imp: 'dicht', veh: ['bicycle'] });
-  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Voetpad afgesloten', undefined] }), { imp: 'dicht', veh: ['other'] });
-  // not a path: the published list stands
-  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Vervanging onderdoorgang Zouwendijk Meerkerk'] }), { imp: 'dicht', veh: ['car'] });
-  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk' }), { imp: 'dicht', veh: ['car'] });
-  // an explicit list other than ["car"] is never rewritten; the detour fallback is
-  assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['car', 'lorry'] })], { cat: 'werk', texts: fietspad }).veh, ['car', 'lorry']);
-  assert.deepEqual(impactOf([WORK, lane('roadClosed'), reroute(['car'])], { cat: 'werk', texts: fietspad }).veh, ['bicycle']);
-  // a word that merely starts with "fiets" is not a path
-  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: ['Overleg met de Fietsersbond'] }).veh, ['car']);
+  assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: fietspad }), { imp: 'dicht', veh: ['car'] });
+
+  // A list the publisher really did restrict is still honoured, from the record and via the detour.
+  assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['bicycle'] })], { cat: 'werk' }).veh, ['bicycle']);
+  assert.deepEqual(impactOf([WORK, lane('roadClosed'), reroute(['bicycle'])], { cat: 'werk' }).veh, ['bicycle']);
 });
 
 test('"De A6 is dicht" plus a detour outweighs the absence of a closure record (RWS parent situations)', () => {

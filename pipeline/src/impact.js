@@ -21,7 +21,16 @@
  * `veh` is the union of `forVehiclesWithCharacteristicsOf` over the records
  * that produced the winning verdict — but only when every one of those records
  * restricts vehicles: one unrestricted `roadClosed` next to a `roadClosed` for
- * bicycles still closes the road for everyone. Interpretation notes:
+ * bicycles still closes the road for everyone.
+ *
+ * The published list is never second-guessed from the free text. A heuristic that
+ * rewrote a bare `['car']` to `['bicycle']` whenever the description mentioned a
+ * fietspad was tried and removed on 2026-09-21: it was right for about five of the
+ * 37 situations it touched and dangerously wrong for the rest, because a municipal
+ * works description almost always names a path somewhere. Worse, the commonest
+ * phrasing it hit is "rijbaan dicht muv fietsers en voetgangers" — the roadway is
+ * shut EXCEPT for bicycles — which it inverted into "only affects bicycles", telling
+ * drivers they could pass a street that was closed to them. Interpretation notes:
  *   - a delay band on an `evenement`/`overig` item only counts from
  *     `betweenTenMinutesAndThirtyMinutes` (Melvin's default for works is
  *     `upToTenMinutes`, which the spec wants as `hinder` on works; on an event
@@ -70,25 +79,16 @@ const HINDER_LANE_TYPES = new Set([
 const HINDER_NETWORK_TYPES = new Set(['temporaryTrafficLights', 'trafficBeingManuallyDirected']);
 const MEASURE_TYPES = new Set(['RoadOrCarriagewayOrLaneManagement', 'SpeedManagement', 'GeneralNetworkManagement', 'ReroutingManagement']);
 const LIVE_HINDER_CATS = new Set(['file', 'incident']);
-/**
- * Andes (gemeenten, waterschappen) fills `forVehiclesWithCharacteristicsOf` with `car` by
- * default, also on a cycle-path or footpath closure ("Langdurige afsluiting fietspad
- * Merwedebrug", 10 of 337 fiets/voet items on 2026-09-13). A text that names the path is
- * more specific than that default, so a bare `['car']` becomes the path's users.
- */
+
 /**
  * Rijkswaterstaat states the closure in prose on the parent situation and puts the `roadClosed`
- * records on its children (see src/rollup.js). Where the family link is missing from the feed —
- * 115 of the 245 such situations on 16 September 2026 — the sentence plus a detour record is all
- * there is to go on, and it beats printing "doorrijden mogelijk" under the words "De A2 is dicht".
+ * records on its children (see src/rollup.js). Where the family link is missing from the feed,
+ * the sentence plus a detour record is all there is to go on, and it beats printing "doorrijden
+ * mogelijk" under the words "De A2 is dicht".
  *
  * The negative lookahead is not decoration: in Dutch "is dicht bij Hank" means "is NEAR Hank".
- * That phrasing does not occur in today's feed, but it is one editorial habit away from turning
- * every measure near a village into a road closure.
  */
 const CLOSED_BY_TEXT_RE = /\b(?:is|zijn)\s+dicht\b(?!\s*bij\b)/i;
-const CYCLE_PATH_RE = /\bfiets(?:pad|paden|ers|route|strook|straat|tunnel|brug)\b/i;
-const FOOTPATH_RE = /\bvoet(?:pad|paden|gangers?|gangersbrug|gangerstunnel)\b/i;
 
 /** Delay bands in increasing order of hindrance. */
 const DELAY_ORDER = [
@@ -153,27 +153,12 @@ export function impactOf(recs, ctx) {
 
   /** @type {ImpactResult} */
   const out = { imp };
-  const veh = pathUsersOverride(vehiclesOf(winning, recs), ctx.texts);
+  const veh = vehiclesOf(winning, recs);
   if (veh) out.veh = veh;
   if (ctx.hasPeriods) out.per = true;
   if (ctx.speed !== undefined && ctx.speed > 0) out.spd = ctx.speed;
   if (ctx.lanes?.closed !== undefined && ctx.lanes.closed > 0) out.lc = ctx.lanes.closed;
   return out;
-}
-
-/**
- * A bare `['car']` next to a text that names a cycle path or footpath is the Andes default,
- * not a statement about cars — see CYCLE_PATH_RE. Any other list is kept as published.
- * @param {Vehicle[] | undefined} veh
- * @param {(string | undefined)[] | undefined} texts
- * @returns {Vehicle[] | undefined}
- */
-function pathUsersOverride(veh, texts) {
-  if (!veh || veh.length !== 1 || veh[0] !== 'car' || !texts) return veh;
-  const text = textOf({ texts });
-  if (CYCLE_PATH_RE.test(text)) return ['bicycle'];
-  if (FOOTPATH_RE.test(text)) return ['other'];
-  return veh;
 }
 
 /** @param {ImpactContext} ctx */

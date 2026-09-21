@@ -73,6 +73,27 @@ test('RIS-code lookup: registry entry wins over the fallback name', () => {
   assert.deepEqual(Object.keys(entry), ['id', 'slug', 'name', 'road', 'water', 'gemeente', 'prov', 'lon', 'lat', 'openNow', 'openings']);
 });
 
+test('openings: one swing reported by several sensors becomes one row, not three', () => {
+  // Real shape from the Alkmaar cycle bridge on 2026-09-19: the same swing arrives three times,
+  // two minutes apart, each with its own situation id. Before merging, the page listed three
+  // separate openings within ten minutes.
+  const book = createBridgeBook({ registry: REGISTRY, nowMs: NOW, vild });
+  const id = 'NLALK002340557700383';
+  const swing = (/** @type {number} */ startOffset, /** @type {number} */ lengthMin) =>
+    book.note({ ris: id, point: [4.768, 52.616], start: iso(NOW + startOffset), end: iso(NOW + startOffset + lengthMin * 60000), openNow: false });
+  swing(2 * HOUR, 6);
+  swing(2 * HOUR + 2 * 60000, 6);
+  swing(2 * HOUR + 4 * 60000, 6);
+  // A genuinely separate opening an hour later must survive as its own row.
+  swing(3 * HOUR, 6);
+
+  const [entry] = book.build();
+
+  assert.equal(entry.openings.length, 2);
+  assert.deepEqual(entry.openings[0], ['2026-09-10T14:00:00Z', '2026-09-10T14:10:00Z']);
+  assert.deepEqual(entry.openings[1], ['2026-09-10T15:00:00Z', '2026-09-10T15:06:00Z']);
+});
+
 test('openings: aggregated per bridge, only now + 7 days, sorted, de-duplicated, capped', () => {
   const book = createBridgeBook({ registry: REGISTRY, nowMs: NOW, vild });
   const id = 'NLALK002340557700383';
@@ -82,7 +103,9 @@ test('openings: aggregated per bridge, only now + 7 days, sorted, de-duplicated,
   add(HOUR); // duplicate
   add(-5 * DAY); // over
   add((OPENINGS_DAYS + 3) * DAY); // beyond the horizon
-  for (let i = 0; i < MAX_OPENINGS + 10; i++) add(6 * DAY + i * 60000);
+  // Half-hour spacing keeps these apart: openings that overlap are merged, not counted twice
+  // (see the test below), so a one-minute cadence here would collapse into a single row.
+  for (let i = 0; i < MAX_OPENINGS + 10; i++) add(2 * DAY + i * 30 * 60000);
   const [entry] = book.build();
   assert.equal(entry.openings.length, MAX_OPENINGS);
   assert.deepEqual(entry.openings[0], ['2026-09-10T13:00:00Z', '2026-09-10T13:10:00Z']);
