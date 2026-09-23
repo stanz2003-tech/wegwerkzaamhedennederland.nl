@@ -20,15 +20,38 @@ Defined in `web/src/data/types.ts` (read it; the doc comment at the top lists ev
 
 | File | Content | Size target |
 |------|---------|-------------|
-| `meta.json` | `Meta` — generated time, per-source status (ETag, publicationTime, ok, reused), counts active/upcoming per category, dropped, unknownTypes, runMs, peakRssMb | < 5 KB |
+| `meta.json` | `Meta` — generated time, per-source status (ETag, publicationTime, ok, reused), counts active/upcoming per category, **`horizon` {days, until} (v4: how far ahead the dataset reaches)**, dropped, unknownTypes, runMs, peakRssMb | < 5 KB |
 | `werk-actueel.geojson` | `ItemCollection`, items active **now** (inside a `validPeriod` if periods exist, else start ≤ now ≤ end): planning items (werk/afsluiting/evenement/overig) + current RWS measures from actueel_beeld | ≈ 0.6 MB gz |
 | `werk-gepland.geojson` | `ItemCollection`, not active, start within 30 days | ≈ 1–1.5 MB gz |
 | `live.geojson` | `ItemCollection`, `file` (AbnormalTraffic), `incident`, `brug` (bridgeSwingInOperation) valid now, from actueel_beeld | < 100 KB gz |
 | `index/all.json` | `IndexFile` — one `IndexRow` per item in the three collections | ≈ 0.4 MB gz |
 | `index/prov/<PVxx>.json` | `IndexFile` per province (PV20–PV31, `_` = unknown) | small |
-| `detail/<00..31>.json` | `DetailShard` — `ItemDetail` by id; shard = `parseInt(sha1(id).slice(0,8),16) % 32` | ≈ 250 KB gz each |
+| `detail/<00..31>.json` | `DetailShard` — `ItemDetail` by id; shard = `parseInt(sha1(id).slice(0,8),16) % 32`. v4: `tl` (timeline `[start, end, imp, veh?][]`) and `tlTo` on time-varying items, `periods` derived from `tl` | ≈ 250 KB gz each |
 | `bruggen.json` | `BridgeFile` — every bridge from the static registry that has openings now or within 7 days, plus bridges seen in the feeds but not yet in the registry | < 100 KB |
 | `manifest.json` | `Record<path, sha1hex>` of all files above; the uploader (D) uploads only changed files | |
+
+### Contract v4 — the verdict gets a time axis (2026-09-23)
+
+v3 flattened every DATEX situation to one window, one period mask and one verdict, and took those
+three from different records: the window was the hull over all records, the mask came from the
+main record only, and the verdict was computed once over all records without looking at time.
+A street works in eight phases — the last of which closed only the cycle path — read "dicht voor
+iedereen" for 80 days, and a sports event whose ten closures all fell on the Sunday read "dicht"
+from the Thursday on.
+
+v4 adds, without removing anything v3 had:
+
+| Field | Meaning |
+|---|---|
+| `ItemDetail.tl` | `TimelineSegment[]` = `[start, end, imp, veh?][]`, sorted and non-overlapping. Between two segments the measure does not apply. Built from the validity of every situation record separately. Present only on time-varying items (`per: true`). |
+| `ItemDetail.tlTo` | The timeline is complete up to here. A moment after `tlTo` and before `end` is **unknown**, never "no hindrance". |
+| `ItemDetail.periods` | Now derived from `tl` (segments merged regardless of impact), kept for display and v3 readers. `tl` is authoritative. |
+| `ItemProperties.imp` / `veh` | The heaviest verdict over the whole timeline, for the map colour without detail. |
+| `Meta.horizon` | `{ days, until }`: measures starting after `until` are not in the files. An empty answer past it is "nog niet bekend". |
+
+Determinism rule for everything time-dependent in the detail: clip to **local midnight
+(Europe/Amsterdam) of the day of the run**, never to the run clock, so a shard changes once a day
+rather than with every run (see `startOfLocalDay` in pipeline/src/time.js).
 
 Frontend data base URL: `import.meta.env.VITE_DATA_BASE ?? '/data/'` (always trailing slash). Production: `https://data.<domein>/v1/`.
 

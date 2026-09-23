@@ -408,9 +408,17 @@ test('the data files listed in types.ts are exactly what the pipeline writes', (
   assert.deepEqual(PROVINCE_CODES.filter((c) => c !== '_').sort(), Object.keys(JSON.parse(provincesFromTypes())).sort());
 });
 
-test('contract v3: Meta.version, Impact and Vehicle unions match what the pipeline emits', () => {
-  assert.equal(DATA_VERSION, '3');
-  assert.ok(TYPES_TS.includes('Meta.version = "3"'), 'types.ts header does not announce version 3');
+test('contract v4: Meta.version, Impact, Vehicle and the timeline segment match what the pipeline emits', () => {
+  assert.equal(DATA_VERSION, '4');
+  assert.ok(TYPES_TS.includes('Meta.version = "4"'), 'types.ts header does not announce version 4');
+  // The timeline segment is a positional tuple; its order is the contract.
+  assert.ok(
+    TYPES_TS.includes('export type TimelineSegment = [start: string, end: string, imp: Impact, veh?: Vehicle[]];'),
+    'TimelineSegment tuple in types.ts differs from [start, end, imp, veh?]',
+  );
+  assert.ok(TYPES_TS.includes('tl?: TimelineSegment[];'), 'ItemDetail.tl missing in types.ts');
+  assert.ok(TYPES_TS.includes('tlTo?: string;'), 'ItemDetail.tlTo missing in types.ts');
+  assert.ok(TYPES_TS.includes('horizon?: { days: number; until: string };'), 'Meta.horizon missing in types.ts');
   const union = (name) => {
     const m = TYPES_TS.match(new RegExp(`export type ${name} = ([^;]+);`));
     assert.ok(m, `${name} not found in types.ts`);

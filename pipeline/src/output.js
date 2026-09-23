@@ -14,8 +14,11 @@ import { entityPath, groupEntities } from './entities.js';
 
 export const DETAIL_SHARDS = 32;
 export const PROVINCE_CODES = ['PV20', 'PV21', 'PV22', 'PV23', 'PV24', 'PV25', 'PV26', 'PV27', 'PV28', 'PV29', 'PV30', 'PV31', '_'];
-/** Contract version (`Meta.version`); 3 = impact verdict, detourGeom, entity files. */
-export const DATA_VERSION = '3';
+/**
+ * Contract version (`Meta.version`); 3 = impact verdict, detourGeom, entity files;
+ * 4 = the verdict gets a time axis (`ItemDetail.tl`, `tlTo`) and `Meta.horizon`.
+ */
+export const DATA_VERSION = '4';
 
 /** @typedef {import('./item.js').Item} Item */
 

@@ -16,7 +16,15 @@
  *   manifest.json             Record<path, sha1> of every file above (used by the uploader)
  *
  * Contract v3 (2026-09-13): `imp`/`veh`/`per`/`spd`/`lc` on every item (impact verdict),
- * `detourGeom` in the detail, the per-road and per-gemeente EntityFiles. Meta.version = "3".
+ * `detourGeom` in the detail, the per-road and per-gemeente EntityFiles.
+ *
+ * Contract v4 (2026-09-23): the verdict gets a time axis. `ItemDetail.tl` says what a measure does
+ * WHEN — per stretch of time the impact and the vehicles it applies to — and `ItemDetail.tlTo`
+ * says up to when that is known. `Meta.horizon` says how far ahead the whole dataset reaches.
+ * v3 flattened every DATEX situation to one window and one verdict: a street works in eight
+ * phases, of which only the last closed nothing but the cycle path, read "dicht voor iedereen"
+ * for 80 days; a sports event whose closures all fell on the Sunday read "dicht" from Thursday.
+ * Everything v3 had is still there, so a v3 reader keeps working. Meta.version = "4".
  */
 
 export type Category =
@@ -80,6 +88,13 @@ export type Impact = 'dicht' | 'rijbaan' | 'hinder' | 'geen' | 'onbekend';
 /** Vehicle groups a measure applies to (DATEX `forVehiclesWithCharacteristicsOf`). Absent = everyone. */
 export type Vehicle = 'car' | 'lorry' | 'bicycle' | 'moped' | 'bus' | 'agricultural' | 'other';
 
+/**
+ * One stretch of a time-varying measure (contract v4): from `start` up to `end` (ISO 8601 UTC,
+ * minute precision) the measure applies with impact `imp`, for the vehicle groups `veh` — absent
+ * means all traffic. See `ItemDetail.tl`.
+ */
+export type TimelineSegment = [start: string, end: string, imp: Impact, veh?: Vehicle[]];
+
 /** Compact properties shipped inside the GeoJSON files (keep small: ~15 keys). */
 export interface ItemProperties {
   /** DATEX II situation id, stable across runs (prefix tells the publisher: NDW03_, RWS01_, NLRWS_, BMS01_ …). */
@@ -114,7 +129,12 @@ export interface ItemProperties {
   imp: Impact;
   /** Vehicle groups the measure applies to; absent = all traffic. */
   veh?: Vehicle[];
-  /** True when the measure only applies during recurring sub-periods (e.g. nightly); details in `ItemDetail.periods`. */
+  /**
+   * True when the measure varies over time: it only applies during certain blocks (e.g. nightly)
+   * or its impact changes from phase to phase. Details in `ItemDetail.tl` (v4) and, derived from
+   * it, `ItemDetail.periods`. `imp` and `veh` on the item are the heaviest verdict over the whole
+   * timeline, for the map colour when no detail is loaded.
+   */
   per?: true;
   /** Temporary speed limit in km/h, when set. */
   spd?: number;
@@ -129,8 +149,30 @@ export interface ItemDetail {
   desc?: string;
   /** Detour description (reroutingItineraryDescription). */
   detour?: string;
-  /** Recurring sub-periods within [start, end], ISO pairs, max 60, sorted. */
+  /**
+   * The blocks in which the measure applies, ISO pairs, sorted, non-overlapping. Since v4 this is
+   * derived from `tl` (its segments merged regardless of impact) and kept for display and for v3
+   * readers; `tl` is authoritative.
+   */
   periods?: [string, string][];
+  /**
+   * Contract v4 — the timeline: what the measure does when. Sorted, non-overlapping segments
+   * `[start, end, imp, veh?]`; between two segments the measure does not apply. `veh` absent means
+   * all traffic. Present only when the measure varies over time (`ItemProperties.per`); a measure
+   * without `tl` applies with the item's own `imp`/`veh` for its whole [start, end].
+   *
+   * Built from the validity of every DATEX situation record separately, so a phase that only
+   * closes the cycle path, or a closure that only happens on the Sunday, gets its own verdict.
+   * Clipped to local midnight of the day of the run and to `tlTo`, so the file changes once a day
+   * rather than with every run.
+   */
+  tl?: TimelineSegment[];
+  /**
+   * Contract v4 — the timeline is complete up to this moment (ISO). For a moment after `tlTo` and
+   * before the item's `end`, the honest answer is "not known yet", never "no hindrance": the list
+   * of blocks may simply have been cut off there. Absent when the timeline covers the whole item.
+   */
+  tlTo?: string;
   lanes?: { closed?: number; open?: number; total?: number };
   /** Temporary speed limit in km/h. */
   speed?: number;

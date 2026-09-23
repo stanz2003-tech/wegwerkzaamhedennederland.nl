@@ -153,7 +153,7 @@ test('end to end: exit 0, every output file, counts and manifest', async () => {
     assert.ok(row[19] === 0 || row[19] === 1);
   }
   assert.equal(all.rows.filter((r) => r[16] === 0).length, 200);
-  assert.equal(readJson(join(outDir, 'meta.json')).version, '3');
+  assert.equal(readJson(join(outDir, 'meta.json')).version, '4');
   // every feature carries a verdict; the e2e fixtures are closures, works with measures, files, incidents and a bridge
   const imps = new Set([...actueel.features, ...gepland.features, ...live.features].map((f) => f.properties.imp));
   assert.deepEqual([...imps].sort(), ['dicht', 'hinder']);

@@ -61,7 +61,7 @@ describe('meta.json', () => {
   it('passes the frontend validator and has the agreed shape', () => {
     assert.equal(isMeta(data.meta), true);
     assert.match(data.meta.generated, ISO_MINUTE);
-    assert.equal(data.meta.version, '3');
+    assert.equal(data.meta.version, '4');
     assert.equal(typeof data.meta.dropped, 'number');
     assert.equal(typeof data.meta.runMs, 'number');
     assert.equal(typeof data.meta.peakRssMb, 'number');

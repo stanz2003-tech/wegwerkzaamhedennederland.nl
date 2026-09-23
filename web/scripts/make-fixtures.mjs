@@ -15,7 +15,7 @@
  *           chosen so "vandaag" still has hours left and the weekend window lies ahead.
  *   --out   output directory (default web/fixtures/data).
  *
- * Produced files (contract v3): meta.json, werk-actueel.geojson, werk-gepland.geojson, live.geojson,
+ * Produced files (contract v4): meta.json, werk-actueel.geojson, werk-gepland.geojson, live.geojson,
  * index/all.json, index/prov/<PVxx>.json (13 codes incl. `_`), detail/<NN>.json for the
  * occupied shards only, bruggen.json, roads/<slug>.json and gemeenten/<slug>.json (EntityFile per
  * road / gemeente that has items) and manifest.json (sha1 per file, written last).
@@ -29,7 +29,9 @@ import {
 import { activeItems, bridges, liveItems, plannedItems } from '../fixtures/source/items.mjs';
 
 const DEFAULT_NOW = '2026-09-09T12:00:00Z';
-const DATA_VERSION = '3';
+const DATA_VERSION = '4';
+/** Same boundary as pipeline/src/time.js UPCOMING_DAYS: measures starting later are not published. */
+const HORIZON_DAYS = 30;
 
 /* -------------------------------- assembling -------------------------------- */
 
@@ -142,6 +144,7 @@ function metaOf(nowMs, active, planned, live) {
     },
     counts,
     upcoming,
+    horizon: { days: HORIZON_DAYS, until: iso(nowMs + HORIZON_DAYS * 24 * 60 * MIN) },
     dropped: 2,
     // Double publications folded into one item: equal to the number of ids in every
     // `ItemDetail.related` of this fixture set (see fixtures/source/items.mjs).
