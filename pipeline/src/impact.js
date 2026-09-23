@@ -137,9 +137,10 @@ export function impactOf(recs, ctx) {
     winning = carriagewayRecs;
   } else if (rerouteRecs.length > 0 && CLOSED_BY_TEXT_RE.test(textOf(ctx))) {
     // Same reading as `carriagewayClosures`: on a road with two carriageways "de A6 is dicht"
-    // means this carriageway, and the other direction stays open.
+    // means this carriageway, and the other direction stays open. The detour's vehicle list says
+    // who the detour is for, not who the road is closed to, so it does not narrow this verdict.
     imp = dual ? 'rijbaan' : 'dicht';
-    winning = rerouteRecs;
+    winning = [];
   } else if (hinderRecs.length > 0 || LIVE_HINDER_CATS.has(ctx.cat) || (ctx.lanes?.closed ?? 0) > 0 || delayIsHinder(ctx)) {
     imp = 'hinder';
     winning = hinderRecs;
@@ -153,7 +154,7 @@ export function impactOf(recs, ctx) {
 
   /** @type {ImpactResult} */
   const out = { imp };
-  const veh = vehiclesOf(winning, recs);
+  const veh = vehiclesOf(winning);
   if (veh) out.veh = veh;
   if (ctx.hasPeriods) out.per = true;
   if (ctx.speed !== undefined && ctx.speed > 0) out.spd = ctx.speed;
@@ -188,25 +189,23 @@ function delayIsHinder(ctx) {
  * Vehicle groups the winning records restrict themselves to. Absent when any
  * winning record applies to all traffic, or when no record restricts vehicles.
  *
- * Fallback: a `ReroutingManagement` record's vehicle list says who the DETOUR
- * is for — which usually equals who the closure is for (in the planning feed
- * the two lists agree in ~80 % of the situations that carry both). It is only
- * used when none of the winning records has a vehicle list of its own, and
- * only when every rerouting record that has one agrees, so a bicycle detour
- * next to an unrestricted car detour never narrows the closure to bicycles.
+ * DATEX `forVehiclesWithCharacteristicsOf` restricts the record it sits on and
+ * nothing else. Until 2026-09-23 a closure without a list of its own took the
+ * list of its DETOUR as its audience; measured on the feed of that day it touched
+ * 225 situations, and nearly all of them read "Weg dicht in beide richtingen —
+ * de weg is afgesloten voor al het verkeer" next to a detour for cyclists. The
+ * site then told car drivers "Geldt niet voor auto's" about a street closed to
+ * them. That fallback caused 2.233 of the 2.416 dangerous answers an independent
+ * check found. A closure without its own list now applies to all traffic: over-
+ * warning a footbridge closure to drivers is the lesser error.
  * @param {ImpactRecord[]} winning
- * @param {ImpactRecord[]} recs
  * @returns {Vehicle[] | undefined}
  */
-function vehiclesOf(winning, recs) {
+function vehiclesOf(winning) {
   if (winning.length === 0) return undefined;
   const restricted = winning.filter((r) => r.vehicles && r.vehicles.length > 0);
-  if (restricted.length > 0) {
-    return restricted.length === winning.length ? unionOf(restricted) : undefined;
-  }
-  const reroutes = recs.filter((r) => r.type === 'ReroutingManagement');
-  if (reroutes.length === 0 || !reroutes.every((r) => r.vehicles && r.vehicles.length > 0)) return undefined;
-  return unionOf(reroutes);
+  if (restricted.length === 0) return undefined;
+  return restricted.length === winning.length ? unionOf(restricted) : undefined;
 }
 
 /** @param {ImpactRecord[]} recs @returns {Vehicle[]} */

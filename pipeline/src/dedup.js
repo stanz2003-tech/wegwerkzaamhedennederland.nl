@@ -262,12 +262,17 @@ function provenTwin(actual, byBase, byId, consumed) {
  * fields that describe *what is happening right now* (cat, sub, sev, closed,
  * start, end) always stay the actual measure's own.
  */
-const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov', 'veh', 'per', 'spd', 'lc']);
+// Not `veh`: on the survivor an absent list means "all traffic", which is a statement, not a gap.
+// Filling it from the planning twin narrowed a live closure to "alleen fietsers" — the same false
+// "Geldt niet voor auto's" the vehicle fallback in impact.js was removed for.
+const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov', 'spd', 'lc']);
 const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
 /**
- * When a measure applies (contract v4). These three describe one timeline together, so they are
- * taken over as a set or not at all: the survivor's own `periods` next to the dropped item's `tl`
- * would describe two different measures in one detail.
+ * When a measure applies (contract v4), together with `props.per`. Never taken over from the
+ * planning twin: the survivor is the actual measure from the live feed, which is in force now.
+ * Grafting the planned blocks onto it made a closure that overran its planned slot read "Geen
+ * hinder · buiten werktijden" while it was still in the feed; the planned verdicts in `tl` could
+ * likewise overrule the live "dicht" at a chosen moment.
  */
 const TIME_GROUP = Object.freeze(['periods', 'tl', 'tlTo']);
 
@@ -296,11 +301,15 @@ export function absorb(survivor, dropped) {
       filled = true;
     }
   }
-  const survivorHasTime = TIME_GROUP.some((key) => survivor.detail[key] !== undefined);
-  const droppedHasTime = TIME_GROUP.some((key) => dropped.detail[key] !== undefined);
-  if (!survivorHasTime && droppedHasTime) {
-    for (const key of TIME_GROUP) if (dropped.detail[key] !== undefined) survivor.detail[key] = dropped.detail[key];
-    filled = true;
+  // Only a planning survivor could take the time group over; in practice every survivor is live.
+  if (survivor.role !== 'live') {
+    const survivorHasTime = TIME_GROUP.some((key) => survivor.detail[key] !== undefined);
+    const droppedHasTime = TIME_GROUP.some((key) => dropped.detail[key] !== undefined);
+    if (!survivorHasTime && droppedHasTime) {
+      for (const key of TIME_GROUP) if (dropped.detail[key] !== undefined) survivor.detail[key] = dropped.detail[key];
+      if (dropped.props.per !== undefined) survivor.props.per = dropped.props.per;
+      filled = true;
+    }
   }
   return filled;
 }

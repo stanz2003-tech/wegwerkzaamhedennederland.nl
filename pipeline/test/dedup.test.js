@@ -209,8 +209,11 @@ test('the survivor absorbs what only the planning item knew, and nothing else', 
   assert.equal(actual.detail.url, 'https://melvin.ndw.nu/x');
   assert.equal(actual.detail.status, 'running');
   assert.deepEqual(actual.detail.detourGeom, planning.detail.detourGeom, 'the detour geometry of the planning object is kept');
-  assert.deepEqual(actual.props.veh, ['bicycle']);
-  assert.equal(actual.props.per, true);
+  // Not taken over: an absent vehicle list on the live measure means "all traffic", and the planned
+  // blocks must not overrule what the live feed says is in force now.
+  assert.equal(actual.props.veh, undefined);
+  assert.equal(actual.props.per, undefined);
+  assert.equal(actual.detail.periods, undefined);
   assert.equal(actual.props.lc, 1);
   // never overwritten: the survivor describes what is happening right now
   assert.equal(actual.detail.speed, 70);

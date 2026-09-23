@@ -13,7 +13,7 @@ import { mergeSituation } from './merge.js';
 import { detectRoad } from './roads.js';
 import { friendlySource, normalizeProvince } from './sources-friendly.js';
 import { toMinuteIso, windowState } from './time.js';
-import { buildTimeline } from './timeline.js';
+import { activityUnion, buildTimeline } from './timeline.js';
 import { buildTitle, TITLE_MAX } from './title.js';
 
 /**
@@ -47,7 +47,11 @@ import { buildTitle, TITLE_MAX } from './title.js';
 export function buildItem(situation, role, ctx) {
   const cls = classify(situation, role);
   const merged = mergeSituation(situation);
-  const state = windowState(merged, ctx.nowMs);
+  // Planning items: alive when ANY record applies — not only when the main record's blocks say so.
+  // Reading the main record only filed items whose closure phase runs today under "gepland", off
+  // the "Nu" map. Live items (actueel beeld) keep the v3 reading: what the live feed publishes is in
+  // force now, and a planned slot that has passed must not end it (see finalizeItem).
+  const state = windowState(role === 'planning' ? { ...merged, periods: activityUnion(merged.timed ?? []) } : merged, ctx.nowMs);
   if (state === 'ended' || state === 'future' || state === 'invalid') return { skip: state, dropped: 0, unknown: cls.unknown };
 
   const isLiveCat = cls.cat === 'file' || cls.cat === 'incident' || cls.cat === 'brug';
@@ -136,9 +140,15 @@ export function finalizeItem(item, geo, nowMs) {
   // Contract v4: the verdict per stretch of time, from the records that apply during it. For the
   // ~98% of situations whose measures all share the main window this yields exactly the v3 result;
   // phases, and measures outside the main record's blocks, now get the verdict of their own time.
-  const timeline = buildTimeline({
+  // Live items (actueel beeld) get no timeline: what the live feed publishes is in force now. Its
+  // validPeriods are the planned slot, and an RWS closure that overran its slot — still in the feed,
+  // 'implemented', 'certain' — read "Doorrijden mogelijk" at 18:04 with the slot ending at 18:00.
+  const timeline =
+    item.role === 'live'
+      ? { segments: [] }
+      : buildTimeline({
     records: merged.timed ?? [],
-    mainBlocks: merged.periods,
+    itemStart: merged.start,
     itemEnd: merged.end,
     nowMs,
     judge: (active) => {
@@ -155,10 +165,12 @@ export function finalizeItem(item, geo, nowMs) {
       });
       return v.veh ? { imp: v.imp, veh: v.veh } : { imp: v.imp };
     },
-  });
+        });
   // The item's own verdict (map colour without detail) is the heaviest stretch still ahead — not
   // the verdict of all records at once, which kept painting a street red whose closure had ended.
-  const verdict = timeline.heaviest ?? { imp: impact.imp, veh: impact.veh };
+  // `veh` is who the item concerns at all (every stretch with an effect), not the vehicles of the
+  // heaviest stretch alone: a lighter phase for all traffic must keep the item visible to everyone.
+  const verdict = timeline.heaviest ? { imp: timeline.heaviest.imp, veh: timeline.veh } : { imp: impact.imp, veh: impact.veh };
   const periods = timeline.periods;
   item.props = compact({
     id: item.id,

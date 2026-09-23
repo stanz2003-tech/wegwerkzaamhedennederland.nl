@@ -61,3 +61,40 @@ test('a gemeente item that was not geocoded still never lands on a motorway — 
   assert.equal(item.props.road, undefined);
   assert.equal(item.props.roadType, 'lokaal');
 });
+
+test('a live measure gets no timeline: what the live feed publishes is in force now (RWS01_SM1174006_D2_WWA)', async () => {
+  // The real shape: a closure record whose validPeriod — the planned slot — ended at 18:00, still in
+  // the live feed at 18:04. With a timeline the site read "Geen hinder · buiten werktijden".
+  const [situation] = await parseSnippet(fixture('afsl.xml'));
+  const rec = situation.recs[0];
+  rec.start = '2026-09-10T09:00:00Z';
+  rec.end = undefined;
+  rec.periods = [['2026-09-10T10:00:00Z', '2026-09-10T11:00:00Z']];
+  const now = Date.parse('2026-09-10T11:04:00Z');
+  const built = buildItem(situation, 'live', { vild: NO_VILD, nowMs: now });
+  assert.ok(built.item, 'still published: the live feed says it is in force');
+
+  finalizeItem(built.item, GEO, now);
+
+  assert.equal(built.item.props.per, undefined);
+  assert.equal(built.item.detail.periods, undefined);
+  assert.equal(built.item.detail.tl, undefined);
+  assert.equal(built.item.props.imp, 'dicht');
+});
+
+test('a planning item whose closure phase runs today is active, even when the main record lists no block today', async () => {
+  // AND01_32A834BD256640AD8DAD3C850DA52ACC on 2026-09-23: the roadClosed record runs 14 Sep to
+  // 9 Oct, the main record's blocks only start on 12 Oct. Reading the main record alone filed the
+  // item under "gepland", off the map for "Nu".
+  const [situation] = await parseSnippet(fixture('afsl.xml'));
+  const main = situation.recs[0];
+  main.start = '2026-09-01T05:00:00Z';
+  main.end = '2026-10-30T15:00:00Z';
+  main.periods = [['2026-10-12T05:00:00Z', '2026-10-30T15:00:00Z']];
+  const closure = { ...main, id: `${main.id}_closure`, type: 'RoadOrCarriagewayOrLaneManagement', lane: 'roadClosed', start: '2026-09-01T05:00:00Z', end: '2026-10-09T15:00:00Z', periods: undefined, comments: [] };
+  situation.recs.push(closure);
+
+  const built = buildItem(situation, 'planning', { vild: NO_VILD, nowMs: NOW_MS });
+
+  assert.equal(built.item?.state, 'active');
+});

@@ -141,11 +141,13 @@ test('veh: only the records of the winning level count, and one unrestricted rec
   assert.equal(impactOf([lane('roadClosed')], { cat: 'afsluiting' }).veh, undefined);
 });
 
-test('veh fallback: the rerouting record says who the detour is for (real Almere record) — only when the closure has no list', async () => {
+test('a closure without a vehicle list of its own is closed to everyone — the list of the detour does not narrow it (real Almere record)', async () => {
+  // Until 2026-09-23 the detour's audience was taken as the closure's; on that day's feed that made
+  // 225 closures, nearly all "Weg dicht in beide richtingen", read "Geldt niet voor auto's".
   const { recs, ctx } = await measuresOf('reroute_veh_only.xml');
   assert.equal(recs.find((r) => r.lane === 'carriagewayClosures')?.vehicles, undefined);
   assert.deepEqual(recs.find((r) => r.type === 'ReroutingManagement')?.vehicles, ['bicycle']);
-  assert.deepEqual(impactOf(recs, ctx), { imp: 'dicht', veh: ['bicycle'] });
+  assert.deepEqual(impactOf(recs, ctx), { imp: 'dicht' });
   // the closure's own list wins over the detour's list
   const own = [lane('roadClosed', { vehicles: ['moped'] }), reroute(['bicycle'])];
   assert.deepEqual(impactOf(own, { cat: 'afsluiting' }).veh, ['moped']);
@@ -170,9 +172,10 @@ test('the published vehicle list is never rewritten from the free text', () => {
   const fietspad = ['Langdurige afsluiting fietspad Merwedebrug westzijde i.v.m. met de bouw van de nieuwe brug.'];
   assert.deepEqual(impactOf([WORK, closed], { cat: 'werk', texts: fietspad }), { imp: 'dicht', veh: ['car'] });
 
-  // A list the publisher really did restrict is still honoured, from the record and via the detour.
+  // A list the publisher really did restrict on the closure itself is still honoured.
   assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['bicycle'] })], { cat: 'werk' }).veh, ['bicycle']);
-  assert.deepEqual(impactOf([WORK, lane('roadClosed'), reroute(['bicycle'])], { cat: 'werk' }).veh, ['bicycle']);
+  // …and a detour's list never narrows a closure that has none of its own.
+  assert.equal(impactOf([WORK, lane('roadClosed'), reroute(['bicycle'])], { cat: 'werk' }).veh, undefined);
 });
 
 test('"De A6 is dicht" plus a detour outweighs the absence of a closure record (RWS parent situations)', () => {
@@ -193,7 +196,7 @@ test('"dicht bij" means NEAR in Dutch and must not read as a closure', () => {
   assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', texts }).imp, 'hinder');
 });
 
-test('the detour of a text-derived closure still says who it is for', () => {
-  const texts = ['Het fietspad is dicht.'];
-  assert.deepEqual(impactOf([WORK, reroute(['bicycle'])], { cat: 'werk', roadType: 'lokaal', texts }), { imp: 'dicht', veh: ['bicycle'] });
+test('a closure read from the text is closed to everyone, whatever the detour is for', () => {
+  // "De A6 is dicht" next to a detour for lorries must not become "alleen vrachtverkeer".
+  assert.deepEqual(impactOf([WORK, reroute(['lorry'])], { cat: 'werk', roadType: 'lokaal', texts: ['De A6 is dicht.'] }), { imp: 'dicht' });
 });

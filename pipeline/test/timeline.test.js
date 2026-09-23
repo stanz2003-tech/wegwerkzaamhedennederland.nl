@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { activityOf, buildTimeline, heaviest, MAX_SEGMENTS, timelineWindow } from '../src/timeline.js';
+import { activityOf, activityUnion, buildTimeline, concernedVehicles, heaviest, MAX_SEGMENTS, timelineWindow } from '../src/timeline.js';
 
 // Monday 21 September 2026, 14:00 Amsterdam.
 const NOW = Date.parse('2026-09-21T12:00:00Z');
@@ -160,7 +160,10 @@ test('an umbrella period over a record\'s own window is not a block', () => {
     ['2026-09-22T05:00:00Z', '2026-09-22T14:00:00Z'],
   ]);
   const m = main('2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z');
-  assert.deepEqual(activityOf(r, m, []), [[Date.parse('2026-09-22T05:00:00Z'), Date.parse('2026-09-22T14:00:00Z')]]);
+  const a = activityOf(r, m, []);
+  assert.deepEqual(a.on, [[Date.parse('2026-09-22T05:00:00Z'), Date.parse('2026-09-22T14:00:00Z')]]);
+  // …but it is kept as a shadow: outside the real block the answer is "onbekend", not "geen".
+  assert.deepEqual(a.shadow, [[Date.parse('2026-09-01T00:00:00Z'), Date.parse('2026-09-30T00:00:00Z')]]);
 });
 
 test('whatever ended before today is gone, and two runs on one day give identical output', () => {
@@ -196,3 +199,111 @@ test('heaviest: the strongest level wins, and at that level "all traffic" beats 
   assert.deepEqual(heaviest([{ imp: 'dicht', veh: ['lorry'] }, { imp: 'dicht', veh: ['car'] }]), { imp: 'dicht', veh: ['car', 'lorry'] });
   assert.equal(heaviest([]), undefined);
 });
+
+test('blocks a minute apart are one block: a permanent closure gets no gaps at 23:59 (NDW03_287026)', () => {
+  // "Permanente knip in de Odiliastraat": 1.197 day blocks xx-22:00Z..(xx+1)-21:59Z. Without a
+  // seam tolerance every day had a one-minute gap in which the site said "Geen hinder".
+  const days = [];
+  for (let d = 20; d <= 29; d++) days.push([`2026-09-${d}T22:00:00Z`, `2026-09-${d + 1}T21:59:00Z`]);
+  const records = [main('2026-09-20T22:00:00Z', '2026-09-30T21:59:00Z', days), rec(closed(), '2026-09-20T22:00:00Z', '2026-09-30T21:59:00Z', days)];
+  const t = buildTimeline({ records, itemStart: '2026-09-20T22:00:00Z', itemEnd: '2026-09-30T21:59:00Z', nowMs: NOW, judge });
+  assert.equal(t.periods, undefined, 'continuous, so no blocks');
+  assert.equal(t.tl, undefined);
+  assert.equal(t.segments.length, 1);
+});
+
+test('phases that keep the same verdict after the window are no change: no tlTo, the stretch runs on (NDW03_608563)', () => {
+  // Three overlapping closure phases, all "dicht", running into April. Counting record boundaries
+  // instead of verdict changes gave "Weg dicht · op bepaalde tijden" for a closure without a break.
+  const records = [
+    main('2026-09-01T05:00:00Z', '2027-04-02T15:00:00Z'),
+    rec(closed(), '2026-09-01T05:00:00Z', '2026-11-15T15:00:00Z'),
+    rec(closed(), '2026-11-10T05:00:00Z', '2027-01-20T15:00:00Z'),
+    rec(closed(), '2027-01-15T05:00:00Z', '2027-04-02T15:00:00Z'),
+  ];
+  const t = buildTimeline({ records, itemStart: '2026-09-01T05:00:00Z', itemEnd: '2027-04-02T15:00:00Z', nowMs: NOW, judge });
+  assert.equal(t.tlTo, undefined);
+  assert.equal(t.periods, undefined);
+  assert.equal(t.tl, undefined);
+  assert.equal(t.segments[t.segments.length - 1][1], Date.parse('2027-04-02T15:00:00Z'));
+});
+
+test('outside the real blocks but inside an umbrella the answer is "onbekend", never a gap', () => {
+  // Alexander de Grotelaan shape: one period over the whole window plus two working days. Whether
+  // the umbrella is an envelope or the real closure cannot be told from the data.
+  const periods = [
+    ['2026-09-01T00:00:00Z', '2026-10-02T00:00:00Z'],
+    ['2026-09-22T05:00:00Z', '2026-09-22T14:00:00Z'],
+    ['2026-09-24T05:00:00Z', '2026-09-24T14:00:00Z'],
+  ];
+  const records = [main('2026-09-01T00:00:00Z', '2026-10-02T00:00:00Z', periods), rec(closed(), '2026-09-01T00:00:00Z', '2026-10-02T00:00:00Z', periods)];
+  const t = buildTimeline({ records, itemStart: '2026-09-01T00:00:00Z', itemEnd: '2026-10-02T00:00:00Z', nowMs: NOW, judge });
+  const at = (iso) => t.tl.find((x) => x[0] <= iso && iso < x[1])?.[2];
+  assert.equal(at('2026-09-22T10:00:00Z'), 'dicht', 'a working day');
+  assert.equal(at('2026-09-23T10:00:00Z'), 'onbekend', 'between the working days: not "geen"');
+  assert.equal(t.periods, undefined, 'no gaps: the umbrella covers them');
+  assert.deepEqual(t.heaviest, { imp: 'dicht' });
+});
+
+test('the item lives from its own start, not from the start of the main record: the gap before it is published (Mijdrecht)', () => {
+  // AND01_1CC7FA8FDAF4475E9BF69554888EFE51: an expired record made the item start in August, the
+  // main record only starts 13 October. v4 said "Weg dicht" for the 19 days in which nothing applied.
+  const records = [main('2026-10-13T04:00:00Z', '2026-11-20T15:00:00Z'), rec(closed(), '2026-10-13T04:00:00Z', '2026-11-20T15:00:00Z'), rec(lanes, '2026-08-03T05:00:00Z', '2026-08-20T15:00:00Z')];
+  const t = buildTimeline({ records, itemStart: '2026-08-03T05:00:00Z', itemEnd: '2026-11-20T15:00:00Z', nowMs: NOW, judge });
+  assert.ok(t.periods, 'the gap before 13 October makes blocks necessary');
+  assert.equal(t.periods[0][0], '2026-10-13T04:00:00Z');
+});
+
+test('the item concerns everyone as soon as one stretch with an effect is for all traffic', () => {
+  // Taking only the heaviest stretch's vehicles hid a measure from lorries whose lighter phase
+  // did concern them.
+  assert.equal(concernedVehicles([{ imp: 'dicht', veh: ['car'] }, { imp: 'hinder' }]), undefined);
+  assert.deepEqual(concernedVehicles([{ imp: 'dicht', veh: ['car'] }, { imp: 'hinder', veh: ['lorry'] }]), ['car', 'lorry']);
+  // A stretch without any effect does not widen the audience.
+  assert.deepEqual(concernedVehicles([{ imp: 'dicht', veh: ['bicycle'] }, { imp: 'geen' }]), ['bicycle']);
+});
+
+test('activityUnion covers every record, so a phase running today makes the item alive today', () => {
+  const records = [
+    main('2026-09-01T05:00:00Z', '2026-10-30T15:00:00Z', [['2026-10-12T05:00:00Z', '2026-10-30T15:00:00Z']]),
+    rec(closed(), '2026-09-14T05:00:00Z', '2026-10-09T15:00:00Z'),
+  ];
+  const union = activityUnion(records);
+  assert.ok(union.some(([s, e]) => s <= '2026-09-23T10:00:00Z' && '2026-09-23T10:00:00Z' <= e));
+});
+
+test('a closure whose one period covers its whole window keeps it next to nightly blocks on the main record: onbekend in between, never a gap', () => {
+  // Found in review: the closure record's own claim to its whole window was dropped, the record
+  // inherited the nights of the main record, and the days read "Geen hinder · buiten werktijden".
+  const nights = [
+    ['2026-09-22T20:00:00Z', '2026-09-23T04:00:00Z'],
+    ['2026-09-23T20:00:00Z', '2026-09-24T04:00:00Z'],
+    ['2026-09-24T20:00:00Z', '2026-09-25T04:00:00Z'],
+  ];
+  const records = [
+    main('2026-09-22T20:00:00Z', '2026-09-25T04:00:00Z', nights),
+    rec(closed(), '2026-09-22T20:00:00Z', '2026-09-25T04:00:00Z', [['2026-09-22T20:00:00Z', '2026-09-25T04:00:00Z']]),
+  ];
+  const t = buildTimeline({ records, itemStart: '2026-09-22T20:00:00Z', itemEnd: '2026-09-25T04:00:00Z', nowMs: NOW, judge });
+  const at = (iso) => t.tl?.find((x) => x[0] <= iso && iso < x[1])?.[2];
+  assert.equal(at('2026-09-23T22:00:00Z'), 'dicht', 'a night');
+  assert.equal(at('2026-09-24T10:00:00Z'), 'onbekend', 'the day in between: not a gap');
+  assert.equal(t.periods, undefined, 'no gaps');
+});
+
+test('a record whose own day blocks fill its whole window applies throughout, not in the main record’s nights', () => {
+  const nights = [
+    ['2026-09-22T20:00:00Z', '2026-09-23T04:00:00Z'],
+    ['2026-09-23T20:00:00Z', '2026-09-24T04:00:00Z'],
+  ];
+  const days = [
+    ['2026-09-22T20:00:00Z', '2026-09-23T21:59:00Z'],
+    ['2026-09-23T22:00:00Z', '2026-09-24T04:00:00Z'],
+  ];
+  const records = [main('2026-09-22T20:00:00Z', '2026-09-24T04:00:00Z', nights), rec(closed(), '2026-09-22T20:00:00Z', '2026-09-24T04:00:00Z', days)];
+  const t = buildTimeline({ records, itemStart: '2026-09-22T20:00:00Z', itemEnd: '2026-09-24T04:00:00Z', nowMs: NOW, judge });
+  assert.equal(t.periods, undefined);
+  assert.equal(t.tl, undefined, 'dicht throughout');
+  assert.deepEqual(t.heaviest, { imp: 'dicht' });
+});
+
