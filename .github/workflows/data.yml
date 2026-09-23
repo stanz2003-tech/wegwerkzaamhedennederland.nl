@@ -1,16 +1,18 @@
-# Data pipeline: NDW open data → GeoJSON → Cloudflare R2, every 5 minutes.
+# Data pipeline: NDW open data → GeoJSON → Cloudflare R2, about every ten minutes.
 #
-# The minute offset ("1-59/5") avoids GitHub's top-of-the-hour congestion. The planning
-# feed is only re-parsed when its ETag changed (pipeline/cache/etags.json); the parsed
-# result lives in pipeline/cache/last/, kept between runs with the Actions cache.
+# The cadence comes from .github/workflows/wekker.yml: every run ends by dispatching the wekker,
+# which waits eight minutes on an environment timer, checks the published site end to end, and
+# dispatches the next run. The planning feed is only re-parsed when its ETag changed
+# (pipeline/cache/etags.json); the parsed result lives in pipeline/cache/last/, kept between runs
+# with the Actions cache.
 # Exit codes of the pipeline: 0 publish · 1 failed · 2 validation floor not met (never publish).
 name: Data
 
 on:
-  # The real clock is a Cloudflare Worker (infra/worker) that dispatches this workflow every ten
-  # minutes: GitHub runs `schedule:` on a best-effort basis and dropped all but 19 of the 860 runs
-  # this cron asked for between 13 and 16 September 2026. The hourly schedule below stays as a
-  # fallback, so the data keeps moving if the Worker or its token ever falls over.
+  # The real clock is the wekker (see above): GitHub runs `schedule:` on a best-effort basis and
+  # dropped all but 19 of the 860 runs a five-minute cron asked for between 13 and 16 September
+  # 2026. The hourly schedule stays as a fallback: if the chain ever breaks, the next scheduled run
+  # dispatches the wekker again and the chain restarts by itself.
   schedule:
     - cron: "7 * * * *"
   workflow_dispatch:
@@ -149,16 +151,9 @@ jobs:
           path: pipeline/cache/last
           key: ${{ steps.cachekey.outputs.key }}
 
-      - name: Ping healthchecks.io
-        env:
-          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
-        run: |
-          if [ -z "$HEALTHCHECK_URL" ]; then
-            echo "HEALTHCHECK_URL secret is not set; skipping the heartbeat ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 3 -o /dev/null "$HEALTHCHECK_URL"
-          echo "Heartbeat sent."
+      # The heartbeat to healthchecks.io is sent by the wekker, after an end-to-end check of the
+      # published site. A ping here only proved that this job went green — it could not see a
+      # failed deploy, a stale CDN copy, or a chain of runs that had quietly stopped.
 
       - name: Commit updated caches
         continue-on-error: true
@@ -214,3 +209,27 @@ jobs:
             cat upload-summary.txt 2>/dev/null || echo "(nothing uploaded)"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Keeps the chain going: dispatch the wekker, which waits eight minutes and then starts the next
+  # data run. Runs even when the data job failed — one bad NDW response must not stop the refresh
+  # until the hourly fallback happens to fire.
+  volgende:
+    name: Wekker zetten
+    needs: [preflight, data]
+    if: always() && needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Wekker starten
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # One chain only: a wekker that is already waiting will start the next run itself.
+          pending=$(gh run list -R "$REPO" --workflow wekker.yml --limit 10 --json status --jq '[.[] | select(.status != "completed")] | length')
+          if [ "$pending" -gt 0 ]; then
+            echo "Er wacht al een wekker; er komt geen tweede keten bij."
+            exit 0
+          fi
+          gh workflow run wekker.yml -R "$REPO" --ref "${{ github.ref_name }}"
+          echo "Wekker gezet: over ongeveer acht minuten start de volgende run."

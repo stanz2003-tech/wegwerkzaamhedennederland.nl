@@ -239,9 +239,11 @@ gratis builds per maand binnen een paar dagen op. Schakel in GitHub de workflow 
 **10 minutes** → *Grace Time* **20 minutes** → *Save*. Kopieer de ping-URL in de vorm
 `https://hc-ping.com/xxxxxxxx-xxxx-…` → dit wordt `HEALTHCHECK_URL`. Controleer onder
 **Integrations** dat je e-mailadres als integratie is toegevoegd en voor deze check aan staat
-**(controleer:** bij een nieuw account staat het account-e-mailadres er meestal al**)**. Zolang
-de pipeline elke 5 minuten pingt is de check *up*; blijft de ping 30 minuten uit (10 + 20), dan
-krijg je een e-mail "is DOWN".
+**(controleer:** bij een nieuw account staat het account-e-mailadres er meestal al**)**. De ping
+komt van de *Wekker*-workflow, en alleen als de site antwoordt én de gepubliceerde data jonger is
+dan 30 minuten — dus niet al zodra een taak groen werd. Zolang de keten elke tien minuten rondgaat
+is de check *up*; blijft de ping 30 minuten uit (10 + 20), dan krijg je een e-mail "is DOWN", welke
+schakel er ook stuk is: de pipeline, de upload, de CDN of de wekker zelf.
 
 6.2 **UptimeRobot (is de site bereikbaar en vers?).** Ga naar uptimerobot.com → gratis account
 (50 monitors, interval 5 minuten, e-mailalerts). Maak drie monitors met **New monitor**
@@ -284,6 +286,18 @@ onder *More*) → in de zijbalk onder *Security*: **Secrets and variables** → 
 
 Een typefout in een naam is de meest voorkomende fout: de *Data*-workflow zegt dan "not
 configured yet: missing secret(s) …" en noemt de ontbrekende naam.
+
+7.3 **De wekker (de pauze tussen twee runs).** GitHub voert zijn eigen tijdschema slecht uit — een
+cron van elke vijf minuten leverde in september 2026 gemiddeld één run per vier uur op. Daarom
+start elke *Data*-run aan het eind de *Wekker*-workflow, die acht minuten wacht, de site controleert
+en dan de volgende *Data*-run start. Die acht minuten komen van een instelling, niet uit de code:
+*Settings* → **Environments** → **New environment** → *Name* `wekker` → **Configure environment** →
+vink **Wait timer** aan → `8` minuten → **Save protection rules**. Verder niets invullen. Wachten op
+een wait timer kost geen tegoed en bezet geen runner.
+
+Vergeet je dit, dan gaat er niets stuk: de *Wekker* ziet dat de vorige run te kort geleden begon,
+geeft een gele waarschuwing ("Staat de wait timer … nog aan?") en stopt de keten. Het uurlijkse
+schema van *Data* neemt het dan over, en zodra de timer staat loopt de keten vanzelf weer.
 
 ---
 

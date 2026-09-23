@@ -48,7 +48,7 @@ jobs:
         run: npm test -w @wegwerk/pipeline
 
       - name: Infra tests (R2 uploader, SigV4)
-        run: node --test "infra/test/**/*.test.mjs"
+        run: node --test "infra/test/**/*.test.mjs" "infra/wekker/test/**/*.test.mjs"
 
       - name: Type check web
         run: npm run typecheck -w @wegwerk/web

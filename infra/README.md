@@ -8,7 +8,8 @@ Dutch live in the root `README.md` and `docs/handleiding.md`.
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `Data` (`data.yml`) | cron `1-59/5 * * * *` (every 5 min, offset from the top of the hour), or **Run workflow** with the `force` checkbox | `npm ci` (pipeline workspace only) → `node pipeline/bin/run.js --out pipeline/out --cache pipeline/cache --geocode-max 400` (the cap is a ceiling, not a cost: the committed geocode cache holds 12,000+ cells, so a run does 0–40 new PDOK lookups at 80 ms each — a few seconds; 400 would be 32 s) → on exit 0 `node infra/upload-r2.mjs` uploads only changed files to R2, deferring the entity files on runs in which the planning feed was unchanged (see the uploader section) → ping `HEALTHCHECK_URL` → commit `pipeline/cache/{geocode,bruggen-seen,etags}.json` back when changed (`[skip ci]`) → daily keepalive (see below) → step summary. Exit 2 (validation floor) or 1 fails the job **without uploading**; the last good data stays online. `pipeline/cache/last/` (parsed planning feed) is kept between runs with `actions/cache`, keyed on the NDW ETag. |
+| `Data` (`data.yml`) | dispatched by the `Wekker` about every 10 min; hourly cron `7 * * * *` as fallback; or **Run workflow** with the `force` checkbox | `npm ci` (pipeline workspace only) → `node pipeline/bin/run.js --out pipeline/out --cache pipeline/cache --geocode-max 400` (the cap is a ceiling, not a cost: the committed geocode cache holds 12,000+ cells, so a run does 0–40 new PDOK lookups at 80 ms each — a few seconds; 400 would be 32 s) → on exit 0 `node infra/upload-r2.mjs` uploads only changed files to R2, deferring the entity files on runs in which the planning feed was unchanged (see the uploader section) → commit `pipeline/cache/{geocode,bruggen-seen,etags}.json` back when changed (`[skip ci]`) → keepalive (see below) → step summary → job `volgende` dispatches the `Wekker` (also when the data job failed). Exit 2 (validation floor) or 1 fails the job **without uploading**; the last good data stays online. `pipeline/cache/last/` (parsed planning feed) is kept between runs with `actions/cache`, keyed on the NDW ETag. |
+| `Wekker` (`wekker.yml`) | dispatched by every `Data` run | waits 8 min on the environment `wekker` (wait timer, no runner, no billable time) → `node infra/wekker/check.mjs` checks that the site answers and that `meta.json` (fetched past the CDN) is younger than 30 min, and only then pings `HEALTHCHECK_URL` → dispatches the next `Data` run. See "The wekker" below. |
 | `Deploy` (`deploy.yml`) | push to `main` touching `web/**`, `pipeline/static/**`, `package*.json`; or manual | Checks settings, `npm ci`, `npm run build -w @wegwerk/web` with `VITE_DATA_BASE=${{ vars.DATA_BASE }}`, creates the Pages project through the Cloudflare API if it does not exist yet, then `cloudflare/wrangler-action@v4` → `wrangler pages deploy web/dist --project-name=<CF_PAGES_PROJECT> --branch=main`. |
 | `CI` (`ci.yml`) | every push and pull request (docs and cache commits ignored) | `npm test -w @wegwerk/pipeline`, `node --test "infra/test/**/*.test.mjs"`, `npm run typecheck -w @wegwerk/web`, fixture-data build, `web/dist` artifact (3 days). |
 
@@ -21,7 +22,8 @@ GitHub's implicit shell is `bash -e {0}`; naming `bash` explicitly gets
 `bash --noprofile --norc -eo pipefail {0}` (docs.github.com, workflow syntax). Two steps pipe
 into `tee` so their output can go into the job summary, and without `pipefail` the step's exit
 code is `tee`'s — always 0. A failing `upload-r2.mjs` would then have produced a green run
-*and* a healthchecks.io ping while nothing was published. Verified locally: the same script
+*and*, back then, a healthchecks.io ping while nothing was published. (The heartbeat has since
+moved to the wekker's end-to-end check, see "The wekker" below.) Verified locally: the same script
 piped into `tee` exits 0 under `bash -e` and 1 under `bash -eo pipefail`. The pipeline step is
 unaffected because it reads `${PIPESTATUS[0]}` itself.
 
@@ -44,11 +46,39 @@ Action versions verified 2026-09-09 via the GitHub API (tags endpoint):
 `cloudflare/wrangler-action@v4` (installs Wrangler 4). Dependabot (`.github/dependabot.yml`)
 opens one grouped PR per month for actions and for npm minor/patch updates; ignoring them is fine.
 
+### The wekker
+
+GitHub runs `schedule:` on a best-effort basis. On this repository a `1-59/5` cron (288 runs a
+day) produced 19 runs between 13 and 16 September 2026, with gaps up to 5 h 53 min. The cadence
+therefore comes from a chain: every `Data` run ends by dispatching `wekker.yml`, which waits on
+an environment wait timer and dispatches the next `Data` run.
+
+- **No personal token.** Both dispatches use the job's `GITHUB_TOKEN`. Events from that token
+  normally start no workflows, but `workflow_dispatch` and `repository_dispatch` "always create
+  workflow runs" (docs.github.com, "Triggering a workflow", checked 2026-09-23).
+- **No runner while waiting.** The wait is the environment's *wait timer* (1–43,200 minutes;
+  "Wait time will not count towards your billable time", docs.github.com, deployments and
+  environments reference). It is configured in *Settings > Environments*, not in the file.
+- **One chain.** The wekker skips its dispatch when a `Data` run is already queued or running,
+  and the `volgende` job skips when a wekker is already waiting. Combined with the `data`
+  concurrency group this keeps exactly one chain, even when an hourly fallback run fires.
+- **No loop without a timer.** If the environment lost its timer, the wekker would fire at once
+  and the chain would spin. It refuses to dispatch when the previous `Data` run started less than
+  `MIN_GAP_SECONDS` (360 s) ago, warns, and lets the hourly fallback restart the chain later.
+- **The heartbeat lives here.** `infra/wekker/check.mjs` pings healthchecks.io only when the
+  site answers and `meta.json`, fetched with a cache-buster, is fresh. The old ping at the end of
+  the data job only proved that a job went green.
+- Every wekker run creates a GitHub *deployment* for the environment (about 144 a day). That is
+  cosmetic; nothing depends on it.
+
+`infra/test/workflows.test.mjs` pins these lines down, so an edit that would let the chain loop or
+split fails CI.
+
 ### Keepalive
 
 GitHub disables scheduled workflows in public repositories after 60 days without repository
 activity. Two mechanisms keep this one alive: the cache commits (whenever the NDW ETag or the
-geocode cache changes, i.e. many times a day) and a daily `PUT /repos/{owner}/{repo}/actions/workflows/data.yml/enable`
+geocode cache changes, i.e. many times a day) and a `PUT /repos/{owner}/{repo}/actions/workflows/data.yml/enable`
 call with the job's `GITHUB_TOKEN` (`permissions: actions: write`). The marketplace action
 `gautamkrishnar/keepalive-workflow` was **not** used: on 2026-09-08 its repository returned
 "Repository access blocked" (reason `tos`) from the GitHub API, and on 2026-09-09
@@ -59,7 +89,7 @@ start. The API call is exactly what that action did in `use_api` mode.
 The cache commits alone are not a guaranteed keepalive: pushes made with `GITHUB_TOKEN` do not
 create workflow runs (docs.github.com, "Triggering a workflow": "events triggered by the
 `GITHUB_TOKEN` will not create a new workflow run"), but they *are* repository activity, which
-is what the 60-day rule looks at. The daily `enable` call is the belt to that braces.
+is what the 60-day rule looks at. The `enable` call — made on every run since the 03:xx UTC gate turned out never to fire — is the belt to that braces.
 
 ### Why the cache commit cannot loop
 

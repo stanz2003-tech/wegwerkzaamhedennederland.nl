@@ -13,19 +13,21 @@ het werkt, wat het kost, wat je één keer moet instellen en wat je doet als er 
 ```
 NDW open data (opendata.ndw.nu) — elke minuut / elk kwartier nieuwe XML-bestanden
         │
-        ▼  elke 5 minuten — GitHub Actions (gratis voor een publieke repository)
+        ▼  ongeveer elke 10 minuten — GitHub Actions (gratis voor een publieke repository);
+        │  de "wekker" start na elke run de volgende, na 8 minuten wachten die niets kosten
 Pipeline: downloadt de feeds, zet de XML om in compacte kaartbestanden (GeoJSON/JSON) en
 controleert de uitkomst. Te weinig data? Dan wordt er níet gepubliceerd en blijft de laatste
 goede versie staan.
         │
         ▼  alleen de gewijzigde bestanden
 Cloudflare R2 (opslag, gratis) → https://data.<domein>/v1/…  (met Cloudflare-cache van 1–5 min)
-        │                                   ↘ na elke geslaagde run een "ik leef nog"-ping naar healthchecks.io
+        │                                   ↘ de wekker controleert de site en stuurt alleen bij verse
+        │                                     data een "ik leef nog"-ping naar healthchecks.io
         ▼
 Website op Cloudflare Pages (gratis): de kaart plus tekstpagina's per weg, plaats, gemeente en brug
         │
         ▼
-Bezoeker ziet "Bijgewerkt HH:MM"; is de data ouder dan 45 minuten, dan verschijnt een waarschuwingsbalk
+Bezoeker ziet "Bijgewerkt HH:MM"; is de data ouder dan 30 minuten, dan verschijnt een waarschuwingsbalk
 ```
 
 Drie onderdelen, allemaal in deze map:
@@ -116,8 +118,9 @@ nummers komen overeen.
    met *Cloudflare Pages: Edit*. Het project wordt bij de eerste deploy automatisch aangemaakt;
    daarna koppel je `www.<domein>` en `<domein>` als custom domains. (Alternatief: Cloudflare
    laat zelf bouwen via *Connect to Git* — zie handleiding §5.)
-6. **Bewaking** — healthchecks.io (gratis): één check met periode 10 minuten en grace 20
-   minuten; kopieer de ping-URL. UptimeRobot (gratis): een HTTPS-monitor op de site, een
+6. **Wekker en bewaking** — maak onder *Settings > Environments* een environment `wekker` met
+   **Wait timer 8 minuten** (handleiding §7.4); dat is de pauze tussen twee runs. healthchecks.io
+   (gratis): één check met periode 10 minuten en grace 20 minuten; kopieer de ping-URL. UptimeRobot (gratis): een HTTPS-monitor op de site, een
    keyword-monitor op `https://data.<domein>/v1/meta.json` (trefwoord `generated`) en een
    monitor op de vervaldatum van het domein.
 7. **GitHub-secrets en -variabelen** (*Settings > Secrets and variables > Actions*). Neem de
@@ -154,7 +157,7 @@ nummers komen overeen.
 
 | Situatie | Wat je merkt | Wat je doet |
 |---|---|---|
-| **De pipeline valt stil** | E-mail van healthchecks.io ("is DOWN"); de site toont de waarschuwingsbalk met de laatste bijwerktijd | Ga naar github.com → jouw repository → **Actions** → *Data*. Rode run? Klik erop; de foutmelding staat bij het rode kruisje en onder *Summary*. Klik **Re-run all jobs**. Meestal was NDW even niet bereikbaar en lost de volgende run (5 minuten later) het zelf op. |
+| **De pipeline valt stil** | E-mail van healthchecks.io ("is DOWN"); de site toont de waarschuwingsbalk met de laatste bijwerktijd | Ga naar github.com → jouw repository → **Actions** → *Data*. Rode run? Klik erop; de foutmelding staat bij het rode kruisje en onder *Summary*. Klik **Re-run all jobs**. Meestal was NDW even niet bereikbaar en lost de volgende run (10 minuten later) het zelf op. Staat er bij *Wekker* een gele waarschuwing over de wait timer, controleer dan de environment `wekker` (§7.4). |
 | **GitHub heeft het schema uitgeschakeld** | Gele balk "This scheduled workflow is disabled …" bij *Data*; geen nieuwe runs | Klik **Enable workflow**. Dit gebeurt na 60 dagen zonder activiteit in de repository; de workflow houdt zichzelf normaal wakker met dagelijkse API-aanroepen en cache-commits. |
 | **Token verlopen of ingetrokken** | Rode runs met "403", "Access Denied" of "SignatureDoesNotMatch" in de stap *Upload changed files to R2* | Maak in Cloudflare een nieuw R2-token (handleiding §4.6) en zet beide waarden in de GitHub-secrets `R2_ACCESS_KEY_ID` en `R2_SECRET_ACCESS_KEY`; daarna *Run workflow*. Voor de site: nieuw token met *Cloudflare Pages: Edit* → secret `CLOUDFLARE_API_TOKEN`. |
 | **NDW wijzigt het formaat of de bestandsnamen** | Runs eindigen met "Validation floor not met (exit 2)" of "Pipeline failed"; de site blijft de laatste goede data tonen, met waarschuwingsbalk | Voor bezoekers is er niets kapot. Laat een ontwikkelaar de pipeline aanpassen (`pipeline/`); `docs/onderzoek.md` §2 beschrijft de feeds en `pipeline/test/` bevat voorbeeldbestanden. |

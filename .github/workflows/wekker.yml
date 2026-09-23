@@ -1,0 +1,94 @@
+# De wekker: houdt de Data-workflow op een vaste cadans van ongeveer tien minuten.
+#
+# Waarom dit bestaat: GitHub voert `schedule:` naar eigen inzicht uit en liet op deze repository
+# vrijwel alles vallen — een cron die om 288 runs per dag vroeg leverde er tussen 13 en 16 september
+# 2026 negentien in drie dagen, met gaten tot bijna zes uur.
+#
+# Hoe het werkt, zonder persoonlijk token en zonder externe dienst:
+#   Data-run klaar ──dispatch──▶ Wekker wacht 8 min ──controle──▶ dispatch ──▶ volgende Data-run
+#
+#   - De wachttijd komt van de environment "wekker", die een wait timer van 8 minuten heeft
+#     (Settings → Environments). Een job die op een wait timer wacht bezet geen runner, en de
+#     wachttijd telt volgens GitHub niet als verbruikte tijd.
+#   - Beide dispatches gebruiken het ingebouwde GITHUB_TOKEN. Normaal start een gebeurtenis van dat
+#     token geen nieuwe workflow, maar workflow_dispatch is daar de gedocumenteerde uitzondering op.
+#   - Tussen de wachttijd en de volgende run zit de enige end-to-end controle die er is: antwoordt
+#     de site, en is de gepubliceerde data vers? Alleen dan krijgt healthchecks.io een hartslag.
+#
+# Beveiligingen tegen een op hol geslagen keten (allebei getest in infra/test/workflows.test.mjs):
+#   - er mag maar één keten zijn: loopt of wacht er al een Data-run, dan start deze wekker er geen;
+#   - ontbreekt de wait timer, dan zou de keten in een lus draaien. Is de vorige Data-run minder dan
+#     zes minuten geleden gestart, dan stopt de keten met een waarschuwing. Het uurlijkse schema in
+#     data.yml pakt hem daarna vanzelf weer op.
+name: Wekker
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: wekker
+  cancel-in-progress: false
+
+permissions:
+  actions: write # de volgende Data-run starten
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  wek:
+    name: Wacht, controleer, wek
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # De wachttijd zelf. De wait timer staat op de environment, niet in dit bestand.
+    environment: wekker
+    steps:
+      - name: Check out (alleen de controle)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          sparse-checkout: infra/wekker
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Ketencontrole (site en data)
+        env:
+          SITE_URL: https://www.wegwerkzaamhedennederland.nl/
+          # DATA_BASE eindigt op een schuine streep (deploy.yml controleert dat), dus zonder extra "/".
+          DATA_META_URL: ${{ vars.DATA_BASE }}meta.json
+          MAX_DATA_AGE_MINUTES: "30"
+          HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL }}
+        run: node infra/wekker/check.mjs
+
+      - name: Volgende Data-run starten
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          MIN_GAP_SECONDS: "360"
+        run: |
+          # Eén keten: loopt of wacht er al een Data-run, dan hoeft deze wekker niets te doen.
+          busy=$(gh run list -R "$REPO" --workflow data.yml --limit 10 --json status \
+            --jq '[.[] | select(.status != "completed")] | length')
+          if [ "$busy" -gt 0 ]; then
+            echo "Er loopt of wacht al een Data-run; er komt geen tweede keten bij."
+            exit 0
+          fi
+
+          # Zonder wait timer zou de keten in een lus draaien. Dan liever stoppen en waarschuwen:
+          # het uurlijkse schema in data.yml start de keten daarna vanzelf weer.
+          last=$(gh run list -R "$REPO" --workflow data.yml --limit 1 --json createdAt --jq '.[0].createdAt // empty')
+          if [ -n "$last" ]; then
+            gap=$(( $(date -u +%s) - $(date -u -d "$last" +%s) ))
+            if [ "$gap" -lt "$MIN_GAP_SECONDS" ]; then
+              echo "::warning::De vorige Data-run is pas ${gap}s geleden gestart. Staat de wait timer op de environment 'wekker' nog aan? De keten stopt; het uurlijkse schema neemt het over."
+              exit 0
+            fi
+          fi
+
+          gh workflow run data.yml -R "$REPO" --ref "${{ github.ref_name }}"
+          echo "Volgende Data-run gestart."
