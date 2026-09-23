@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { forecast, timeline, verdict } from './helpers/src.mjs';
+import { forecast, format, periods as periodsMod, timeline, verdict } from './helpers/src.mjs';
 
 const { parseTimeline, segmentAt, segmentsIn, heavier, periodsFromTimeline } = timeline;
 const { verdictFor } = verdict;
@@ -73,13 +73,17 @@ describe('parseTimeline', () => {
     assert.equal(heavier(a, b), b);
   });
 
-  it('periodsFromTimeline merges touching stretches and leaves open ends out', () => {
+  it('periodsFromTimeline merges touching stretches and keeps an open end as an empty end', () => {
+    // Leaving the open end out made the item look inactive in its last block, the one that runs on.
     const segs = parseTimeline([
       ['2026-09-26T06:00:00Z', '2026-09-26T15:00:00Z', 'hinder'],
       ['2026-09-26T15:00:00Z', '2026-09-26T19:00:00Z', 'dicht'],
       ['2026-09-27T04:00:00Z', '', 'dicht'],
     ]);
-    assert.deepEqual(periodsFromTimeline(segs), [['2026-09-26T06:00:00.000Z', '2026-09-26T19:00:00.000Z']]);
+    assert.deepEqual(periodsFromTimeline(segs), [
+      ['2026-09-26T06:00:00.000Z', '2026-09-26T19:00:00.000Z'],
+      ['2026-09-27T04:00:00.000Z', ''],
+    ]);
   });
 });
 
@@ -174,5 +178,87 @@ describe('forecast with a timeline', () => {
     const sel = selectAtMoment([tilburg], 'auto', ms('2026-09-24T10:00:00Z'), NOW);
     assert.equal(sel.items.length, 1);
     assert.equal(sel.items[0].verdict.level, 'geen');
+  });
+});
+
+describe('open ends and the edge of what is known (review of contract v4)', () => {
+  const { parsePeriods, summarizePeriods } = periodsMod;
+
+  it('a period with an empty end runs on: a moment in it is not "buiten werktijden"', () => {
+    const item = { cat: 'werk', imp: 'dicht', per: true };
+    const periods = [
+      ['2026-09-24T05:00:00Z', '2026-09-24T14:00:00Z'],
+      ['2026-10-01T05:00:00Z', ''],
+    ];
+    assert.equal(parsePeriods(periods)[1].end, Number.POSITIVE_INFINITY);
+    assert.equal(verdictFor(item, 'auto', { periods, now: ms('2026-11-03T10:00:00Z') }).level, 'dicht');
+    assert.equal(verdictFor(item, 'auto', { periods, now: ms('2026-09-25T10:00:00Z') }).level, 'geen');
+  });
+
+  it('an open period is listed as "vanaf", never a crash and never a pattern', () => {
+    const periods = [
+      ['2026-09-24T05:00:00Z', '2026-09-24T14:00:00Z'],
+      ['2026-09-25T05:00:00Z', '2026-09-25T14:00:00Z'],
+      ['2026-09-26T05:00:00Z', ''],
+    ];
+    const s = summarizePeriods(periods, ms('2026-09-23T12:00:00Z'));
+    assert.equal(s.kind, 'list');
+    const last = s.items[s.items.length - 1];
+    assert.match(format.fmtPeriodMs(last.start, last.end), /^vanaf /);
+  });
+
+  it('a moment exactly at tlTo is "nog niet bekend": the timeline stops there', () => {
+    const item = { cat: 'werk', imp: 'dicht', per: true };
+    const tl = [['2026-10-20T05:00:00Z', '2026-10-22T22:00:00Z', 'dicht']];
+    const v = verdictFor(item, 'auto', { tl, tlTo: '2026-10-22T22:00:00Z', now: ms('2026-10-22T22:00:00Z') });
+    assert.equal(v.level, 'onbekend');
+  });
+
+  it('an item that never concerns the mode stays "geldt niet voor jou", also past tlTo', () => {
+    const item = { cat: 'werk', imp: 'dicht', veh: ['bicycle'], per: true };
+    const v = verdictFor(item, 'auto', { tlTo: '2026-10-22T22:00:00Z', now: ms('2026-11-09T10:00:00Z') });
+    assert.equal(v.level, 'nvt');
+  });
+
+  it('a window reaching past tlTo is never lighter than "nog niet bekend"', () => {
+    const item = { cat: 'werk', imp: 'dicht', per: true };
+    const tl = [['2026-10-20T05:00:00Z', '2026-10-20T14:00:00Z', 'dicht']];
+    const window = { from: ms('2026-10-21T22:00:00Z'), to: ms('2026-10-23T21:59:00Z') };
+    assert.equal(verdictFor(item, 'auto', { tl, tlTo: '2026-10-22T22:00:00Z', window }).level, 'onbekend');
+    // A heavier stretch inside the known part still wins.
+    const withClosure = [...tl, ['2026-10-22T05:00:00Z', '2026-10-22T14:00:00Z', 'dicht']];
+    assert.equal(verdictFor(item, 'auto', { tl: withClosure, tlTo: '2026-10-22T22:00:00Z', window }).level, 'dicht');
+  });
+
+  it('v3 data: a picked day without any block says "geen hinder", like the day pill', () => {
+    const item = { cat: 'werk', imp: 'dicht', per: true };
+    const periods = [['2026-09-24T20:00:00Z', '2026-09-25T04:00:00Z']];
+    const saturday = { from: ms('2026-09-25T22:00:00Z'), to: ms('2026-09-26T21:59:00Z') };
+    assert.equal(verdictFor(item, 'auto', { periods, window: saturday }).level, 'geen');
+    const thursday = { from: ms('2026-09-23T22:00:00Z'), to: ms('2026-09-24T21:59:00Z') };
+    assert.equal(verdictFor(item, 'auto', { periods, window: thursday }).level, 'dicht');
+  });
+
+  it('today in the day strip starts now: a night closure that ended this morning does not colour it', () => {
+    const night = {
+      f: {
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: [5.1, 52.1] },
+        properties: { id: 'N', cat: 'werk', sev: 2, title: 'Nachtafsluiting', src: 'Rijkswaterstaat', start: '2026-09-22T20:00:00Z', end: '2026-09-24T04:00:00Z', imp: 'dicht', per: true },
+      },
+      d: {
+        id: 'N',
+        src: 'Rijkswaterstaat',
+        upd: '2026-09-20T00:00:00Z',
+        periods: [
+          ['2026-09-22T20:00:00Z', '2026-09-23T04:00:00Z'],
+          ['2026-09-24T20:00:00Z', '2026-09-25T04:00:00Z'],
+        ],
+      },
+    };
+    // Wednesday 23 September 14:00 Amsterdam: the night block ended at 06:00 local.
+    const cells = dayStrip([night], 'auto', ms('2026-09-23T12:00:00Z'));
+    assert.equal(cells[0].worst, null);
+    assert.equal(cells[0].from, ms('2026-09-22T22:00:00Z'), 'the cell keeps its calendar bounds');
   });
 });

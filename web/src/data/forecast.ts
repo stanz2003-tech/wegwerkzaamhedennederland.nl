@@ -175,13 +175,15 @@ export interface DayCell {
 /**
  * One cell per day from today (`now`) for `days` days. Items that do not apply to the mode
  * (`nvt`) are left out entirely: a car driver must not see a red day because of a cycle path.
+ * Today's cell is judged from `now` on: a night closure that ended at 05:00 must not colour the
+ * afternoon red. The cell keeps its calendar bounds for the label.
  */
 export function dayStrip(items: readonly ForecastItem[], mode: VehicleMode, now: number, days = STRIP_DAYS): DayCell[] {
   const cells: DayCell[] = [];
   for (let i = 0; i < days; i++) {
     const from = startOfDay(now, i);
     const to = startOfDay(now, i + 1) - 1;
-    const sel = selectInWindow(items, mode, from, to, now);
+    const sel = selectInWindow(items, mode, Math.max(from, now), to, now);
     cells.push({
       from,
       to,

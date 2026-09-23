@@ -30,13 +30,18 @@ const DAY_SHORT = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za'] as const;
 /** Monday-first order used for ranges. */
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
-export function parsePeriods(periods: readonly (readonly [string, string])[] | undefined): Period[] {
+/**
+ * Validated, sorted periods. An end of '' is an open end (the block runs on without a known end)
+ * and is read as +Infinity: dropping it made a moment inside the last, open block read "Geen
+ * hinder · buiten werktijden".
+ */
+export function parsePeriods(periods: readonly (readonly [string, string])[] | undefined | null): Period[] {
   if (!periods) return [];
   const out: Period[] = [];
   for (const [s, e] of periods) {
     const start = toMs(s);
-    const end = toMs(e);
-    if (!Number.isNaN(start) && !Number.isNaN(end) && end >= start) out.push({ start, end });
+    const end = e === '' ? Number.POSITIVE_INFINITY : toMs(e);
+    if (Number.isFinite(start) && !Number.isNaN(end) && end >= start) out.push({ start, end });
   }
   return out.sort((a, b) => a.start - b.start);
 }
@@ -70,7 +75,8 @@ export function summarizePeriods(
   const relevant = all.filter((p) => p.end >= now);
   const source = relevant.length > 0 ? relevant : all;
 
-  if (source.length >= 3) {
+  // An open end has no wall-clock time, so a series with one is never a regular pattern.
+  if (source.length >= 3 && source.every((p) => Number.isFinite(p.end))) {
     const startKey = wallClockKey(source[0]?.start ?? 0);
     const endKey = wallClockKey(source[0]?.end ?? 0);
     const regular = source.every(

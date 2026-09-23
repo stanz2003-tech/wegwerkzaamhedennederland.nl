@@ -6,6 +6,7 @@
 import type { BridgeFile, EntityFile, IndexFile, IndexRow, ItemCollection, ItemFeature, Meta } from './types';
 import { DATA_FILES } from './types';
 import { setHorizonFromMeta } from './horizon';
+import { reloadIfDataNewer } from './version';
 
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -117,6 +118,8 @@ export async function loadMeta(signal?: AbortSignal): Promise<Meta> {
   // Every page reaches meta.json through here, so this is the one place the data horizon has to
   // be recorded for the answer logic (see data/horizon.ts).
   setHorizonFromMeta(meta);
+  // And the one place a tab that outlived a contract change notices it (see data/version.ts).
+  reloadIfDataNewer(meta);
   return meta;
 }
 

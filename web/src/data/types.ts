@@ -20,8 +20,8 @@
  *
  * Contract v4 (2026-09-23): the verdict gets a time axis. `ItemDetail.tl` says what a measure does
  * WHEN — per stretch of time the impact and the vehicles it applies to — and `ItemDetail.tlTo`
- * says up to when that is known. `Meta.horizon` says how far ahead the whole dataset reaches.
- * v3 flattened every DATEX situation to one window and one verdict: a street works in eight
+ * says up to when that is known (`Meta.horizon`, added on 2026-09-21, already said how far ahead
+ * the whole dataset reaches). v3 flattened every DATEX situation to one window and one verdict: a street works in eight
  * phases, of which only the last closed nothing but the cycle path, read "dicht voor iedereen"
  * for 80 days; a sports event whose closures all fell on the Sunday read "dicht" from Thursday.
  * Everything v3 had is still there, so a v3 reader keeps working. Meta.version = "4".
@@ -90,8 +90,9 @@ export type Vehicle = 'car' | 'lorry' | 'bicycle' | 'moped' | 'bus' | 'agricultu
 
 /**
  * One stretch of a time-varying measure (contract v4): from `start` up to `end` (ISO 8601 UTC,
- * minute precision) the measure applies with impact `imp`, for the vehicle groups `veh` — absent
- * means all traffic. See `ItemDetail.tl`.
+ * minute precision; start inclusive, end exclusive) the measure applies with impact `imp`, for
+ * the vehicle groups `veh` — absent means all traffic. An `end` of '' is an open end: the item
+ * runs on without a known end. See `ItemDetail.tl`.
  */
 export type TimelineSegment = [start: string, end: string, imp: Impact, veh?: Vehicle[]];
 
@@ -130,10 +131,11 @@ export interface ItemProperties {
   /** Vehicle groups the measure applies to; absent = all traffic. */
   veh?: Vehicle[];
   /**
-   * True when the measure varies over time: it only applies during certain blocks (e.g. nightly)
-   * or its impact changes from phase to phase. Details in `ItemDetail.tl` (v4) and, derived from
-   * it, `ItemDetail.periods`. `imp` and `veh` on the item are the heaviest verdict over the whole
-   * timeline, for the map colour when no detail is loaded.
+   * True when the measure varies over time: it only applies during certain blocks (e.g. nightly),
+   * its impact changes from phase to phase, or its timeline is only known up to `tlTo`. Details in
+   * `ItemDetail.periods` / `tl` / `tlTo` (v4). `imp` is the heaviest verdict over the whole
+   * timeline, for the map colour when no detail is loaded; `veh` is everyone the measure concerns
+   * in any stretch with an effect (absent as soon as one such stretch is for all traffic).
    */
   per?: true;
   /** Temporary speed limit in km/h, when set. */
@@ -150,27 +152,34 @@ export interface ItemDetail {
   /** Detour description (reroutingItineraryDescription). */
   detour?: string;
   /**
-   * The blocks in which the measure applies, ISO pairs, sorted, non-overlapping. Since v4 this is
-   * derived from `tl` (its segments merged regardless of impact) and kept for display and for v3
-   * readers; `tl` is authoritative.
+   * The blocks in which the measure applies, ISO pairs, sorted, non-overlapping; present only when
+   * the measure has gaps. Since v4 built from every DATEX record's own validity (v3 read the main
+   * record only), so these are the stretches of `tl` merged regardless of impact. An end of '' is
+   * an open end. When `tl` is present it is authoritative for the verdict; when it is absent the
+   * item's `imp`/`veh` hold in every block.
    */
   periods?: [string, string][];
   /**
    * Contract v4 — the timeline: what the measure does when. Sorted, non-overlapping segments
    * `[start, end, imp, veh?]`; between two segments the measure does not apply. `veh` absent means
-   * all traffic. Present only when the measure varies over time (`ItemProperties.per`); a measure
-   * without `tl` applies with the item's own `imp`/`veh` for its whole [start, end].
+   * all traffic. Present only when the verdict differs between stretches; a measure without `tl`
+   * applies with the item's own `imp`/`veh` in every block of `periods`, or for its whole
+   * [start, end] when there are no periods either. A stretch covered only by an umbrella period
+   * (one period spanning the whole measure next to the real working days) reads 'onbekend'.
    *
    * Built from the validity of every DATEX situation record separately, so a phase that only
    * closes the cycle path, or a closure that only happens on the Sunday, gets its own verdict.
-   * Clipped to local midnight of the day of the run and to `tlTo`, so the file changes once a day
-   * rather than with every run.
+   * Starts at local midnight of the day of the run and covers 31 days; a last stretch whose
+   * verdict does not change after that runs on to the item's end, otherwise the timeline stops at
+   * `tlTo`. The file therefore changes once a day rather than with every run. Never present on
+   * live items (actueel beeld): what the live feed publishes is in force now.
    */
   tl?: TimelineSegment[];
   /**
-   * Contract v4 — the timeline is complete up to this moment (ISO). For a moment after `tlTo` and
-   * before the item's `end`, the honest answer is "not known yet", never "no hindrance": the list
-   * of blocks may simply have been cut off there. Absent when the timeline covers the whole item.
+   * Contract v4 — the timeline is complete up to this moment (ISO, exclusive). For a moment at
+   * or after `tlTo` and before the item's `end`, the honest answer is "not known yet", never "no
+   * hindrance": the verdict still changes after it, so what `tl` / `periods` say stops there.
+   * Absent when the timeline covers the whole item.
    */
   tlTo?: string;
   lanes?: { closed?: number; open?: number; total?: number };

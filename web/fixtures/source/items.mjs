@@ -277,7 +277,14 @@ export function plannedItems(nowMs) {
       roadType: 'lokaal', gemeente: 'Eindhoven', woonplaats: 'Eindhoven', prov: 'PV30', src: 'Gemeente Eindhoven',
       s: 9 * DAY + 5 * HOUR, e: 9 * DAY + 13 * HOUR, closed: true, hind: 'B', prob: 'certain',
       g: point(5.47512, 51.44014),
-      d: { desc: 'Het parcours loopt door de binnenstad. Veel straten zijn een deel van de dag dicht.', detour: 'Volg de omleiding rond de ring.', dir: 'both', status: 'published', works: 'marathon', upd: -5 * DAY },
+      d: {
+        desc: 'Het parcours loopt door de binnenstad. Veel straten zijn een deel van de dag dicht.', detour: 'Volg de omleiding rond de ring.', dir: 'both', status: 'published', works: 'marathon', upd: -5 * DAY,
+        // Contract v4: the opbouw hinders, the race itself closes the streets.
+        tl: [
+          [iso(nowMs + 9 * DAY + 5 * HOUR), iso(nowMs + 9 * DAY + 8 * HOUR), 'hinder'],
+          [iso(nowMs + 9 * DAY + 8 * HOUR), iso(nowMs + 9 * DAY + 13 * HOUR), 'dicht'],
+        ],
+      },
     },
   );
   return items;

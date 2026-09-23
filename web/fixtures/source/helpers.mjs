@@ -142,8 +142,24 @@ const HINDER_SUBS = new Set(['laneClosures', 'narrowLanes', 'speedRestrictionInO
  * Impact verdict of a fixture spec (mirrors the pipeline rules documented on `Impact` in
  * web/src/data/types.ts). An explicit `spec.imp` wins.
  */
+/** Precedence, strongest first — as pipeline/src/impact.js. */
+const IMPACT_ORDER = ['dicht', 'rijbaan', 'hinder', 'geen', 'onbekend'];
+
+/** Contract v4: with a timeline the item's `imp` is its heaviest stretch (pipeline/src/timeline.js). */
+function heaviestOf(tl) {
+  return tl.reduce((best, [, , imp]) => (IMPACT_ORDER.indexOf(imp) < IMPACT_ORDER.indexOf(best) ? imp : best), 'onbekend');
+}
+
+/** Contract v4: everyone the item concerns in any stretch with an effect; undefined = all traffic. */
+function concernedOf(tl) {
+  const acting = tl.filter(([, , imp]) => imp !== 'geen');
+  if (acting.length === 0 || acting.some(([, , , veh]) => !veh || veh.length === 0)) return undefined;
+  return [...new Set(acting.flatMap(([, , , veh]) => veh))].sort();
+}
+
 export function impactOf(spec) {
   if (spec.imp) return spec.imp;
+  if (spec.d?.tl) return heaviestOf(spec.d.tl);
   if (spec.cat === 'brug') return 'dicht';
   if (spec.cat === 'file' || spec.cat === 'incident') return 'hinder';
   if (spec.sub === 'roadClosed') return 'dicht';
@@ -158,6 +174,7 @@ export function impactOf(spec) {
 
 /** Vehicle groups of a spec: explicit `veh`, else the contract groups found in `d.vehicles`. */
 export function vehiclesOf(spec) {
+  if (!spec.veh && spec.d?.tl) return concernedOf(spec.d.tl);
   const raw = spec.veh ?? spec.d?.vehicles ?? [];
   const out = [...new Set(raw.filter((v) => VEHICLES.has(v)))];
   return out.length > 0 ? out : undefined;

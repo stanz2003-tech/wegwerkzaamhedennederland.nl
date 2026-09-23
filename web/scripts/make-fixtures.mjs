@@ -56,7 +56,8 @@ function propertiesOf(spec, nowMs) {
     // Contract v3 impact data.
     imp: impactOf(spec),
     veh: vehiclesOf(spec),
-    per: spec.d?.periods ? true : undefined,
+    // As the pipeline: per = periods || tl || tlTo (contract v4).
+    per: spec.d?.periods || spec.d?.tl || spec.d?.tlTo ? true : undefined,
     spd: spec.d?.speed,
     lc: spec.d?.lanes?.closed > 0 ? spec.d.lanes.closed : undefined,
   });

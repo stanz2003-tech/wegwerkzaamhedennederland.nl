@@ -43,11 +43,15 @@ v4 adds, without removing anything v3 had:
 
 | Field | Meaning |
 |---|---|
-| `ItemDetail.tl` | `TimelineSegment[]` = `[start, end, imp, veh?][]`, sorted and non-overlapping. Between two segments the measure does not apply. Built from the validity of every situation record separately. Present only on time-varying items (`per: true`). |
-| `ItemDetail.tlTo` | The timeline is complete up to here. A moment after `tlTo` and before `end` is **unknown**, never "no hindrance". |
-| `ItemDetail.periods` | Now derived from `tl` (segments merged regardless of impact), kept for display and v3 readers. `tl` is authoritative. |
-| `ItemProperties.imp` / `veh` | The heaviest verdict over the whole timeline, for the map colour without detail. |
-| `Meta.horizon` | `{ days, until }`: measures starting after `until` are not in the files. An empty answer past it is "nog niet bekend". |
+| `ItemDetail.tl` | `TimelineSegment[]` = `[start, end, imp, veh?][]`, sorted and non-overlapping, end exclusive, `''` = open end. Between two segments the measure does not apply; a stretch covered only by an umbrella period reads `onbekend`. Built from the validity of every situation record separately. Present only when the verdict differs between stretches, never on live items. |
+| `ItemDetail.tlTo` | The timeline is complete up to here (exclusive). A moment at or after `tlTo` and before `end` is **unknown**, never "no hindrance". |
+| `ItemDetail.periods` | The blocks in which the measure applies, present only when it has gaps. Now built from every record (v3: main record only), i.e. the stretches of the timeline merged regardless of impact; `''` = open end. `tl`, when present, is authoritative for the verdict. |
+| `ItemProperties.per` | `periods` or `tl` or `tlTo` is present. |
+| `ItemProperties.imp` / `veh` | `imp`: the heaviest verdict over the whole timeline, for the map colour without detail. `veh`: everyone the measure concerns in any stretch with an effect; absent as soon as one such stretch is for all traffic. |
+| `Meta.horizon` | (Since 2026-09-21, before v4.) `{ days, until }`: measures starting after `until` are not in the files. An empty answer past it is "nog niet bekend". |
+
+The web build knows which `Meta.version` it was written for (`web/src/data/version.ts`); a tab
+that loads newer data reloads once to fetch the current code.
 
 Determinism rule for everything time-dependent in the detail: clip to **local midnight
 (Europe/Amsterdam) of the day of the run**, never to the run clock, so a shard changes once a day

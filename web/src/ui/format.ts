@@ -191,6 +191,7 @@ export function fmtPeriod(startIso: string, endIso: string | null | undefined): 
 }
 
 export function fmtPeriodMs(start: number, end: number): string {
+  if (!Number.isFinite(end)) return `vanaf ${fmtDayTime(start)}`;
   const sameDay = fmtDay(start) === fmtDay(end);
   return sameDay ? `${fmtDay(start)} ${fmtTime(start)}–${fmtTime(end)}` : `${fmtDayTime(start)} – ${fmtDayTime(end)}`;
 }

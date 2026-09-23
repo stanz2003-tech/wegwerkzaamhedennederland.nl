@@ -85,8 +85,9 @@ export function heavier(a: TimeSegment, b: TimeSegment): TimeSegment {
 
 /**
  * The blocks in which the measure applies, touching stretches merged regardless of verdict, as
- * [iso, iso] pairs for the existing period wording ("ma–vr 22:00–05:00"). Open ends are left out:
- * the pattern wording cannot describe them.
+ * [iso, iso] pairs for the existing period wording ("ma–vr 22:00–05:00"). An open end is kept and
+ * written as '' (the convention of `periods`): leaving it out made the item look inactive during
+ * its last block, which is the one that runs on.
  */
 export function periodsFromTimeline(segments: readonly TimeSegment[]): [string, string][] {
   const merged: { start: number; end: number }[] = [];
@@ -95,7 +96,5 @@ export function periodsFromTimeline(segments: readonly TimeSegment[]): [string, 
     if (last && last.end === s.start) last.end = s.end;
     else merged.push({ start: s.start, end: s.end });
   }
-  return merged
-    .filter((p) => Number.isFinite(p.end))
-    .map((p) => [new Date(p.start).toISOString(), new Date(p.end).toISOString()]);
+  return merged.map((p) => [new Date(p.start).toISOString(), Number.isFinite(p.end) ? new Date(p.end).toISOString() : '']);
 }

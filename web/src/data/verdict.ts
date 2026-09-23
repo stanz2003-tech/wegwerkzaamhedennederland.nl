@@ -219,6 +219,10 @@ function insidePeriod(periods: readonly Period[], now: number): boolean {
   return periods.some((p) => p.start <= now && now <= p.end);
 }
 
+function touchesPeriod(periods: readonly Period[], from: number, to: number): boolean {
+  return periods.some((p) => p.start <= to && p.end >= from);
+}
+
 /** Wording for a question past the end of what the timeline knows. */
 export const BEYOND_TIMELINE_LABEL = 'Nog niet bekend';
 
@@ -307,34 +311,55 @@ function join(...parts: (string | undefined)[]): string | undefined {
  * 3. Otherwise `imp` decides; `per` appends the pattern or "op bepaalde tijden".
  *
  * Contract v4, when a moment or a window is asked:
- * 0a. The moment (or the start of the window) lies past `tlTo` → `onbekend` "Nog niet bekend":
- *     the list of working times simply stops there, so silence is not "no hindrance".
+ * 0a. The moment (or the start of the window) lies at or past `tlTo` → `onbekend` "Nog niet
+ *     bekend": the list of working times simply stops there, so silence is not "no hindrance".
+ *     The `nvt` check (1) comes first: an item that never concerns the mode stays `nvt`.
  * 0b. A timeline is known → the stretch that covers the moment (or the heaviest one inside the
  *     window) decides, with its own vehicle groups. The measure's overall `imp`/`veh` is the
  *     heaviest phase of all and would paint the Paul Krugerkade "dicht voor iedereen" on a day on
  *     which only the cycle path is closed.
+ * 0c. A window that reaches past `tlTo` is never lighter than "Nog niet bekend": the part past
+ *     it may hold the closure.
  */
 export function verdictFor(item: VerdictInput, mode: VehicleMode, d: VerdictDetail = {}): Verdict {
-  const tlToMs = d.tlTo ? Date.parse(d.tlTo) : Number.NaN;
-  const askedFrom = typeof d.now === 'number' ? d.now : d.window?.from;
-  if (d.tlTo && Number.isFinite(tlToMs) && typeof askedFrom === 'number' && askedFrom > tlToMs) {
-    return beyondTimeline(d.tlTo);
-  }
-  const fromTimeline = timelineVerdict(item, mode, d, parseTimeline(d.tl));
-  if (fromTimeline) return fromTimeline;
-
+  // `veh` on the item is everyone the measure concerns in any of its stretches, so a mode outside
+  // it is `nvt` at every moment — also past the end of what the timeline knows.
   const veh = item.veh && item.veh.length > 0 ? item.veh : null;
   if (veh && !appliesToMode(veh, mode)) {
     return { level: 'nvt', label: MODE_NOT_FOR[mode], detail: onlyForLabel(veh) };
   }
+  const tlToMs = d.tlTo ? Date.parse(d.tlTo) : Number.NaN;
+  const knowsUntil = Number.isFinite(tlToMs) ? tlToMs : Number.NaN;
+  const askedFrom = typeof d.now === 'number' ? d.now : d.window?.from;
+  if (d.tlTo && Number.isFinite(knowsUntil) && typeof askedFrom === 'number' && askedFrom >= knowsUntil) {
+    return beyondTimeline(d.tlTo);
+  }
+  const verdict = knownVerdict(item, mode, d);
+  const reachesPast = d.tlTo && Number.isFinite(knowsUntil) && typeof d.now !== 'number' && d.window && d.window.to >= knowsUntil;
+  if (reachesPast && d.tlTo && VERDICT_SEVERITY.indexOf(verdict.level) > VERDICT_SEVERITY.indexOf('onbekend')) {
+    return beyondTimeline(d.tlTo);
+  }
+  return verdict;
+}
+
+/** The verdict inside the known part of the measure (verdictFor minus the `tlTo` checks). */
+function knownVerdict(item: VerdictInput, mode: VehicleMode, d: VerdictDetail): Verdict {
+  const fromTimeline = timelineVerdict(item, mode, d, parseTimeline(d.tl));
+  if (fromTimeline) return fromTimeline;
+
   const hasPer = item.per === true || item.per === 1;
   const periods = hasPer && d.periods && d.periods.length > 0 ? parsePeriods(d.periods) : [];
   if (periods.length > 0 && typeof d.now === 'number' && !insidePeriod(periods, d.now)) {
     return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(d.periods, d.now)})` };
   }
-  const per = hasPer ? periodHint(d.periods, d.now) : undefined;
+  // A day picked in the strip on which none of the blocks falls: the day pill counts the item as
+  // "geen", so the row under it must say so too instead of the measure's heaviest verdict.
+  if (periods.length > 0 && typeof d.now !== 'number' && d.window && !touchesPeriod(periods, d.window.from, d.window.to)) {
+    return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(d.periods, d.window.from)})` };
+  }
+  const per = hasPer ? periodHint(d.periods, d.now ?? d.window?.from) : undefined;
   const imp: Impact = isImpact(item.imp) ? item.imp : 'onbekend';
-  // The mode check on `veh` already happened above, so it is not repeated here.
+  // The mode check on `veh` already happened in verdictFor, so it is not repeated here.
   return impactVerdict(imp, null, item, mode, d, per);
 }
 
