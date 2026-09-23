@@ -100,6 +100,11 @@ export interface ListItemOptions {
   from?: string;
   /** The moment the verdict is asked for (period check); defaults to `now`. */
   at?: number;
+  /** A window instead of a moment (a day picked in the strip); wins over `at`. */
+  window?: { from: number; to: number };
+  /** Contract v4 timeline and its horizon, when the caller has the detail. */
+  tl?: unknown;
+  tlTo?: string;
 }
 
 /** Place shown next to the section: woonplaats when it adds information beyond the title, else gemeente. */
@@ -126,7 +131,9 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
   const at = opts.at ?? now;
   const verdict = verdictFor(m, opts.mode ?? 'auto', {
     periods: opts.periods ?? null,
-    now: at,
+    ...(opts.tl ? { tl: opts.tl } : {}),
+    ...(opts.tlTo ? { tlTo: opts.tlTo } : {}),
+    ...(opts.window ? { window: opts.window } : { now: at }),
     ...(opts.to ? { to: opts.to } : {}),
   });
 

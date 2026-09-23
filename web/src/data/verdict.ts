@@ -8,6 +8,7 @@
  */
 import type { Period } from './periods';
 import { parsePeriods, summarizePeriods } from './periods';
+import { heavier, parseTimeline, periodsFromTimeline, segmentAt, segmentsIn, type TimeSegment } from './timeline';
 import type { Category, DelayBand, Impact, Vehicle } from './types';
 
 /** Who is asking. Stored in the URL as `?v=` and in localStorage. */
@@ -159,8 +160,18 @@ export interface VerdictDetail {
   queueM?: number;
   /** Recurring sub-periods, when the detail shard / EntityFile has been loaded. */
   periods?: readonly (readonly [string, string])[] | null;
+  /** Contract v4 timeline (`ItemDetail.tl`): the verdict per stretch of time. */
+  tl?: unknown;
+  /** Contract v4 (`ItemDetail.tlTo`): past this moment the timeline is not known. */
+  tlTo?: string | null;
   /** The moment the question is asked; defaults to "no moment" (period check skipped). */
   now?: number;
+  /**
+   * A window instead of a moment (a day in the strip, "dit weekend"): the verdict is then the
+   * heaviest stretch inside the window, not the heaviest of the whole measure — otherwise the day
+   * pill said "dicht" for a day on which the only closure phase was already over.
+   */
+  window?: { from: number; to: number };
 }
 
 const DELAY_TEXT: Record<DelayBand, string | null> = {
@@ -208,6 +219,77 @@ function insidePeriod(periods: readonly Period[], now: number): boolean {
   return periods.some((p) => p.start <= now && now <= p.end);
 }
 
+/** Wording for a question past the end of what the timeline knows. */
+export const BEYOND_TIMELINE_LABEL = 'Nog niet bekend';
+
+function beyondTimeline(tlTo: string): Verdict {
+  const d = new Date(tlTo);
+  const datum = Number.isFinite(d.getTime())
+    ? new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam' }).format(d)
+    : null;
+  return {
+    level: 'onbekend',
+    label: BEYOND_TIMELINE_LABEL,
+    detail: datum ? `de werktijden zijn bekend tot ${datum}` : 'de werktijden verder vooruit zijn nog niet gepubliceerd',
+  };
+}
+
+/** The verdict wording for one impact, shared by the whole-measure and the per-stretch path. */
+function impactVerdict(
+  imp: Impact,
+  veh: readonly Vehicle[] | null,
+  item: VerdictInput,
+  mode: VehicleMode,
+  d: VerdictDetail,
+  per: string | undefined,
+): Verdict {
+  if (veh && veh.length > 0 && !appliesToMode(veh, mode)) {
+    return { level: 'nvt', label: MODE_NOT_FOR[mode], detail: onlyForLabel(veh) };
+  }
+  switch (imp) {
+    case 'dicht':
+      return { level: 'dicht', label: 'Weg dicht', detail: join(d.to ? `richting ${d.to}` : undefined, per) };
+    case 'rijbaan':
+      return { level: 'rijbaan', label: 'Rijbaan dicht', detail: join(d.to ? `richting ${d.to}` : undefined, per) };
+    case 'hinder':
+      return { level: 'hinder', label: 'Doorrijden mogelijk', detail: join(hinderDetail(item, d), per) };
+    case 'geen':
+      return { level: 'geen', label: 'Geen hinder', detail: per };
+    default:
+      return { level: 'onbekend', label: 'Hinder onbekend', detail: per };
+  }
+}
+
+/**
+ * The verdict from the timeline, or null when the timeline does not decide (no timeline, or
+ * neither a moment nor a window was asked).
+ */
+function timelineVerdict(item: VerdictInput, mode: VehicleMode, d: VerdictDetail, segments: readonly TimeSegment[]): Verdict | null {
+  if (segments.length === 0) return null;
+  const derived = periodsFromTimeline(segments);
+  // "op bepaalde tijden" only means something when the measure really has gaps; a continuous
+  // measure whose verdict merely changes per phase gets no pattern suffix.
+  const per = derived.length > 1 ? periodHint(derived, d.now) : undefined;
+
+  if (typeof d.now === 'number') {
+    const seg = segmentAt(segments, d.now);
+    if (!seg) return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(derived, d.now)})` };
+    return impactVerdict(seg.imp, seg.veh, item, mode, d, per);
+  }
+  if (d.window) {
+    const inside = segmentsIn(segments, d.window.from, d.window.to);
+    if (inside.length === 0) return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(derived, d.window.from)})` };
+    const forMode = inside.filter((s) => !s.veh || appliesToMode(s.veh, mode));
+    if (forMode.length === 0) {
+      const veh = Array.from(new Set(inside.flatMap((s) => s.veh ?? [])));
+      return { level: 'nvt', label: MODE_NOT_FOR[mode], detail: onlyForLabel(veh) };
+    }
+    const worst = forMode.reduce(heavier);
+    return impactVerdict(worst.imp, worst.veh, item, mode, d, per);
+  }
+  return null;
+}
+
 function join(...parts: (string | undefined)[]): string | undefined {
   const filled = parts.filter((p): p is string => typeof p === 'string' && p !== '');
   return filled.length ? filled.join(' · ') : undefined;
@@ -223,8 +305,24 @@ function join(...parts: (string | undefined)[]): string | undefined {
  * 2. Recurring periods known and a moment given, moment outside every period → `geen`
  *    ("Geen hinder · buiten werktijden (ma–vr 22:00–05:00)").
  * 3. Otherwise `imp` decides; `per` appends the pattern or "op bepaalde tijden".
+ *
+ * Contract v4, when a moment or a window is asked:
+ * 0a. The moment (or the start of the window) lies past `tlTo` → `onbekend` "Nog niet bekend":
+ *     the list of working times simply stops there, so silence is not "no hindrance".
+ * 0b. A timeline is known → the stretch that covers the moment (or the heaviest one inside the
+ *     window) decides, with its own vehicle groups. The measure's overall `imp`/`veh` is the
+ *     heaviest phase of all and would paint the Paul Krugerkade "dicht voor iedereen" on a day on
+ *     which only the cycle path is closed.
  */
 export function verdictFor(item: VerdictInput, mode: VehicleMode, d: VerdictDetail = {}): Verdict {
+  const tlToMs = d.tlTo ? Date.parse(d.tlTo) : Number.NaN;
+  const askedFrom = typeof d.now === 'number' ? d.now : d.window?.from;
+  if (d.tlTo && Number.isFinite(tlToMs) && typeof askedFrom === 'number' && askedFrom > tlToMs) {
+    return beyondTimeline(d.tlTo);
+  }
+  const fromTimeline = timelineVerdict(item, mode, d, parseTimeline(d.tl));
+  if (fromTimeline) return fromTimeline;
+
   const veh = item.veh && item.veh.length > 0 ? item.veh : null;
   if (veh && !appliesToMode(veh, mode)) {
     return { level: 'nvt', label: MODE_NOT_FOR[mode], detail: onlyForLabel(veh) };
@@ -236,18 +334,8 @@ export function verdictFor(item: VerdictInput, mode: VehicleMode, d: VerdictDeta
   }
   const per = hasPer ? periodHint(d.periods, d.now) : undefined;
   const imp: Impact = isImpact(item.imp) ? item.imp : 'onbekend';
-  switch (imp) {
-    case 'dicht':
-      return { level: 'dicht', label: 'Weg dicht', detail: join(d.to ? `richting ${d.to}` : undefined, per) };
-    case 'rijbaan':
-      return { level: 'rijbaan', label: 'Rijbaan dicht', detail: join(d.to ? `richting ${d.to}` : undefined, per) };
-    case 'hinder':
-      return { level: 'hinder', label: 'Doorrijden mogelijk', detail: join(hinderDetail(item, d), per) };
-    case 'geen':
-      return { level: 'geen', label: 'Geen hinder', detail: per };
-    default:
-      return { level: 'onbekend', label: 'Hinder onbekend', detail: per };
-  }
+  // The mode check on `veh` already happened above, so it is not repeated here.
+  return impactVerdict(imp, null, item, mode, d, per);
 }
 
 /** Worse of two levels (`nvt` loses against everything). */

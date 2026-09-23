@@ -27,6 +27,12 @@ export interface ForecastState {
   selection: ForecastSelection;
   /** The moment the list's verdicts should be computed for. */
   at: number;
+  /**
+   * For a day picked in the strip: the day itself. A day is a window, not a moment — computing the
+   * list for 00:00 (the hour at which day work by definition does not apply) made the strip say
+   * "Doorrijden mogelijk · 4 hinder" above four rows reading "Geen hinder · buiten werktijden".
+   */
+  window?: { from: number; to: number };
   /** Items the list should show for the selection (null = the page's default grouping). */
   items: ForecastItem[] | null;
   whenLabel: string;
@@ -90,7 +96,8 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
     let listed: ForecastItem[] | null = null;
     if (selection.kind === 'day') listed = itemsForCell(items, selection.cell);
     if (selection.kind === 'moment') listed = selectAtMoment(items, mode, selection.at, now).items.map((x) => x.item);
-    return { mode, selection, at, items: listed, whenLabel: whenLabelOf(selection, now) };
+    const window = selection.kind === 'day' ? { from: Math.max(selection.cell.from, now), to: selection.cell.to } : undefined;
+    return { mode, selection, at, ...(window ? { window } : {}), items: listed, whenLabel: whenLabelOf(selection, now) };
   };
 
   const renderAnswer = (): void => {

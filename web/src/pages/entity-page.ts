@@ -99,11 +99,23 @@ function formatLocal(ms: number): string {
   return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
 }
 
-/** The feature the entity map draws: the item plus its verdict level for the paint expressions. */
-function judged(items: readonly ForecastItem[], mode: VehicleMode, at: number): ItemFeature[] {
+/**
+ * The feature the entity map draws: the item plus its verdict level for the paint expressions.
+ * Uses the same inputs as the list (timeline, and the day window when a day is picked), so the map
+ * and the list next to it never disagree about the same item.
+ */
+function judged(items: readonly ForecastItem[], mode: VehicleMode, at: number, window?: { from: number; to: number }): ItemFeature[] {
   return items.map((it) => ({
     ...it.f,
-    properties: { ...it.f.properties, v: verdictFor(it.f.properties, mode, { now: at, periods: it.d?.periods ?? null }).level } as ItemFeature['properties'],
+    properties: {
+      ...it.f.properties,
+      v: verdictFor(it.f.properties, mode, {
+        periods: it.d?.periods ?? null,
+        ...(it.d?.tl ? { tl: it.d.tl } : {}),
+        ...(it.d?.tlTo ? { tlTo: it.d.tlTo } : {}),
+        ...(window ? { window } : { now: at }),
+      }).level,
+    } as ItemFeature['properties'],
   }));
 }
 
@@ -128,7 +140,13 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
 
   const renderList = (state: ForecastState): void => {
     if (!listEl) return;
-    const listOpts = { mode: state.mode, at: state.at, details, ...(opts.linkQuery ? { linkQuery: opts.linkQuery } : {}) };
+    const listOpts = {
+      mode: state.mode,
+      at: state.at,
+      ...(state.window ? { window: state.window } : {}),
+      details,
+      ...(opts.linkQuery ? { linkQuery: opts.linkQuery } : {}),
+    };
     if (state.items === null) {
       const relevant = (list: IndexItem[]): IndexItem[] => list.filter((it) => isRelevantFor(it, state.mode));
       const sections: EntitySection[] = [
@@ -157,7 +175,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
   const onState = (state: ForecastState): void => {
     storeMode(state.mode);
     renderList(state);
-    map?.setItems(judged(source.items, state.mode, state.at));
+    map?.setItems(judged(source.items, state.mode, state.at, state.window));
     syncPageUrl(state);
   };
 

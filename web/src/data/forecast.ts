@@ -9,6 +9,7 @@
  * data/answer.ts.
  */
 import { parsePeriods, type Period } from './periods';
+import { parseTimeline, periodsFromTimeline } from './timeline';
 import { MS, isActiveAt, overlapsWindow, startOfDay, type TimeSpan } from './time';
 import type { Category, ItemDetail, ItemFeature } from './types';
 import { VERDICT_SEVERITY, countLevels, verdictFor, worseLevel, type VehicleMode, type Verdict, type VerdictLevel } from './verdict';
@@ -35,8 +36,20 @@ export function liveAppliesAt(p: { cat: Category; end?: string | null }, at: num
   return at <= now + LIVE_HORIZON_MS;
 }
 
+/**
+ * When the item applies. Contract v4: taken from the timeline when there is one — it is built
+ * from every record's own validity, whereas `periods` in v3 data came from the main record only.
+ */
 export function periodsOf(item: ForecastItem): Period[] {
-  return item.f.properties.per === true && item.d?.periods ? parsePeriods(item.d.periods) : [];
+  if (item.f.properties.per !== true) return [];
+  const segments = parseTimeline(item.d?.tl);
+  if (segments.length > 0) return parsePeriods(periodsFromTimeline(segments));
+  return item.d?.periods ? parsePeriods(item.d.periods) : [];
+}
+
+/** Past this moment the item's working times are not known (contract v4 `tlTo`); NaN if unknown. */
+function knownUntil(item: ForecastItem): number {
+  return item.d?.tlTo ? Date.parse(item.d.tlTo) : Number.NaN;
 }
 
 /** Active at `at`: inside [start, end] and, when recurring periods are known, inside one of them. */
@@ -46,15 +59,24 @@ export function isActiveAtMoment(span: TimeSpan, periods: readonly Period[], at:
   return periods.some((p) => p.start <= at && at <= p.end);
 }
 
-/** Touches the window [from, to]: overlaps it and, when periods are known, one period does too. */
-export function touchesWindow(span: TimeSpan, periods: readonly Period[], from: number, to: number): boolean {
+/**
+ * Touches the window [from, to]: overlaps it and, when periods are known, one period does too —
+ * or the window reaches past `knownUntil`, where the item may still apply and the verdict will
+ * say "nog niet bekend" rather than the item silently dropping out.
+ */
+export function touchesWindow(span: TimeSpan, periods: readonly Period[], from: number, to: number, knownUntilMs = Number.NaN): boolean {
   if (!overlapsWindow(span, from, to)) return false;
   if (periods.length === 0) return true;
+  if (Number.isFinite(knownUntilMs) && to > knownUntilMs) return true;
   return periods.some((p) => p.start <= to && p.end >= from);
 }
 
-/** The verdict of an item for a mode, using whatever detail is available. */
-export function itemVerdict(item: ForecastItem, mode: VehicleMode, at?: number): Verdict {
+/**
+ * The verdict of an item for a mode, using whatever detail is available. `at` asks about one
+ * moment; `window` about a stretch of time (a day in the strip) — then the heaviest phase inside
+ * the window decides, not the heaviest phase of the whole measure.
+ */
+export function itemVerdict(item: ForecastItem, mode: VehicleMode, at?: number, window?: { from: number; to: number }): Verdict {
   const d = item.d ?? null;
   return verdictFor(item.f.properties, mode, {
     ...(d?.to ? { to: d.to } : {}),
@@ -62,7 +84,10 @@ export function itemVerdict(item: ForecastItem, mode: VehicleMode, at?: number):
     ...(typeof d?.delaySec === 'number' ? { delaySec: d.delaySec } : {}),
     ...(typeof d?.queueM === 'number' ? { queueM: d.queueM } : {}),
     periods: d?.periods ?? null,
+    ...(d?.tl ? { tl: d.tl } : {}),
+    ...(d?.tlTo ? { tlTo: d.tlTo } : {}),
     ...(at !== undefined ? { now: at } : {}),
+    ...(at === undefined && window ? { window } : {}),
   });
 }
 
@@ -84,13 +109,19 @@ export interface Selection {
 /** Either one exact moment or a calendar window (the "Wanneer?" chips). */
 export type When = { kind: 'moment'; at: number } | { kind: 'window'; from: number; to: number };
 
-function collect(items: readonly ForecastItem[], mode: VehicleMode, inTime: (item: ForecastItem) => boolean, at?: number): Selection {
+function collect(
+  items: readonly ForecastItem[],
+  mode: VehicleMode,
+  inTime: (item: ForecastItem) => boolean,
+  at?: number,
+  window?: { from: number; to: number },
+): Selection {
   const out: AnsweredItem[] = [];
   const hidden: AnsweredItem[] = [];
   let worst: VerdictLevel | null = null;
   for (const item of items) {
     if (!inTime(item)) continue;
-    const verdict = itemVerdict(item, mode, at);
+    const verdict = itemVerdict(item, mode, at, window);
     if (verdict.level === 'nvt') {
       hidden.push({ item, verdict });
       continue;
@@ -114,7 +145,13 @@ export function selectAtMoment(items: readonly ForecastItem[], mode: VehicleMode
 
 /** What touches a window ("vandaag", "dit weekend"). */
 export function selectInWindow(items: readonly ForecastItem[], mode: VehicleMode, from: number, to: number, now = from): Selection {
-  return collect(items, mode, (item) => touchesWindow(item.f.properties, periodsOf(item), from, to) && liveAppliesAt(item.f.properties, from, now));
+  return collect(
+    items,
+    mode,
+    (item) => touchesWindow(item.f.properties, periodsOf(item), from, to, knownUntil(item)) && liveAppliesAt(item.f.properties, from, now),
+    undefined,
+    { from, to },
+  );
 }
 
 /** `now` lets the live snapshot rule work; omitted, it equals the asked moment (no exclusion). */

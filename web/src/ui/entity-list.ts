@@ -75,7 +75,9 @@ export interface EntityListOptions {
   mode?: VehicleMode;
   /** The moment the verdicts are asked for (period check); defaults to `now`. */
   at?: number;
-  /** Full details by id when the page has them (EntityFile): periods, from/to. */
+  /** A window instead of a moment (a day picked in the strip); wins over `at`. */
+  window?: { from: number; to: number };
+  /** Full details by id when the page has them (EntityFile): periods, timeline, from/to. */
   details?: ReadonlyMap<string, ItemDetail>;
 }
 
@@ -94,7 +96,10 @@ function renderBatch(container: HTMLElement, items: readonly IndexItem[], from: 
         index: from === 0 ? i : 99,
         mode: opts.mode ?? 'auto',
         ...(opts.at !== undefined ? { at: opts.at } : {}),
+        ...(opts.window ? { window: opts.window } : {}),
         ...(d?.periods ? { periods: d.periods } : {}),
+        ...(d?.tl ? { tl: d.tl } : {}),
+        ...(d?.tlTo ? { tlTo: d.tlTo } : {}),
         ...(d?.to ? { to: d.to } : {}),
         ...(d?.from ? { from: d.from } : {}),
       });

@@ -48,6 +48,7 @@ const load = (rel) => import(new URL(rel, SRC).href);
 export const types = await load('data/types.ts');
 export const time = await load('data/time.ts');
 export const periods = await load('data/periods.ts');
+export const timeline = await load('data/timeline.ts');
 export const filter = await load('data/filter.ts');
 export const urlState = await load('data/url-state.ts');
 export const searchIndex = await load('data/search-index.ts');
