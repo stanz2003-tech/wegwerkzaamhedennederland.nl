@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ENDED_GRACE_MS, MAX_PERIODS, openingsWithin, startOfLocalDay, toMinuteIso, toMs, UPCOMING_DAYS, upcomingPeriods, windowState } from '../src/time.js';
+import { ENDED_GRACE_MS, openingsWithin, startOfLocalDay, toMinuteIso, toMs, UPCOMING_DAYS, windowState } from '../src/time.js';
 
 const NOW = Date.parse('2026-09-10T12:00:00Z');
 const HOUR = 3600 * 1000;
@@ -67,28 +67,6 @@ test('nightly recurring work far ahead is future, not upcoming', () => {
   assert.equal(windowState(s, NOW), 'future');
 });
 
-test('upcomingPeriods: past periods dropped, sorted, minute precision, capped', () => {
-  const periods = [
-    [iso(NOW + 2 * DAY), iso(NOW + 2 * DAY + HOUR)],
-    [iso(NOW - 5 * DAY), iso(NOW - 5 * DAY + HOUR)],
-    [iso(NOW + DAY), iso(NOW + DAY + HOUR)],
-  ];
-  const out = upcomingPeriods(periods, NOW);
-  assert.deepEqual(out, [
-    [toMinuteIso(iso(NOW + DAY)), toMinuteIso(iso(NOW + DAY + HOUR))],
-    [toMinuteIso(iso(NOW + 2 * DAY)), toMinuteIso(iso(NOW + 2 * DAY + HOUR))],
-  ]);
-  assert.equal(upcomingPeriods(undefined, NOW), undefined);
-  assert.equal(upcomingPeriods([], NOW), undefined);
-  assert.equal(upcomingPeriods([[iso(NOW - 5 * DAY), iso(NOW - 5 * DAY + HOUR)]], NOW), undefined);
-  // a period that ended inside the grace window is still reported
-  assert.equal(upcomingPeriods([[iso(NOW - HOUR), iso(NOW - 30 * 60 * 1000)]], NOW)?.length, 1);
-  // open ended period → empty end string
-  assert.deepEqual(upcomingPeriods([[iso(NOW + HOUR), undefined]], NOW), [[toMinuteIso(iso(NOW + HOUR)), '']]);
-  const many = Array.from({ length: MAX_PERIODS + 20 }, (_, i) => [iso(NOW + i * DAY), iso(NOW + i * DAY + HOUR)]);
-  assert.equal(upcomingPeriods(many, NOW)?.length, MAX_PERIODS);
-});
-
 test('openingsWithin: window, sorting, de-duplication and the cap', () => {
   const openings = [
     { start: iso(NOW + 2 * HOUR), end: iso(NOW + 2 * HOUR + 600000) },
@@ -138,23 +116,3 @@ test('startOfLocalDay lands on Amsterdam midnight in both summer and winter time
   assert.equal(nl(startOfLocalDay(Date.parse('2026-10-25T23:30:00Z'))), '2026-10-26 00:00:00');
 });
 
-test('upcomingPeriods only changes when the calendar day changes, not with the run clock', () => {
-  // Filtering on the run clock rewrote 31 of the 32 detail shards within 24 hours without a single
-  // measure having changed, and every one of them was re-uploaded to R2.
-  const gisteren = ['2026-09-20T20:00:00Z', '2026-09-21T04:00:00Z'];
-  const vannacht = ['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z'];
-  const periods = [gisteren, vannacht];
-
-  // Three runs on the same local day give byte-identical lists, however late in the day they are.
-  const ochtend = upcomingPeriods(periods, Date.parse('2026-09-21T06:00:00Z'));
-  const middag = upcomingPeriods(periods, Date.parse('2026-09-21T13:00:00Z'));
-  const avond = upcomingPeriods(periods, Date.parse('2026-09-21T19:45:00Z'));
-  assert.deepEqual(ochtend, middag);
-  assert.deepEqual(middag, avond);
-  assert.equal(ochtend.length, 2, 'een periode die vanochtend eindigde hoort er vandaag nog bij');
-
-  // The next local day drops the period that is now fully in the past.
-  const morgen = upcomingPeriods(periods, Date.parse('2026-09-22T06:00:00Z'));
-  assert.equal(morgen.length, 1);
-  assert.deepEqual(morgen[0], ['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z']);
-});

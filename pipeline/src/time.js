@@ -10,7 +10,6 @@
 
 export const UPCOMING_DAYS = 30;
 export const ENDED_GRACE_MS = 60 * 60 * 1000;
-export const MAX_PERIODS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -99,25 +98,6 @@ export function windowState(item, nowMs) {
   if (nextStart === undefined || nextStart <= nowMs) return 'active';
   if (nextStart > nowMs + UPCOMING_DAYS * DAY_MS) return 'future';
   return 'upcoming';
-}
-
-/**
- * Periods still relevant (end not more than 1 h ago), sorted, minute precision,
- * at most MAX_PERIODS. Open-ended periods keep an empty end.
- * @param {[string, string|undefined][] | undefined} periods
- * @param {number} nowMs
- * @returns {[string, string][] | undefined}
- */
-export function upcomingPeriods(periods, nowMs) {
-  // See DAY_BOUNDARY: the cut-off is local midnight, not the run clock, so the list only changes
-  // when the calendar day changes. ENDED_GRACE_MS is no longer needed — a whole day of slack
-  // subsumes it.
-  const floor = startOfLocalDay(nowMs);
-  const usable = usablePeriods(periods).filter(([, e]) => e === undefined || e >= floor);
-  if (usable.length === 0) return undefined;
-  return usable
-    .slice(0, MAX_PERIODS)
-    .map(([s, e]) => /** @type {[string, string]} */ ([toMinuteIso(s), e === undefined ? '' : toMinuteIso(e)]));
 }
 
 /**

@@ -12,7 +12,8 @@ import { impactOf } from './impact.js';
 import { mergeSituation } from './merge.js';
 import { detectRoad } from './roads.js';
 import { friendlySource, normalizeProvince } from './sources-friendly.js';
-import { toMinuteIso, upcomingPeriods, windowState } from './time.js';
+import { toMinuteIso, windowState } from './time.js';
+import { buildTimeline } from './timeline.js';
 import { buildTitle, TITLE_MAX } from './title.js';
 
 /**
@@ -121,18 +122,44 @@ export function finalizeItem(item, geo, nowMs) {
   });
 
   const start = toMinuteIso(merged.start) ?? toMinuteIso(nowMs);
-  const periods = upcomingPeriods(merged.periods, nowMs);
   // The verdict needs the road type (A/N have two carriageways), which is only
   // known here: detectRoad() may rest on the geocoded street name.
+  const texts = [merged.comment, merged.desc, merged.causeDesc];
   const impact = impactOf(merged.measures, {
     cat: cls.cat,
     roadType: road.roadType,
     delay: merged.delay,
-    hasPeriods: periods !== undefined,
     lanes: merged.lanes,
     speed: merged.speed,
-    texts: [merged.comment, merged.desc, merged.causeDesc],
+    texts,
   });
+  // Contract v4: the verdict per stretch of time, from the records that apply during it. For the
+  // ~98% of situations whose measures all share the main window this yields exactly the v3 result;
+  // phases, and measures outside the main record's blocks, now get the verdict of their own time.
+  const timeline = buildTimeline({
+    records: merged.timed ?? [],
+    mainBlocks: merged.periods,
+    itemEnd: merged.end,
+    nowMs,
+    judge: (active) => {
+      const measures = active.map((r) => r.m);
+      const v = impactOf(measures, {
+        cat: cls.cat,
+        roadType: road.roadType,
+        // The delay band belongs to the main (or traffic) record: it says nothing about a stretch
+        // in which only a phase record of its own applies.
+        delay: active.some((r) => r.isMain) ? merged.delay : undefined,
+        lanes: lanesClosedOf(measures),
+        speed: minSpeedOf(measures),
+        texts,
+      });
+      return v.veh ? { imp: v.imp, veh: v.veh } : { imp: v.imp };
+    },
+  });
+  // The item's own verdict (map colour without detail) is the heaviest stretch still ahead — not
+  // the verdict of all records at once, which kept painting a street red whose closure had ended.
+  const verdict = timeline.heaviest ?? { imp: impact.imp, veh: impact.veh };
+  const periods = timeline.periods;
   item.props = compact({
     id: item.id,
     cat: cls.cat,
@@ -150,9 +177,10 @@ export function finalizeItem(item, geo, nowMs) {
     hind: merged.hind,
     prob: merged.prob,
     src: source.src,
-    imp: impact.imp,
-    veh: impact.veh,
-    per: impact.per,
+    imp: verdict.imp,
+    veh: verdict.veh,
+    // Time-varying: blocks, phases with their own verdict, or a list that stops before the item does.
+    per: timeline.periods || timeline.tl || timeline.tlTo ? true : undefined,
     spd: impact.spd,
     lc: impact.lc,
   });
@@ -163,6 +191,8 @@ export function finalizeItem(item, geo, nowMs) {
     desc,
     detour: merged.detour,
     periods,
+    tl: timeline.tl,
+    tlTo: timeline.tlTo,
     lanes: merged.lanes,
     speed: merged.speed,
     delay: merged.delay,
@@ -181,6 +211,30 @@ export function finalizeItem(item, geo, nowMs) {
   });
   delete item.raw;
   return item;
+}
+
+/**
+ * Lanes closed by the lane records among `measures` — what `impactOf()` reads from `ctx.lanes`,
+ * restricted to the records of one stretch of time.
+ * @param {import('./impact.js').ImpactRecord[]} measures
+ */
+function lanesClosedOf(measures) {
+  let closed;
+  for (const m of measures) {
+    if (m.type !== 'RoadOrCarriagewayOrLaneManagement' || m.lanesRestricted === undefined) continue;
+    if (closed === undefined || m.lanesRestricted > closed) closed = m.lanesRestricted;
+  }
+  return closed === undefined ? undefined : { closed };
+}
+
+/** @param {import('./impact.js').ImpactRecord[]} measures */
+function minSpeedOf(measures) {
+  let best;
+  for (const m of measures) {
+    if (m.type !== 'SpeedManagement' || m.speed === undefined) continue;
+    if (best === undefined || m.speed < best) best = m.speed;
+  }
+  return best;
 }
 
 /** One paragraph per line — same convention as `clean()` in merge.js. */

@@ -37,6 +37,9 @@ const MAX_PERIODS_KEPT = 400;
  * @property {string=} roadNr         sit:roadOrJunctionNumber (rerouting records)
  * @property {[number, number][]=} detourGeom   simplified alternativeRoute of the first rerouting record with one
  * @property {import('./impact.js').ImpactRecord[]} measures   every record reduced to what the impact verdict reads
+ * @property {import('./timeline.js').TimedRecord[]} timed    the same records with their OWN validity (contract v4):
+ *                                    `measures` loses start/end/periods, and a verdict that ignores
+ *                                    when each record applies is how phases got flattened
  * @property {{p?: string, s?: string, dir?: string}=} alertC
  * @property {string=} ris
  * @property {import('./parse.js').Location[]} locations   main record first
@@ -79,6 +82,7 @@ export function mergeSituation(situation) {
     roadNr: firstDefined(recs, (r) => r.roadNr),
     detourGeom: detourGeomOf(recs),
     measures: recs.map(measureOf),
+    timed: recs.map((r) => ({ m: measureOf(r), start: r.start, end: r.end, periods: r.periods, isMain: r === main })),
     upd: situation.ver ?? main.ver,
     locations: ordered.flatMap((r) => (r.type === 'ReroutingManagement' ? [] : r.locs)),
   };

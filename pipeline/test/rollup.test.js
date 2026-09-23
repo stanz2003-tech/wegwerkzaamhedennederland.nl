@@ -88,3 +88,37 @@ test('an unknown verdict never outranks a known one', () => {
   rollUpRelatedImpact([parent, item('C', 'onbekend')]);
   assert.equal(parent.props.imp, 'hinder');
 });
+
+test('the timeline is raised with the verdict: a chosen moment must not fall back to "doorrijden mogelijk"', () => {
+  // Contract v4 answers a chosen moment from `detail.tl`. Raising only `props.imp` would leave the
+  // parent's night segments at 'hinder' — the exact contradiction this pass exists to remove.
+  const parent = {
+    id: 'P',
+    rel: ['C'],
+    props: { imp: 'hinder' },
+    detail: {
+      tl: [
+        ['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z', 'hinder'],
+        ['2026-09-22T20:00:00Z', '2026-09-23T04:00:00Z', 'geen'],
+      ],
+    },
+  };
+  const child = { id: 'C', props: { imp: 'rijbaan', veh: ['lorry'] } };
+
+  rollUpRelatedImpact([parent, child]);
+
+  assert.equal(parent.props.imp, 'rijbaan');
+  assert.deepEqual(parent.detail.tl, [
+    ['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z', 'rijbaan', ['lorry']],
+    ['2026-09-22T20:00:00Z', '2026-09-23T04:00:00Z', 'rijbaan', ['lorry']],
+  ]);
+  // The child's own list was copied, not shared.
+  parent.detail.tl[0][3].push('car');
+  assert.deepEqual(child.props.veh, ['lorry']);
+});
+
+test('segments already heavier than the family verdict keep their own', () => {
+  const parent = { id: 'P', rel: ['C'], props: { imp: 'hinder' }, detail: { tl: [['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z', 'dicht']] } };
+  rollUpRelatedImpact([parent, { id: 'C', props: { imp: 'rijbaan' } }]);
+  assert.deepEqual(parent.detail.tl[0], ['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z', 'dicht']);
+});

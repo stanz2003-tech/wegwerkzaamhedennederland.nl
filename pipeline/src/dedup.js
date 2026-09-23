@@ -263,7 +263,13 @@ function provenTwin(actual, byBase, byId, consumed) {
  * start, end) always stay the actual measure's own.
  */
 const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov', 'veh', 'per', 'spd', 'lc']);
-const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'periods', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
+const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
+/**
+ * When a measure applies (contract v4). These three describe one timeline together, so they are
+ * taken over as a set or not at all: the survivor's own `periods` next to the dropped item's `tl`
+ * would describe two different measures in one detail.
+ */
+const TIME_GROUP = Object.freeze(['periods', 'tl', 'tlTo']);
 
 /**
  * @param {import('./item.js').Item} survivor
@@ -289,6 +295,12 @@ export function absorb(survivor, dropped) {
       survivor.detail[key] = dropped.detail[key];
       filled = true;
     }
+  }
+  const survivorHasTime = TIME_GROUP.some((key) => survivor.detail[key] !== undefined);
+  const droppedHasTime = TIME_GROUP.some((key) => dropped.detail[key] !== undefined);
+  if (!survivorHasTime && droppedHasTime) {
+    for (const key of TIME_GROUP) if (dropped.detail[key] !== undefined) survivor.detail[key] = dropped.detail[key];
+    filled = true;
   }
   return filled;
 }

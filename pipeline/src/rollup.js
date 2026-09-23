@@ -38,6 +38,7 @@ function rank(imp) {
  * @property {string} id
  * @property {string[]=} rel
  * @property {{ imp?: string, veh?: string[] }} props
+ * @property {{ tl?: [string, string, string, string[]?][] }=} detail
  */
 
 /**
@@ -77,9 +78,28 @@ export function rollUpRelatedImpact(items) {
     item.props.imp = best.imp;
     if (best.veh) item.props.veh = [...best.veh];
     else delete item.props.veh;
+    // Contract v4: the web layer answers a chosen moment from the timeline, not from `props.imp`.
+    // Raising only the item would bring back exactly what this pass exists to fix — "doorrijden
+    // mogelijk" at 02:00 under the words "De A2 is dicht" — so every lighter stretch is raised too.
+    raiseTimeline(item.detail?.tl, best);
     raised += 1;
     byImpact[best.imp] = (byImpact[best.imp] ?? 0) + 1;
   }
 
   return { raised, byImpact };
+}
+
+/**
+ * Lifts every segment lighter than `to` up to it, carrying its vehicle restriction. Segments that
+ * are already as heavy or heavier keep their own verdict.
+ * @param {[string, string, string, string[]?][] | undefined} tl
+ * @param {{ imp?: string, veh?: string[] }} to
+ */
+function raiseTimeline(tl, to) {
+  if (!tl || to.imp === undefined) return;
+  for (let i = 0; i < tl.length; i++) {
+    const seg = tl[i];
+    if (rank(seg[2]) <= rank(to.imp)) continue;
+    tl[i] = to.veh ? [seg[0], seg[1], to.imp, [...to.veh]] : [seg[0], seg[1], to.imp];
+  }
 }
