@@ -59,12 +59,17 @@ an environment wait timer and dispatches the next `Data` run.
 - **No runner while waiting.** The wait is the environment's *wait timer* (1–43,200 minutes;
   "Wait time will not count towards your billable time", docs.github.com, deployments and
   environments reference). It is configured in *Settings > Environments*, not in the file.
-- **One chain.** The wekker skips its dispatch when a `Data` run is already queued or running,
-  and the `volgende` job skips when a wekker is already waiting. Combined with the `data`
-  concurrency group this keeps exactly one chain, even when an hourly fallback run fires.
+- **One chain, never orphaned.** What the wekker does after its wait is decided by
+  `infra/wekker/next.mjs` (tested in `infra/wekker/test/next.test.mjs`). When a `Data` run is
+  already queued or running, the wekker does not start a second one but sets itself again: that
+  run's `volgende` job may already have skipped because this wekker was waiting, and doing nothing
+  then left the chain dead for hours on 27 September 2026. The `volgende` job still skips when a
+  wekker is waiting, so there is exactly one chain, also when an hourly fallback run fires.
 - **No loop without a timer.** If the environment lost its timer, the wekker would fire at once
-  and the chain would spin. It refuses to dispatch when the previous `Data` run started less than
-  `MIN_GAP_SECONDS` (360 s) ago, warns, and lets the hourly fallback restart the chain later.
+  and the chain would spin. It stops when it is itself younger than `MIN_OWN_AGE_SECONDS` (360 s)
+  — it did not wait — warns, and lets the hourly fallback restart the chain later. (Before
+  27 September this compared against the last `Data` run, which a fallback run in the middle of
+  the wait made look recent.)
 - **The heartbeat lives here.** `infra/wekker/check.mjs` pings healthchecks.io only when the
   site answers and `meta.json`, fetched with a cache-buster, is fresh. The old ping at the end of
   the data job only proved that a job went green.

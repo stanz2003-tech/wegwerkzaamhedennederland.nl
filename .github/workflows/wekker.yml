@@ -15,11 +15,14 @@
 #   - Tussen de wachttijd en de volgende run zit de enige end-to-end controle die er is: antwoordt
 #     de site, en is de gepubliceerde data vers? Alleen dan krijgt healthchecks.io een hartslag.
 #
-# Beveiligingen tegen een op hol geslagen keten (allebei getest in infra/test/workflows.test.mjs):
-#   - er mag maar één keten zijn: loopt of wacht er al een Data-run, dan start deze wekker er geen;
-#   - ontbreekt de wait timer, dan zou de keten in een lus draaien. Is de vorige Data-run minder dan
-#     zes minuten geleden gestart, dan stopt de keten met een waarschuwing. Het uurlijkse schema in
-#     data.yml pakt hem daarna vanzelf weer op.
+# Wat de wekker na de wachttijd doet, beslist infra/wekker/next.mjs (getest in
+# infra/wekker/test/next.test.mjs). De regel: de wekker eindigt nooit zonder opvolger.
+#   - er mag maar één keten zijn: loopt of wacht er al een Data-run, dan start deze wekker geen
+#     tweede, maar zet hij zichzelf opnieuw. Die lopende run kan al naar deze wekker hebben
+#     verwezen; niets doen liet de keten op 27 september 2026 uren stilvallen;
+#   - ontbreekt de wait timer, dan zou de keten in een lus draaien. Is deze wekker zelf jonger dan
+#     zes minuten (hij heeft dus niet gewacht), dan stopt de keten met een waarschuwing. Het
+#     uurlijkse schema in data.yml pakt hem daarna vanzelf weer op.
 name: Wekker
 
 on:
@@ -69,26 +72,20 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          MIN_GAP_SECONDS: "360"
+          RUN_ID: ${{ github.run_id }}
         run: |
-          # Eén keten: loopt of wacht er al een Data-run, dan hoeft deze wekker niets te doen.
-          busy=$(gh run list -R "$REPO" --workflow data.yml --limit 10 --json status \
-            --jq '[.[] | select(.status != "completed")] | length')
-          if [ "$busy" -gt 0 ]; then
-            echo "Er loopt of wacht al een Data-run; er komt geen tweede keten bij."
-            exit 0
-          fi
-
-          # Zonder wait timer zou de keten in een lus draaien. Dan liever stoppen en waarschuwen:
-          # het uurlijkse schema in data.yml start de keten daarna vanzelf weer.
-          last=$(gh run list -R "$REPO" --workflow data.yml --limit 1 --json createdAt --jq '.[0].createdAt // empty')
-          if [ -n "$last" ]; then
-            gap=$(( $(date -u +%s) - $(date -u -d "$last" +%s) ))
-            if [ "$gap" -lt "$MIN_GAP_SECONDS" ]; then
-              echo "::warning::De vorige Data-run is pas ${gap}s geleden gestart. Staat de wait timer op de environment 'wekker' nog aan? De keten stopt; het uurlijkse schema neemt het over."
-              exit 0
-            fi
-          fi
-
-          gh workflow run data.yml -R "$REPO" --ref "${{ github.ref_name }}"
-          echo "Volgende Data-run gestart."
+          # De eigen starttijd: met de wait timer is deze wekker hier ongeveer acht minuten oud.
+          created=$(gh api "repos/$REPO/actions/runs/$RUN_ID" --jq '.created_at' || true)
+          runs=$(gh run list -R "$REPO" --workflow data.yml --limit 10 --json status,createdAt || echo '[]')
+          action=$(node infra/wekker/next.mjs "$created" "$runs")
+          case "$action" in
+            dispatch-data)
+              gh workflow run data.yml -R "$REPO" --ref "${{ github.ref_name }}" ;;
+            rearm)
+              gh workflow run wekker.yml -R "$REPO" --ref "${{ github.ref_name }}" ;;
+            stop)
+              echo "::warning::De wekker heeft niet gewacht; de keten stopt. Controleer de wait timer op de environment 'wekker'." ;;
+            *)
+              echo "::error::Onbekende beslissing '$action'; de wekker wordt opnieuw gezet."
+              gh workflow run wekker.yml -R "$REPO" --ref "${{ github.ref_name }}" ;;
+          esac

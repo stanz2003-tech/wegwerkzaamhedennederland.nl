@@ -45,14 +45,22 @@ test('the wekker may dispatch workflows and nothing more', () => {
   assert.doesNotMatch(perms, /contents: write/);
 });
 
-test('the wekker refuses to start a second chain or to loop without its timer', () => {
-  // One chain: skip when a data run is already queued, waiting or running.
-  assert.match(wekker, /--workflow data\.yml[^\n]*\n?[^\n]*select\(\.status != "completed"\)/);
-  // No timer: skip when the previous data run started less than MIN_GAP_SECONDS ago.
-  assert.match(wekker, /MIN_GAP_SECONDS: "(\d+)"/);
-  const gap = Number(wekker.match(/MIN_GAP_SECONDS: "(\d+)"/)[1]);
-  assert.ok(gap >= 300 && gap <= 480, `MIN_GAP_SECONDS=${gap} moet onder de wachttijd van 8 minuten blijven maar ruim boven een losse run`);
-  assert.match(wekker, /gh workflow run data\.yml/);
+test('the wekker lets next.mjs decide, and acts on every one of its answers', () => {
+  // The decision (one chain, no loop without the timer, never end without a successor) is a
+  // tested function in infra/wekker/next.mjs; the workflow only feeds it and carries it out.
+  assert.match(wekker, /node infra\/wekker\/next\.mjs "\$created" "\$runs"/);
+  // The own age comes from this run, not from the last data run (that mix-up killed the chain).
+  assert.match(wekker, /RUN_ID: \$\{\{ github\.run_id \}\}/);
+  assert.match(wekker, /gh api "repos\/\$REPO\/actions\/runs\/\$RUN_ID" --jq '\.created_at'/);
+  assert.match(wekker, /--workflow data\.yml --limit 10 --json status,createdAt/);
+  const step = wekker.slice(wekker.indexOf('case "$action" in'));
+  assert.match(step, /dispatch-data\)\s+gh workflow run data\.yml/);
+  assert.match(step, /rearm\)\s+gh workflow run wekker\.yml/);
+  assert.match(step, /stop\)\s+echo "::warning::/);
+  // Anything unexpected sets the wekker again rather than ending the chain.
+  assert.match(step, /\*\)[\s\S]*gh workflow run wekker\.yml/);
+  // The sparse checkout brings the decision script along.
+  assert.match(wekker, /sparse-checkout: infra\/wekker/);
 });
 
 test('the wekker runs the end-to-end check and sends the heartbeat from there', () => {
