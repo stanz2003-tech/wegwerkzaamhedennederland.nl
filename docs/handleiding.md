@@ -296,8 +296,9 @@ vink **Wait timer** aan → `8` minuten → **Save protection rules**. Verder ni
 een wait timer kost geen tegoed en bezet geen runner.
 
 Vergeet je dit, dan gaat er niets stuk: de *Wekker* ziet dat de vorige run te kort geleden begon,
-geeft een gele waarschuwing ("Staat de wait timer … nog aan?") en stopt de keten. Het uurlijkse
-schema van *Data* neemt het dan over, en zodra de timer staat loopt de keten vanzelf weer.
+geeft een gele waarschuwing ("Staat de wait timer … nog aan?") en stopt de keten. Het schema van
+*Data* (twee keer per uur, om :07 en :37) neemt het dan over, en zodra de timer staat loopt de
+keten vanzelf weer.
 
 ---
 

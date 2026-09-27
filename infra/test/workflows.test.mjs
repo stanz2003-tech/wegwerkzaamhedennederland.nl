@@ -81,7 +81,7 @@ test('every data run sets the wekker, also after a failed data job', () => {
 });
 
 test('the data workflow keeps its hourly schedule as a fallback and serialises its runs', () => {
-  assert.match(block(data, 'on'), /cron: "7 \* \* \* \*"/);
+  assert.match(block(data, 'on'), /cron: "7,37 \* \* \* \*"/);
   const concurrency = block(data, 'concurrency');
   assert.match(concurrency, /group: data/);
   assert.match(concurrency, /cancel-in-progress: false/);

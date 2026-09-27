@@ -11,10 +11,13 @@ name: Data
 on:
   # The real clock is the wekker (see above): GitHub runs `schedule:` on a best-effort basis and
   # dropped all but 19 of the 860 runs a five-minute cron asked for between 13 and 16 September
-  # 2026. The hourly schedule stays as a fallback: if the chain ever breaks, the next scheduled run
-  # dispatches the wekker again and the chain restarts by itself.
+  # 2026. The schedule stays as a fallback: if the chain ever breaks, the next scheduled run
+  # dispatches the wekker again and the chain restarts by itself. Twice an hour, because GitHub
+  # also drops fallback runs: on 27 September the 19:07 and 20:07 UTC runs never came. While the
+  # chain is healthy a scheduled run is just one extra refresh; its "Wekker zetten" step finds the
+  # waiting wekker and adds no second chain.
   schedule:
-    - cron: "7 * * * *"
+    - cron: "7,37 * * * *"
   workflow_dispatch:
     inputs:
       force:
