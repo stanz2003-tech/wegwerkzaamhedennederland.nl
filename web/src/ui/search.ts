@@ -20,6 +20,9 @@ import { ICONS } from './icons';
 
 const DEBOUNCE_MS = 200;
 const MIN_CHARS = 2;
+/** Smallest height of the suggestion list above an on-screen keyboard (about two options). */
+const LIST_MIN_PX = 120;
+const LIST_GAP_PX = 8;
 
 export interface SearchCallbacks {
   /** Lazily provides the local index rows (cached by the caller). */
@@ -74,10 +77,12 @@ function renderOption(o: Option, i: number, active: boolean): string {
 
 export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
   root.classList.add('search');
+  // A short placeholder: the box shares its row with the vehicle mode (panel.css), and the
+  // longer "Zoek weg, plaats of melding…" was cut off at every width. The label says it in full.
   root.innerHTML = `<form class="search__form" role="search" autocomplete="off">
       <label class="sr-only" for="search-input">Zoek een weg, plaats of melding</label>
       <span class="search__icon" aria-hidden="true">${ICONS.search}</span>
-      <input id="search-input" class="search__input" type="search" name="q" placeholder="Zoek weg, plaats of melding…" role="combobox" aria-expanded="false" aria-controls="search-listbox" aria-autocomplete="list" aria-haspopup="listbox" enterkeyhint="search" spellcheck="false">
+      <input id="search-input" class="search__input" type="search" name="q" placeholder="Weg of plaats…" role="combobox" aria-expanded="false" aria-controls="search-listbox" aria-autocomplete="list" aria-haspopup="listbox" enterkeyhint="search" spellcheck="false">
       <button type="button" class="search__clear" aria-label="Zoekopdracht wissen" hidden>${ICONS.x}</button>
       <ul id="search-listbox" class="search__list" role="listbox" aria-label="Suggesties" hidden></ul>
     </form>`;
@@ -104,8 +109,24 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
     return localPromise;
   };
 
+  /**
+   * On a phone the on-screen keyboard covers the lower part of the layout viewport, and the
+   * suggestions under the input landed right under it (mobiel-4). The visual viewport is what is
+   * really left: cap the list to the room between the input and the keyboard.
+   */
+  const fitToKeyboard = (): void => {
+    const vv = window.visualViewport;
+    if (!vv || list.hidden) return;
+    const room = vv.height + vv.offsetTop - input.getBoundingClientRect().bottom - LIST_GAP_PX;
+    // Never taller than the stylesheet allows (components.css), only shorter.
+    list.style.maxHeight = `min(60vh, 420px, ${Math.max(LIST_MIN_PX, Math.round(room))}px)`;
+  };
+  window.visualViewport?.addEventListener('resize', fitToKeyboard);
+  window.visualViewport?.addEventListener('scroll', fitToKeyboard);
+
   const close = (): void => {
     list.hidden = true;
+    list.style.removeProperty('max-height');
     list.innerHTML = '';
     input.setAttribute('aria-expanded', 'false');
     input.removeAttribute('aria-activedescendant');
@@ -120,6 +141,7 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
     }
     list.innerHTML = options.map((o, i) => renderOption(o, i, i === active)).join('');
     list.hidden = false;
+    fitToKeyboard();
     input.setAttribute('aria-expanded', 'true');
     if (active >= 0) input.setAttribute('aria-activedescendant', `search-opt-${active}`);
     else input.removeAttribute('aria-activedescendant');

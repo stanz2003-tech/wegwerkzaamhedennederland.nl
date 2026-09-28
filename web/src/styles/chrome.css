@@ -192,8 +192,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  /* --touch: a thumb (or a glove in a cab) must not miss it (mobiel-14). */
+  width: var(--touch);
+  height: var(--touch);
   border-radius: var(--r-1);
   color: var(--chrome-text);
   background: color-mix(in srgb, var(--chrome-text) 8%, transparent);

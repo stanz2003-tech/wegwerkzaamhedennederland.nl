@@ -18,6 +18,7 @@ import './styles/components.css';
 import './styles/chrome.css';
 // map.css + the MapLibre stylesheet come in via src/map/map.ts.
 import './styles/panel.css';
+import './styles/panel-controls.css';
 import './styles/app.css';
 
 import site from '../site.config.json';
@@ -31,20 +32,20 @@ import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, toMs } from './data
 import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
 import { itemDeepLink, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type UrlState } from './data/url-state';
 import { VERDICT_SEVERITY, modeNoun, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
-import { AppMap, NL_BOUNDS, NL_CENTER, NL_ZOOM } from './map/map';
+import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
 import { announce } from './ui/announce';
 import { mountAnalytics } from './ui/analytics';
 import { mountCategoryChips } from './ui/chips';
 import { mountSortSelect, mountSwitch } from './ui/controls';
 import { renderDetail } from './ui/detail';
-import { esc, fmtTime, formatCount, plural } from './ui/format';
-import { ICONS } from './ui/icons';
 import { mountLegend } from './ui/legend';
 import { mountList } from './ui/list';
+import { clearMapNotice, copyLink, renderHomeCounts, showMapNotice, wireUitlegLinks } from './ui/map-page';
 import { modelFromProps } from './ui/list-item';
 import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
+import { mountPanelLayout } from './ui/panel-layout';
 import { renderPanelSummary, renderRoadAnswer, type PanelAnswerEls } from './ui/panel-answer';
 import { mountSearch } from './ui/search';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
@@ -58,6 +59,10 @@ const REFRESH_MS = 90_000;
 /** Upper bound on list models; the list itself renders in batches of 40. */
 const LIST_MAX = 800;
 const DESKTOP_PANEL_PAD = 420;
+/** Phone only: low enough that the whole country fits above the half-open sheet (mobiel-11). */
+const MOBILE_MIN_ZOOM = 5.4;
+/** Below this viewport height the half sheet cannot show the answer under the sticky header. */
+const SHORT_VIEWPORT_PX = 620;
 
 function el<T extends HTMLElement>(selector: string): T {
   const node = document.querySelector<T>(selector);
@@ -114,6 +119,7 @@ const summaryEl = el<HTMLElement>('[data-summary]');
 const answerEl = el<HTMLElement>('[data-answer]');
 const staleEl = el<HTMLElement>('[data-stale]');
 const hiddenBtn = el<HTMLButtonElement>('[data-hidden]');
+const listHeading = el<HTMLElement>('#list-heading');
 const answerEls: PanelAnswerEls = { panel: panelEl, answer: answerEl, summary: summaryEl, hiddenBtn };
 
 /** The data state everywhere it shows: the topbar pill, the banner above the answer, the card. */
@@ -244,10 +250,11 @@ function render(): void {
   const inViewAll = (cats ? judged.filter((j) => cats.has(j.f.properties.cat)) : judged).filter(
     (j) => !bounds || bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds),
   );
-  const summaryText = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt);
+  const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt);
+  layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
   const dataAsOf = staleDataLabel(liveStatus, now);
   const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
-  lastAnswerText = roadText ?? summaryText;
+  lastAnswerText = roadText ?? summary.text;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
@@ -259,36 +266,10 @@ function render(): void {
   }
 }
 
-function renderHomeCounts(m: Meta): void {
-  let total = 0;
-  for (const [cat, n] of Object.entries(m.counts)) {
-    total += n;
-    const node = document.querySelector<HTMLElement>(`[data-home-count="${cat}"]`);
-    if (node) node.textContent = formatCount(n);
-  }
-  const updated = document.querySelector<HTMLElement>('[data-home-updated]');
-  if (updated) {
-    updated.textContent = `Bijgewerkt om ${fmtTime(toMs(m.generated))} · ${plural(total, 'actieve melding', 'actieve meldingen')} in Nederland.`;
-  }
-}
-
 function showFatal(message: string): void {
-  mapErrorEl.hidden = false;
-  mapErrorEl.classList.add('is-visible');
-  mapErrorEl.setAttribute('role', 'alert');
-  mapErrorEl.innerHTML = `<p class="map__notice-title">De gegevens konden niet worden geladen.</p>
-    <p>${esc(message)}</p>
-    <button type="button" class="btn btn--primary" data-retry>${ICONS.refreshCw}<span>Opnieuw proberen</span></button>`;
-  mapErrorEl.querySelector('[data-retry]')?.addEventListener('click', () => void start(true));
+  showMapNotice(mapErrorEl, message, () => void start(true));
   list.setError(message);
   setLive({ kind: 'error' });
-}
-
-function clearFatal(): void {
-  mapErrorEl.hidden = true;
-  mapErrorEl.classList.remove('is-visible');
-  mapErrorEl.removeAttribute('role');
-  mapErrorEl.innerHTML = '';
 }
 
 /* ------------------------------------------------------------------ announcements */
@@ -321,9 +302,11 @@ function enterRoad(road: string, fit = true): void {
   if (selected) selectItem(null, false);
   pendingRoadFit = fit;
   render();
-  panel.ensureAtLeast('half');
+  // On a short phone the half sheet is all sticky header: open it fully so the answer shows.
+  panel.ensureAtLeast(panel.isMobile() && window.innerHeight < SHORT_VIEWPORT_PX ? 'full' : 'half');
   syncUrl();
-  answerEl.querySelector<HTMLElement>('.answer__headline')?.focus();
+  answerEl.querySelector<HTMLElement>('.answer__headline')?.focus({ preventScroll: true });
+  panel.scrollTo(answerEl);
   announceAnswer();
 }
 
@@ -334,7 +317,10 @@ function exitRoad(quiet = false): void {
   pendingRoadFit = false;
   render();
   syncUrl();
-  search.focus();
+  // On a phone a focused input brings up the keyboard and the full sheet, while "Alle wegen"
+  // asks for the map: there the focus goes to the list heading instead.
+  if (panel.isMobile()) listHeading.focus({ preventScroll: true });
+  else search.focus();
   if (!quiet) announceAnswer();
 }
 
@@ -343,6 +329,7 @@ function exitRoad(quiet = false): void {
 function showList(): void {
   detailEl.hidden = true;
   listEl.hidden = false;
+  layout.setDetail(false);
 }
 
 /** The detour polyline of the open detail, when the wegbeheerder published one. */
@@ -351,10 +338,17 @@ function currentDetour(): [number, number][] | null {
   return g && g.length >= 2 ? g : null;
 }
 
-function paintDetail(): void {
+/**
+ * `open`: the detail was just opened, so "Terug" gets the focus. A repaint (mode, moment, the
+ * loaded shard) keeps the focus where it is — the date field must stay editable in detail view —
+ * unless it sat inside the re-rendered detail.
+ */
+function paintDetail(open = false): void {
   if (!selected) return;
+  const refocus = open || detailEl.contains(document.activeElement);
   detailEl.hidden = false;
   listEl.hidden = true;
+  layout.setDetail(true);
   const now = Date.now();
   renderDetail(
     detailEl,
@@ -376,27 +370,20 @@ function paintDetail(): void {
       onRoad: (road) => enterRoad(road),
     },
   );
-  detailEl.querySelector<HTMLElement>('[data-back]')?.focus();
+  if (refocus) layout.focusBack();
   map?.setDetour(currentDetour());
 }
 
 async function share(): Promise<void> {
-  if (!selected) return;
-  const link = itemDeepLink(selected.properties.id);
-  try {
-    await navigator.clipboard.writeText(link);
-    showToast('Link gekopieerd naar het klembord.');
-  } catch {
-    showToast('Kopiëren lukte niet. De link staat in de adresbalk.', 'error');
-  }
+  if (selected) await copyLink(itemDeepLink(selected.properties.id));
 }
 
-async function loadDetailFor(feature: ItemFeature | null): Promise<void> {
+async function loadDetailFor(feature: ItemFeature | null, open = false): Promise<void> {
   if (!feature) return;
   const id = feature.properties.id;
   detailData = null;
   detailError = false;
-  paintDetail();
+  paintDetail(open);
   try {
     const d = await loadDetail(id);
     if (selected?.properties.id !== id) return;
@@ -429,7 +416,7 @@ function selectItem(id: string | null, fly = true): void {
   panel.ensureAtLeast('half');
   updatePadding();
   if (fly) map?.fitToFeature(feature);
-  void loadDetailFor(feature);
+  void loadDetailFor(feature, true);
   syncUrl();
 }
 
@@ -440,6 +427,18 @@ panel.onChange(() => {
   updatePadding();
   map?.resize();
 });
+
+const layout = mountPanelLayout(
+  {
+    panel: panelEl,
+    filters: el<HTMLDetailsElement>('[data-filters]'),
+    filtersSummary: el<HTMLElement>('[data-filters-summary]'),
+    detailBar: el<HTMLElement>('[data-detail-bar]'),
+    detail: detailEl,
+  },
+  panel,
+  { onBack: () => selectItem(null), onShare: () => void share() },
+);
 
 const modeSelect = mountModeSelect(el<HTMLElement>('[data-mode]'), url.mode, (mode) => {
   url = { ...url, mode };
@@ -468,6 +467,7 @@ const list = mountList(listEl, {
   },
   onRetry: () => void start(true),
   onRoad: (road) => enterRoad(road),
+  reveal: (row) => panel.scrollTo(row, 'nearest'),
   onClearQuery: () => {
     url = { ...url, query: '' };
     pendingQueryFit = false;
@@ -562,7 +562,9 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
     render();
     syncUrl();
   },
-  onFocus: () => panel.ensureAtLeast('half'),
+  // On a phone the keyboard takes the lower half of the screen: open the sheet fully so the
+  // search box sits at the top and the suggestions above the keyboard (mobiel-4).
+  onFocus: () => (panel.isMobile() ? panel.snap('full') : panel.ensureAtLeast('half')),
 });
 
 search.setQuery(url.road ?? url.query);
@@ -570,21 +572,7 @@ sortSelect.set(sort);
 chips.setSelected(catSet());
 modeSelect.set(url.mode);
 
-/* ------------------------------------------------------------------ scroll to #uitleg */
-
-function scrollToUitleg(): void {
-  const target = document.getElementById('uitleg');
-  if (!target) return;
-  target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
-  target.querySelector<HTMLElement>('h2, h1')?.focus({ preventScroll: true });
-}
-
-document.querySelectorAll<HTMLElement>('[data-scroll-uitleg]').forEach((btn) => {
-  btn.addEventListener('click', (e) => {
-    e.preventDefault();
-    scrollToUitleg();
-  });
-});
+wireUitlegLinks(reducedMotion);
 
 /* ------------------------------------------------------------------ data */
 
@@ -648,7 +636,7 @@ function ensureItemVisible(feature: ItemFeature): void {
 
 async function start(retry = false): Promise<void> {
   if (retry) {
-    clearFatal();
+    clearMapNotice(mapErrorEl);
     list.setLoading();
     setLive({ kind: 'loading' });
   }
@@ -660,7 +648,7 @@ async function start(retry = false): Promise<void> {
     live = data.live;
     lastRefresh = Date.now();
     index();
-    clearFatal();
+    clearMapNotice(mapErrorEl);
     setLive(liveStatusFromMeta(data.meta));
     when.setHorizon(horizonMs());
     renderHomeCounts(data.meta);
@@ -689,6 +677,7 @@ async function refresh(): Promise<void> {
     index();
     setLive(liveStatusFromMeta(next.meta));
     when.setHorizon(horizonMs());
+    when.refresh();
     renderHomeCounts(next.meta);
     render();
     if (selected && !byId.has(selected.properties.id)) selectItem(null);
@@ -703,6 +692,13 @@ async function refresh(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ boot */
+
+/** Fits Cadzand to Vaals above the sheet: top padding 8, bottom exactly what the sheet covers. */
+function frameCountry(): void {
+  if (!map || map.userMoved || !panel.isMobile()) return;
+  map.resize();
+  map.fitBBox(NL_LAND_BOUNDS, 9, { top: 8, right: 16, bottom: panel.coveredPx() + 8, left: 16 });
+}
 
 async function boot(): Promise<void> {
   list.setLoading();
@@ -740,8 +736,12 @@ async function boot(): Promise<void> {
   // carry water and terrain fills from zoom 7, so we do not zoom out below it); on a phone the
   // sheet covers half the stage, so there we fit the whole country into what is left.
   if (map && url.center === null && url.zoom === null && !url.road) {
-    if (panel.isMobile()) map.fitBBox(NL_BOUNDS, 9);
-    else map.flyTo(NL_CENTER, NL_ZOOM);
+    if (panel.isMobile()) {
+      map.setMinZoom(MOBILE_MIN_ZOOM);
+      frameCountry();
+      // A turned phone gets the same frame again, until the user moved the map himself.
+      window.addEventListener('orientationchange', () => window.setTimeout(frameCountry, 300));
+    } else map.flyTo(NL_CENTER, NL_ZOOM);
   }
   onThemeChange((theme) => void map?.setTheme(theme));
   await data;

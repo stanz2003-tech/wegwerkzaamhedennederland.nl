@@ -90,6 +90,10 @@
   --panel-w: 380px;
   --topbar-h: 56px;
   --touch: 44px;
+  /* A category chip that is on (chips.ts): asphalt fill in light, paper fill in dark, so on/off
+     differ in lightness, not only in hue (toeg-6). */
+  --chip-on-bg: var(--asfalt);
+  --chip-on-text: #f7f4ec;
   /* Visible height of the mobile bottom sheet in its "peek" state. Must stay equal to
      PEEK_PX in src/ui/panel.ts; map.css lifts the map controls above it. */
   --sheet-peek: 128px;
@@ -109,6 +113,8 @@
   --chrome: #0e0f12;
   --chrome-text: #f7f4ec;
   --focus: var(--geel);
+  --chip-on-bg: #f4f1ea;
+  --chip-on-text: #15171b;
   --scrim: rgba(0, 0, 0, 0.6);
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
   --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.6), 0 16px 40px -16px rgba(0, 0, 0, 0.9);
@@ -136,6 +142,8 @@
     --chrome: #0e0f12;
     --chrome-text: #f7f4ec;
     --focus: var(--geel);
+    --chip-on-bg: #f4f1ea;
+    --chip-on-text: #15171b;
     --scrim: rgba(0, 0, 0, 0.6);
     --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.8);
     --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.6), 0 16px 40px -16px rgba(0, 0, 0, 0.9);

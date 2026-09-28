@@ -68,7 +68,7 @@ function popHtml(): string {
 
 export function mountLegend(root: HTMLElement): Legend {
   root.classList.add('legend');
-  root.innerHTML = `<button type="button" class="btn btn--ghost legend__btn" data-legend-toggle aria-expanded="false" aria-haspopup="dialog">${ICONS.list}<span>Legenda</span></button>`;
+  root.innerHTML = `<button type="button" class="btn btn--ghost legend__btn" data-legend-toggle aria-expanded="false" aria-haspopup="dialog" title="Legenda">${ICONS.list}<span class="legend__btn-text">Legenda</span></button>`;
   const btn = root.querySelector<HTMLButtonElement>('[data-legend-toggle]');
   if (!btn) throw new Error('legend markup ontbreekt');
   let pop: HTMLElement | null = null;
@@ -89,7 +89,8 @@ export function mountLegend(root: HTMLElement): Legend {
       close();
       btn.focus();
     });
-    pop?.querySelector<HTMLButtonElement>('[data-legend-close]')?.focus();
+    // No scroll on focus: inside the map panel that scrolled the whole page (mobiel-2).
+    pop?.querySelector<HTMLButtonElement>('[data-legend-close]')?.focus({ preventScroll: true });
   };
 
   btn.addEventListener('click', () => (pop ? close() : open()));

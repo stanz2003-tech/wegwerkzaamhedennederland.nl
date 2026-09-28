@@ -1,6 +1,9 @@
 /**
  * Segmented control "Auto · Vracht · Fiets": the vehicle mode every verdict is computed for.
- * Radio-group semantics (arrow keys move the selection), ≥ 44 px targets.
+ * Radio-group semantics (arrow keys move the selection), ≥ 44 px targets. In the map panel on a
+ * phone the segments are icon-only (panel-controls.css) so the mode fits next to the search box; the
+ * `aria-label` keeps their name when the text is hidden, and all three stay visible — no popover
+ * that hides what is chosen (mobiel-3).
  */
 import { VEHICLE_MODES, type VehicleMode } from '../data/verdict';
 import { esc } from './format';
@@ -22,7 +25,7 @@ export function mountModeSelect(root: HTMLElement, initial: VehicleMode, onChang
 
   root.innerHTML = VEHICLE_MODES.map(
     (m) =>
-      `<button type="button" class="mode__btn" role="radio" data-mode="${m.id}" aria-checked="false" title="${esc(m.title)}">${MODE_ICON[m.id]}<span>${esc(m.label)}</span></button>`,
+      `<button type="button" class="mode__btn" role="radio" data-mode="${m.id}" aria-checked="false" aria-label="${esc(m.label)}" title="${esc(m.title)}">${MODE_ICON[m.id]}<span class="mode__label">${esc(m.label)}</span></button>`,
   ).join('');
 
   const render = (): void => {

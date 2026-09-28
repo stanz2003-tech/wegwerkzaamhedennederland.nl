@@ -21,8 +21,19 @@
   height: calc(100dvh - var(--topbar-h));
   min-height: 380px;
   overflow: hidden;
+  /* `clip` also refuses programmatic scrolling: a focus() in the sheet used to scroll the stage
+     itself and push the map out while the sheet said 'half' (toeg-8). */
+  overflow: clip;
   background: var(--bg);
   isolation: isolate;
+}
+
+/* A phone on its side: the 380 px floor made the stage taller than the screen, so the sheet's
+   lower part (and the end of the list) sat below the fold, reachable only by scrolling the page. */
+@media (max-height: 440px) and (max-width: 950px) {
+  .app__stage {
+    min-height: 0;
+  }
 }
 
 /* Fallback for browsers without dvh support (older Safari). */

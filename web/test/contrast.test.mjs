@@ -127,3 +127,19 @@ describe('the pill CSS uses the fill tokens', () => {
     assert.doesNotMatch(COMPONENTS, /\.item\[data-verdict='nvt'\]\s*\{\s*opacity/);
   });
 });
+
+describe('neutral category chips (P3, toeg-6)', () => {
+  for (const [theme, tokens] of Object.entries(THEMES)) {
+    it(`${theme}: an "on" chip's text on its fill, and an "off" chip's --text-2 on the surface, ≥ ${AA}:1`, () => {
+      const on = contrast(hex(tokens, '--chip-on-text'), hex(tokens, '--chip-on-bg'));
+      assert.ok(on >= AA, `${theme} on: ${on.toFixed(2)}:1`);
+      const off = contrast(hex(tokens, '--text-2'), hex(tokens, '--surface'));
+      assert.ok(off >= AA, `${theme} off: ${off.toFixed(2)}:1`);
+    });
+
+    it(`${theme}: "on" and "off" differ in lightness, not only in hue (≥ 3:1 fill against surface)`, () => {
+      const c = contrast(hex(tokens, '--chip-on-bg'), hex(tokens, '--surface'));
+      assert.ok(c >= 3, `${theme}: ${c.toFixed(2)}:1`);
+    });
+  }
+});

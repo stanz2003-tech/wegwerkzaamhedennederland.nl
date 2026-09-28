@@ -36,8 +36,18 @@ setWorkerUrl(workerUrl);
 export const NL_CENTER: [number, number] = [5.29, 52.13];
 export const NL_ZOOM = 7.2;
 export const NL_BOUNDS: BBox = [3.2, 50.5, 7.3, 53.7];
+/**
+ * The land area, from Cadzand to Vaals and up to the Wadden: the first frame on a phone, where
+ * NL_BOUNDS with its sea margin left Zeeland, Brabant and Limburg under the sheet (mobiel-11).
+ */
+export const NL_LAND_BOUNDS: BBox = [3.35, 50.75, 7.23, 53.56];
+/**
+ * Keeps the camera near the Netherlands. The south edge leaves room below Limburg: on a phone the
+ * first frame puts the country above the half-open sheet, so the camera centre lies far south of
+ * it, and at 48.5° the bounds pushed Zeeland and Limburg back under the sheet (mobiel-11).
+ */
 const MAX_BOUNDS: [[number, number], [number, number]] = [
-  [-2, 48.5],
+  [-2, 46],
   [12.5, 55.5],
 ];
 const TILE_FAILURES_BEFORE_FALLBACK = 3;
@@ -77,6 +87,8 @@ export class AppMap {
   private readonly callbacks: AppMapCallbacks;
   private readonly reducedMotion: boolean;
   private padding: PaddingOptions = { top: 24, right: 24, bottom: 24, left: 24 };
+  /** Set by the first camera move the user makes (drag, zoom, wheel); program moves do not count. */
+  private moved = false;
 
   private constructor(map: MlMap, resolved: ResolvedBasemap, init: AppMapInit) {
     this.map = map;
@@ -153,6 +165,10 @@ export class AppMap {
     map.on('styledata', () => this.installOverlay());
     map.on('error', (e) => this.handleError(e));
     map.on('moveend', () => this.callbacks.onMoveEnd());
+    // Only user gestures carry the DOM event that caused them.
+    map.on('movestart', (e) => {
+      if ((e as { originalEvent?: Event }).originalEvent) this.moved = true;
+    });
     map.on('mousemove', (e) => this.handleMove(e));
     map.on('mouseout', () => this.setHover(null, true));
     map.on('click', (e) => void this.handleClick(e));
@@ -309,6 +325,15 @@ export class AppMap {
     this.padding = padding;
   }
 
+  /** Whether the user has moved the camera himself since the map was created. */
+  get userMoved(): boolean {
+    return this.moved;
+  }
+
+  setMinZoom(zoom: number): void {
+    this.map.setMinZoom(zoom);
+  }
+
   private duration(ms: number): number {
     return this.reducedMotion ? 0 : ms;
   }
@@ -319,14 +344,15 @@ export class AppMap {
     this.fitBBox(bb, maxZoom);
   }
 
-  fitBBox(bb: BBox, maxZoom = 14.5): void {
+  /** `padding` overrides the panel-aware camera padding for this one fit. */
+  fitBBox(bb: BBox, maxZoom = 14.5, padding: PaddingOptions = this.padding): void {
     const [w, s, e, n] = padBbox(bb, 0.004);
     this.map.fitBounds(
       [
         [w, s],
         [e, n],
       ],
-      { padding: this.padding, maxZoom, duration: this.duration(FLY_MS) },
+      { padding, maxZoom, duration: this.duration(FLY_MS) },
     );
   }
 

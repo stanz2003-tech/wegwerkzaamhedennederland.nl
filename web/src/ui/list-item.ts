@@ -168,7 +168,7 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
     <span class="item__body">
       <span class="item__verdict">${renderVerdictPill(verdict, { size: 'sm' })}${verdict.detail ? `<span class="item__verdict-detail">${esc(verdict.detail)}</span>` : ''}</span>
       <span class="item__where">${badge}<span class="item__title">${esc(where.join(' · '))}</span><span class="item__when item__when--${status.kind}">${esc(whenLabel(span, now))}</span></span>
-      <span class="item__meta" style="--tag-color: var(${meta.color})">${meta.icon}<span>${line3.join(' <span aria-hidden="true">·</span> ')}</span></span>
+      <span class="item__meta">${meta.icon}<span>${line3.join(' <span aria-hidden="true">·</span> ')}</span></span>
     </span>
     <span class="item__chevron" aria-hidden="true"></span>
   </${tag}>`;

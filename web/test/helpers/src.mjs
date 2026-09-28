@@ -79,3 +79,6 @@ export const announce = await load('ui/announce.ts');
 export const uiList = await load('ui/list.ts');
 export const legend = await load('ui/legend.ts');
 export const verdictPill = await load('ui/verdict-pill.ts');
+export const panelLayout = await load('ui/panel-layout.ts');
+export const chips = await load('ui/chips.ts');
+export const whenControl = await load('ui/when-control.ts');

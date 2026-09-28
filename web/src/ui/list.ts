@@ -6,6 +6,9 @@
  *
  * The list is NOT a live region: re-rendered on every pan, it made screen readers read thousands
  * of characters (toeg-1). ui/announce.ts speaks the short answer after a user action instead.
+ *
+ * Focus moves never scroll by themselves (`preventScroll`): inside the clipped bottom sheet the
+ * browser scrolled the whole page to reach the row (mobiel-2). `reveal` scrolls the panel.
  */
 import type { VehicleMode } from '../data/verdict';
 import { esc, formatCount, plural } from './format';
@@ -24,6 +27,8 @@ export interface ListCallbacks {
   onRoad?(road: string): void;
   /** "Zoekopdracht wissen" in the empty state of a text filter. */
   onClearQuery?(): void;
+  /** Brings a row that just got focus into view inside the panel (ui/panel.ts `scrollTo`). */
+  reveal?(el: HTMLElement): void;
 }
 
 /** A spelling suggestion for the empty text-filter state ("Bedoelde je Gorinchem?"). */
@@ -73,7 +78,10 @@ export interface ListView {
 export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
   root.classList.add('list');
   root.setAttribute('role', 'region');
-  root.setAttribute('aria-label', 'Meldingen');
+  // Named by the visible-to-AT heading above the list bar (index.html), which the skip link
+  // "Naar de meldingen" targets; a bare label is the fallback.
+  if (document.getElementById('list-heading')) root.setAttribute('aria-labelledby', 'list-heading');
+  else root.setAttribute('aria-label', 'Meldingen');
   root.setAttribute('aria-busy', 'false');
 
   let items: readonly ListItemModel[] = [];
@@ -81,6 +89,12 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
   let now = Date.now();
   let selectedId: string | null = null;
   let renderOpts: ListRenderOptions = {};
+
+  const focusRow = (el: HTMLElement | null | undefined): void => {
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    cb.reveal?.(el);
+  };
 
   const renderMore = (): void => {
     const next = items.slice(shown, shown + LIST_BATCH);
@@ -162,7 +176,7 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     if (target.closest('.list__more')) {
       const before = shown;
       renderMore();
-      root.querySelector<HTMLElement>(`.item:nth-child(${before + 1})`)?.focus();
+      focusRow(root.querySelector<HTMLElement>(`.item:nth-child(${before + 1})`));
       return;
     }
     const badge = target.closest<HTMLElement>('.item__badge[data-road]');
@@ -197,7 +211,7 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     if (e.key === 'ArrowUp') next = Math.max(current - 1, 0);
     if (e.key === 'Home') next = 0;
     if (e.key === 'End') next = focusables.length - 1;
-    focusables[next]?.focus();
+    focusRow(focusables[next]);
   });
 
   return {
@@ -235,7 +249,7 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     },
     focusItem(id) {
       const el = id ? root.querySelector<HTMLElement>(`.item[data-id="${CSS.escape(id)}"]`) : root.querySelector<HTMLElement>('.item');
-      el?.focus();
+      focusRow(el);
     },
   };
 }

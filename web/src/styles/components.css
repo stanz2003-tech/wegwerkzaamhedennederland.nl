@@ -83,52 +83,73 @@
   color: var(--text);
 }
 
+/* Category chips are neutral: icon and label, no category tint. Colour is the verdict's alone —
+   a red "Afsluitingen" chip beside red "Weg dicht" pills said "afsluiting = dicht" (overzicht-6).
+   On is more than a tint: filled, a check mark instead of the icon, and bold (toeg-6). Off is an
+   outline in --text-2 (4.5:1 on the surface). */
 .chip--cat {
-  padding-left: 14px;
+  background: transparent;
 }
 
-.chip__bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--chip-color);
-  opacity: 0.45;
-  transition: opacity var(--dur-1) var(--ease-out);
-}
-
-.chip__icon {
+.chip__icon,
+.chip__check {
   display: inline-flex;
-  color: var(--chip-color);
-  opacity: 0.6;
+  flex: none;
+  color: var(--text-2);
 }
 
-.chip__icon svg {
+.chip__icon svg,
+.chip__check svg {
   width: 16px;
   height: 16px;
+}
+
+.chip__check {
+  display: none;
+}
+
+.chip__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chip__count {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
-  color: var(--text-3);
-  padding-left: 2px;
-}
-
-.chip.is-on {
-  background: color-mix(in srgb, var(--chip-color) 12%, var(--surface));
-  color: var(--text);
-  border-color: color-mix(in srgb, var(--chip-color) 45%, var(--border));
-}
-
-.chip.is-on .chip__bar,
-.chip.is-on .chip__icon {
-  opacity: 1;
-}
-
-.chip.is-on .chip__count {
   color: var(--text-2);
+  padding-left: 2px;
+  margin-left: auto;
+}
+
+.chip--cat.is-on {
+  background: var(--chip-on-bg);
+  border-color: var(--chip-on-bg);
+  color: var(--chip-on-text);
+  font-weight: 600;
+}
+
+.chip--cat.is-on .chip__icon {
+  display: none;
+}
+
+.chip--cat.is-on .chip__check {
+  display: inline-flex;
+  color: var(--chip-on-text);
+}
+
+.chip--cat.is-on .chip__count {
+  color: var(--chip-on-text);
+}
+
+.chips--cats .chip.is-on:hover {
+  color: var(--chip-on-text);
+  border-color: var(--text);
+}
+
+.chips--cats .chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .chip.is-empty:not(.is-on) {
@@ -160,16 +181,29 @@
   scrollbar-width: none;
 }
 
+/* Same "on" as the category chips: in the dark theme --chrome was nearly the surface itself. */
 .chip--time.is-on {
-  background: var(--chrome);
-  color: var(--chrome-text);
-  border-color: var(--chrome);
+  background: var(--chip-on-bg);
+  color: var(--chip-on-text);
+  border-color: var(--chip-on-bg);
   font-weight: 600;
+}
+
+/* The generic chip hover above would turn the chosen chip's text dark on its dark fill. */
+.chips--time .chip--time.is-on:hover {
+  color: var(--chip-on-text);
+  border-color: var(--chip-on-bg);
 }
 
 .chip--time:hover:not(.is-on) {
   background: var(--surface);
   color: var(--text);
+}
+
+/* Inside the row's own padding, so `overflow-x: auto` never clips the focus ring (toeg-12). */
+.chip--time:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 
 /* ------------------------------------------------------------------ vehicle mode */
@@ -677,7 +711,8 @@
 .search__input {
   width: 100%;
   min-height: var(--touch);
-  padding: 0 44px 0 40px;
+  /* Room for the 44 px clear button, so the text never runs under it. */
+  padding: 0 48px 0 40px;
   border-radius: var(--r-2);
   border: 1px solid var(--border);
   background: var(--surface-2);
@@ -690,6 +725,9 @@
 .search__input::-webkit-search-cancel-button { display: none; }
 .search__input::placeholder { color: var(--text-3); }
 
+/* No clear button while empty: give the placeholder the room. */
+.search__input:placeholder-shown { padding-right: var(--s-3); }
+
 .search__input:focus {
   background: var(--surface);
   border-color: var(--text);
@@ -699,11 +737,11 @@
 
 .search__clear {
   position: absolute;
-  right: 4px;
+  right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
+  width: var(--touch);
+  height: var(--touch);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -929,7 +967,7 @@
   line-height: 1.3;
 }
 
-.item__meta > svg { width: 14px; height: 14px; color: var(--tag-color); flex: none; }
+.item__meta > svg { width: 14px; height: 14px; color: var(--text-3); flex: none; }
 .item__meta .tag--long { margin-left: 2px; }
 /* "Alleen de A27 bekijken": the keyboard- and screen-reader route to road mode (toeg-13). */
 .detail__road { justify-self: start; min-height: var(--touch); gap: var(--s-2); }
@@ -1110,7 +1148,7 @@
 /* ------------------------------------------------------------------ legend popover */
 .legend { position: relative; }
 
-.legend__btn { min-height: 32px; padding: 0 var(--s-2); font-size: var(--text-sm); }
+.legend__btn { min-height: var(--touch); min-width: var(--touch); padding: 0 var(--s-2); font-size: var(--text-sm); }
 .legend__btn svg { width: 16px; height: 16px; }
 
 .legend__pop {
@@ -1285,10 +1323,24 @@
 .answer--geen { --answer-text: var(--v-geen-text); }
 .answer--onbekend { --answer-text: var(--text-2); }
 
+/* × top-right of the card: an icon button (named "Alle wegen tonen"), so the question next to
+   the badge keeps its width and does not break over three lines (overzicht-1). */
 .answer__exit {
-  min-height: 40px;
-  padding: 0 var(--s-3);
+  align-self: start;
+  min-height: var(--touch);
+  min-width: var(--touch);
+  padding: 0;
+  justify-content: center;
   flex: none;
+}
+
+.answer__exit-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .answer__specifics {
@@ -1356,7 +1408,4 @@
 .stale-banner { margin: 0; }
 .stale-banner .banner__title { font-weight: 600; line-height: 1.4; }
 
-@media (max-width: 768px) {
-  .answer__top { grid-template-columns: auto minmax(0, 1fr); }
-  .answer__exit { grid-column: 1 / -1; justify-self: start; }
-}
+

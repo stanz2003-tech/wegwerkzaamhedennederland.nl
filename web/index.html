@@ -69,7 +69,10 @@
   </head>
 
   <body class="app-body">
-    <a class="skip-link" href="#main">Naar de inhoud</a>
+    <!-- ui/panel-layout.ts takes these over, so following one never scrolls the page away from
+         the map (without JS they are plain fragment links). -->
+    <a class="skip-link" href="#search-input" data-skip>Naar zoeken</a>
+    <a class="skip-link" href="#list-heading" data-skip>Naar de meldingen</a>
 
     <header class="topbar" data-topbar>
       <a class="brand" href="/" aria-label="Wegwerk – naar de kaart">
@@ -116,6 +119,63 @@
 
     <main id="main" class="app">
       <div class="app__stage" data-stage>
+        <!-- The panel comes before the map in the DOM, so keyboard and screen-reader users reach
+             search and the answer before the map canvas (toeg-5). Both are absolutely positioned
+             in the stage, so nothing moves on screen. -->
+        <aside class="panel" data-panel aria-labelledby="panel-heading">
+          <button class="panel__handle" type="button" data-sheet-handle aria-label="Paneel vergroten">
+            <span class="panel__grip" aria-hidden="true"></span>
+          </button>
+          <!-- Phone only, while a melding is open: Terug and Deel ride in the grip row, so the
+               verdict of the melding starts right under the date field (ui/panel-layout.ts). -->
+          <div class="panel__detailbar" data-detail-bar hidden>
+            <button type="button" class="btn btn--ghost panel__detail-btn" data-panel-back></button>
+            <button type="button" class="btn btn--ghost panel__detail-btn" data-panel-share aria-label="Link kopiëren"></button>
+          </div>
+          <!-- ONE scroll container for everything below the grip: search, mode and Wanneer stay
+               sticky at its top, the answer, the filters and the whole list scroll under them
+               (mobiel-1, overzicht-1). -->
+          <div class="panel__scroll" data-panel-scroll>
+            <div class="panel__sticky" data-panel-sticky>
+              <h2 class="sr-only" id="panel-heading">Kan ik erdoor?</h2>
+              <div class="panel__row">
+                <div data-search></div>
+                <div data-mode></div>
+              </div>
+              <div data-when></div>
+            </div>
+            <div class="panel__stale" data-stale hidden></div>
+            <div class="panel__answer" data-answer hidden></div>
+            <!-- The answer for the view (the verdict sentence) comes before the filters. -->
+            <div class="panel__bar">
+              <p class="panel__summary" data-summary>Meldingen worden geladen…</p>
+              <div class="panel__tools">
+                <div data-sort></div>
+                <div data-legend></div>
+              </div>
+            </div>
+            <details class="panel__filters" data-filters>
+              <summary class="panel__filters-summary" data-filters-summary>Filters · alle soorten</summary>
+              <div class="panel__filters-body">
+                <div data-cats></div>
+                <div class="panel__relevance">
+                  <div data-relevant></div>
+                  <button type="button" class="panel__hidden" data-hidden hidden></button>
+                </div>
+              </div>
+            </details>
+            <!-- The one live region of the page (ui/announce.ts): a short answer after a user action,
+                 never the list or the counts, and never after panning or the 90 s refresh (toeg-1). -->
+            <p class="sr-only" role="status" data-announce></p>
+            <h2 class="sr-only" id="list-heading" tabindex="-1">Meldingen</h2>
+            <div class="panel__body" data-panel-body>
+              <div class="panel__view" data-list></div>
+              <div class="panel__view panel__view--detail" data-detail hidden></div>
+              <a class="panel__more" href="#uitleg" data-scroll-uitleg>Meer over deze kaart <span aria-hidden="true">↓</span></a>
+            </div>
+          </div>
+        </aside>
+
         <section class="map" aria-label="Kaart van Nederland met alle meldingen">
           <div class="map__canvas" id="map" data-map></div>
           <div class="map__notice" data-map-error hidden></div>
@@ -131,41 +191,6 @@
             </div>
           </noscript>
         </section>
-
-        <aside class="panel" data-panel aria-label="Zoeken, filteren en meldingen">
-          <button class="panel__handle" type="button" data-sheet-handle aria-label="Paneel vergroten">
-            <span class="panel__grip" aria-hidden="true"></span>
-          </button>
-          <div class="panel__head">
-            <div data-mode></div>
-            <div data-search></div>
-            <div class="panel__stale" data-stale hidden></div>
-            <div class="panel__answer" data-answer hidden></div>
-            <div class="panel__filters">
-              <div data-cats></div>
-              <div data-when></div>
-            </div>
-            <div class="panel__relevance">
-              <div data-relevant></div>
-              <button type="button" class="panel__hidden" data-hidden hidden></button>
-            </div>
-            <!-- The one live region of the page (ui/announce.ts): a short answer after a user action,
-                 never the list or the counts, and never after panning or the 90 s refresh (toeg-1). -->
-            <p class="sr-only" role="status" data-announce></p>
-            <div class="panel__bar">
-              <p class="panel__summary" data-summary>Meldingen worden geladen…</p>
-              <div class="panel__tools">
-                <div data-sort></div>
-                <div data-legend></div>
-              </div>
-            </div>
-          </div>
-          <div class="panel__body" data-panel-body>
-            <div class="panel__view" data-list></div>
-            <div class="panel__view panel__view--detail" data-detail hidden></div>
-            <a class="panel__more" href="#uitleg" data-scroll-uitleg>Meer over deze kaart <span aria-hidden="true">↓</span></a>
-          </div>
-        </aside>
       </div>
 
       <section class="home" id="uitleg" aria-labelledby="home-title">

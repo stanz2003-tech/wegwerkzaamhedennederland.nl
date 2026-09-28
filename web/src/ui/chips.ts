@@ -1,9 +1,15 @@
 /**
- * Category chips: multi-toggle with counts. (The "Wanneer?" row lives in ui/when-control.ts.)
+ * Category chips: "Alles" plus one chip per category, with counts. (The "Wanneer?" row lives in
+ * ui/when-control.ts.)
+ *
+ * The chips are neutral — icon and label, no category tint: colour belongs to the verdict, and a
+ * red "Afsluitingen" chip next to red "Weg dicht" pills read as "afsluiting = dicht"
+ * (overzicht-6). On and off differ by more than colour: a check mark, weight and fill (toeg-6).
  */
 import type { Category } from '../data/types';
 import { ALL_CATEGORIES, CATEGORY_META } from './categories';
 import { esc, formatCount } from './format';
+import { ICONS } from './icons';
 
 export interface CategoryChips {
   root: HTMLElement;
@@ -12,52 +18,58 @@ export interface CategoryChips {
 }
 
 /**
- * Category chips. `null` selection = all categories shown as active.
- * Clicking toggles one category; when all are selected, a click isolates that category
- * (so "show only closures" is one click instead of six).
+ * The selection after a click on `cat` (`null` = "Alles"). From "Alles" a click isolates that
+ * category, so "alleen afsluitingen" stays one click instead of six; after that clicks add and
+ * remove. Switching off the last one, or selecting all of them, is "Alles" again.
  */
-export function mountCategoryChips(
-  root: HTMLElement,
-  onChange: (cats: Set<Category> | null) => void,
-): CategoryChips {
+export function toggleCategory(selected: ReadonlySet<Category> | null, cat: Category): Set<Category> | null {
+  if (selected === null) return new Set([cat]);
+  const next = new Set(selected);
+  if (next.has(cat)) next.delete(cat);
+  else next.add(cat);
+  return next.size === 0 || next.size === ALL_CATEGORIES.length ? null : next;
+}
+
+/** Whether the chip of `cat` shows as pressed. In the "Alles" state only "Alles" is pressed. */
+export function categoryPressed(selected: ReadonlySet<Category> | null, cat: Category): boolean {
+  return selected !== null && selected.has(cat);
+}
+
+function chipHtml(attr: string, icon: string, label: string, count: boolean): string {
+  return `<button type="button" class="chip chip--cat" ${attr} aria-pressed="false">
+      <span class="chip__icon" aria-hidden="true">${icon}</span>
+      <span class="chip__check" aria-hidden="true">${ICONS.check}</span>
+      <span class="chip__label">${esc(label)}</span>
+      ${count ? '<span class="chip__count" data-count hidden></span>' : ''}
+    </button>`;
+}
+
+export function mountCategoryChips(root: HTMLElement, onChange: (cats: Set<Category> | null) => void): CategoryChips {
   root.classList.add('chips', 'chips--cats');
   root.setAttribute('role', 'group');
-  root.setAttribute('aria-label', 'Categorieën');
+  root.setAttribute('aria-label', 'Soorten meldingen');
   let selected: Set<Category> | null = null;
 
-  root.innerHTML = ALL_CATEGORIES.map((cat) => {
-    const meta = CATEGORY_META[cat];
-    return `<button type="button" class="chip chip--cat" data-cat="${cat}" aria-pressed="true" style="--chip-color: var(${meta.color})">
-      <span class="chip__bar" aria-hidden="true"></span>
-      <span class="chip__icon">${meta.icon}</span>
-      <span class="chip__label">${esc(meta.plural)}</span>
-      <span class="chip__count" data-count hidden></span>
-    </button>`;
-  }).join('');
+  root.innerHTML =
+    chipHtml('data-cat-all', ICONS.layers, 'Alles', false) +
+    ALL_CATEGORIES.map((cat) => chipHtml(`data-cat="${cat}"`, CATEGORY_META[cat].icon, CATEGORY_META[cat].plural, true)).join('');
 
   const render = (): void => {
-    root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((btn) => {
-      const cat = btn.dataset.cat as Category;
-      const on = selected === null || selected.has(cat);
+    root.querySelectorAll<HTMLButtonElement>('.chip').forEach((btn) => {
+      const cat = btn.dataset.cat as Category | undefined;
+      const on = cat ? categoryPressed(selected, cat) : selected === null;
       btn.setAttribute('aria-pressed', on ? 'true' : 'false');
       btn.classList.toggle('is-on', on);
     });
   };
 
   root.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-cat]');
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.chip');
     if (!btn) return;
-    const cat = btn.dataset.cat as Category;
-    const all = new Set(ALL_CATEGORIES);
-    if (selected === null) {
-      selected = new Set([cat]);
-    } else if (selected.has(cat)) {
-      selected.delete(cat);
-      if (selected.size === 0) selected = null;
-    } else {
-      selected.add(cat);
-      if (selected.size === all.size) selected = null;
-    }
+    const cat = btn.dataset.cat as Category | undefined;
+    const next = cat ? toggleCategory(selected, cat) : null;
+    if (next === null && selected === null) return;
+    selected = next;
     render();
     onChange(selected ? new Set(selected) : null);
   });
@@ -66,8 +78,7 @@ export function mountCategoryChips(
   return {
     root,
     setSelected(cats) {
-      selected = cats ? new Set(cats) : null;
-      if (selected && selected.size === ALL_CATEGORIES.length) selected = null;
+      selected = cats && cats.size > 0 && cats.size < ALL_CATEGORIES.length ? new Set(cats) : null;
       render();
     },
     setCounts(counts) {

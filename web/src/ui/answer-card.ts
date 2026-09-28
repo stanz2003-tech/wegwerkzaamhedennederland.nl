@@ -87,13 +87,13 @@ export function renderAnswerCard(m: AnswerCardModel): string {
   const question = m.road
     ? `Kan ik ${m.mode === 'fiets' ? 'langs' : 'over'} de ${esc(m.road)}?`
     : `Kan ik door ${esc(m.subject ?? 'dit gebied')}?`;
-  return `<section class="answer answer--${level}" style="--vpill-color: var(${meta.color})" aria-labelledby="answer-title">
+  return `<section class="answer answer--${level}" style="--vpill-color: var(${meta.color})" aria-labelledby="answer-q answer-title">
       <div class="answer__top">
         ${m.road ? roadBadge(m.road, m.roadType ?? null, { size: 'xl' }) : ''}
         <div class="answer__q">
-          <p class="answer__kicker">${question} <span class="answer__mode">${esc(modeLine(m))}</span></p>
+          <p class="answer__kicker" id="answer-q">${question} <span class="answer__mode">${esc(modeLine(m))}</span></p>
         </div>
-        ${m.exit === false ? '' : `<button type="button" class="btn btn--secondary answer__exit" data-road-exit aria-label="Alle wegen tonen">${ICONS.x}<span>Alle wegen</span></button>`}
+        ${m.exit === false ? '' : `<button type="button" class="btn btn--secondary answer__exit" data-road-exit aria-label="Alle wegen tonen" title="Alle wegen tonen">${ICONS.x}<span class="answer__exit-text">Alle wegen</span></button>`}
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}

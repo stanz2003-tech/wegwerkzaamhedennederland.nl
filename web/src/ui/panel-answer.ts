@@ -86,7 +86,8 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
 /**
  * The sentence above the list and the "N meldingen … verborgen" button. With a text filter the
  * list is every match in the country, not the viewport, so the sentence says `Met “Almkerk”:`.
- * Returns the sentence. That the list stops at its first 800 rows is said under the list itself
+ * Returns the sentence and how many items the relevance switch hides (for the filters summary,
+ * ui/panel-layout.ts). That the list stops at its first 800 rows is said under the list itself
  * (ui/list.ts), not in a `title` that touch and screen-reader users never get (toeg-11).
  */
 export function renderPanelSummary(
@@ -96,19 +97,19 @@ export function renderPanelSummary(
   now: number,
   counts: { total: number },
   hideNvt: boolean,
-): string {
+): { text: string; hidden: number } {
   const answer = answerFor(asForecast(inView), q.mode, whenOf(q, now), { kind: 'gebied', name: '' }, now, horizonMs());
   const prefix = q.query ? `Met “${q.query}”` : 'In beeld';
   const text = q.road ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}` : areaSentence(answer, q.mode, !hideNvt, prefix);
   els.summary.textContent = text;
   els.summary.removeAttribute('title');
-  const hidden = answer.hidden.length;
-  if (hideNvt && hidden > 0) {
+  const hidden = hideNvt ? answer.hidden.length : 0;
+  if (hidden > 0) {
     els.hiddenBtn.hidden = false;
     els.hiddenBtn.textContent = hiddenSentence(answer.hidden, q.mode);
     els.hiddenBtn.title = 'Toon deze meldingen toch (vervaagd op de kaart)';
   } else {
     els.hiddenBtn.hidden = true;
   }
-  return text;
+  return { text, hidden };
 }

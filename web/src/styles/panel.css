@@ -1,6 +1,12 @@
 /* panel.css — the floating control panel on desktop and the bottom sheet on mobile,
    plus the scrolling result list inside it. Behaviour lives in src/ui/panel.ts, which sets
-   `data-snap` (desktop | peek | half | full) and the `--sheet-y` transform. Tokens only. */
+   `data-snap` (desktop | peek | half | full), the `--sheet-y` transform, `--sheet-hidden` and
+   `--sticky-h`. Tokens only.
+
+   Scroll model: `.panel` clips; ONE scroll container (`.panel__scroll`) holds everything below
+   the grip. Its first child, `.panel__sticky` (search · mode · Wanneer), sticks to its top, so
+   the question stays in view while the answer, the filters and the whole list scroll under it.
+   Before, only the list scrolled and the controls above it could leave it 0 px (mobiel-1). */
 
 .panel {
   position: absolute;
@@ -12,6 +18,9 @@
   border: 1px solid var(--border);
   box-shadow: var(--shadow-2);
   overflow: hidden;
+  /* `clip`, where supported, also refuses programmatic scrolling: a focus() inside the panel can
+     then never shift the grip and the header out of view. */
+  overflow: clip;
 }
 
 /* Barrier stripe as the top edge of the panel — the signature detail. */
@@ -21,35 +30,107 @@
   inset: 0 0 auto;
   height: 3px;
   background: var(--stripe);
-  z-index: 2;
+  z-index: 5;
   pointer-events: none;
 }
 
-.panel__head {
-  display: grid;
-  /* minmax(0, 1fr): the nowrap time chips must not stretch the panel's content box. */
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-3);
-  padding: var(--s-4) var(--s-4) var(--s-3);
-  border-bottom: 1px solid var(--border);
+.panel__scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* A swipe that reaches the end of the panel stops there instead of scrolling the page with the
+     map away (mobiel-9). */
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
   background: var(--surface);
 }
 
-.panel__filters {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--s-2);
+/* In 'half' and 'peek' the lower part of the sheet is below the screen edge; this spacer (as
+   tall as that part, set by panel.ts) lets the last rows scroll up into view. 0 on desktop. */
+.panel__scroll::after {
+  content: '';
+  display: block;
+  height: var(--sheet-hidden, 0px);
 }
 
-.panel__head > *,
-.panel__filters > * {
+.panel__scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.panel__scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-3) 45%, transparent);
+  border: 3px solid var(--surface);
+  border-radius: var(--r-pill);
+}
+
+.panel__sticky {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  /* minmax(0, 1fr): the nowrap time chips must not stretch the panel's content box. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.panel__sticky > * {
   min-width: 0;
 }
 
-/* Slightly tighter time chips so all five fit the 380 px panel without scrolling. */
-.panel .chip--time {
-  padding-inline: var(--s-2);
-  white-space: nowrap;
+/* Search and vehicle mode share one row at every width. */
+.panel__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.panel__row > * {
+  min-width: 0;
+}
+
+/* The suggestions span the whole header, not just the search box beside the mode buttons. */
+.panel .search__list {
+  right: auto;
+  width: calc(var(--panel-w) - 2 * var(--s-4) - 2px);
+}
+
+@media (max-width: 768px) {
+  .panel .search__list {
+    width: calc(100vw - 2 * var(--s-4));
+  }
+}
+
+@media (max-width: 400px) {
+  .panel .search__list {
+    width: calc(100vw - 2 * var(--s-3));
+  }
+}
+
+/* Everything after the sticky header scrolls under it; a row focused by Tab or by panel.ts stops
+   just below it instead of behind it. */
+.panel__scroll .item,
+.panel__answer,
+.panel__filters {
+  scroll-margin-top: calc(var(--sticky-h, 0px) + var(--s-2));
+  /* …and above the screen edge while the sheet is only half open. */
+  scroll-margin-bottom: calc(var(--sheet-hidden, 0px) + var(--s-2));
+}
+
+.panel__stale:not([hidden]) {
+  display: block;
+  margin: var(--s-3) var(--s-4) 0;
+}
+
+.panel__answer:not([hidden]) {
+  display: block;
+  margin: var(--s-3) var(--s-4) 0;
 }
 
 .panel__bar {
@@ -57,18 +138,58 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--s-1) var(--s-2);
-  min-height: 32px;
+  min-height: var(--touch);
+  padding: var(--s-2) var(--s-3) 0 var(--s-4);
 }
 
-/* The count gets its own line: the switch plus the sort select already fill the 380 px panel. */
+/* The verdict sentence above the list wraps: it is a sentence, not a counter. */
 .panel__summary {
-  flex: 1 1 100%;
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.panel.is-road .panel__summary {
+  /* "28 meldingen op de A27 · nu" is short: it shares its line with sort and legend. */
+  flex: 1 1 8rem;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-2);
-  white-space: nowrap;
+}
+
+/* The answer card in the panel: tighter than on the road pages, the list must fit under it.
+   Its "N meldingen gelden niet voor auto's" line is left to the filters summary right under it,
+   which says the same ("· 2 meldingen voor ander verkeer verborgen"). */
+.panel .answer {
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-3) var(--s-3) calc(var(--s-3) + 6px);
+}
+
+.panel .answer__hidden {
+  display: none;
+}
+
+/* The list tools are icon buttons here (the legend keeps its name for AT and as a tooltip), so
+   the list sentence can share their line. */
+.panel .legend__btn {
+  padding: 0;
+  justify-content: center;
+}
+
+.panel .legend__btn-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.panel .sort__select {
+  max-width: 7.5rem;
 }
 
 .panel__tools {
@@ -80,23 +201,15 @@
 }
 
 .panel__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  /* The panel scrolls as a whole now; the list flows in it. */
+  flex: none;
+  overflow: visible;
+  border-top: 1px solid var(--border);
   background: var(--surface);
 }
 
-.panel__body::-webkit-scrollbar {
-  width: 10px;
-}
-
-.panel__body::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-3) 45%, transparent);
-  border: 3px solid var(--surface);
-  border-radius: var(--r-pill);
+.panel.is-detail .panel__body {
+  border-top: 0;
 }
 
 .panel__view--detail {
@@ -108,11 +221,12 @@
 .panel__handle {
   display: none;
   width: 100%;
-  height: 28px;
+  min-height: var(--touch);
   align-items: center;
   justify-content: center;
   flex: none;
-  /* The pointer drag in panel.ts needs the browser to stop scrolling for us. */
+  /* The pointer drag in panel.ts needs the browser to stop scrolling for us — here only: on the
+     rest of the sheet a scroll must stay a scroll. */
   touch-action: none;
   background: var(--surface);
 }
@@ -131,8 +245,18 @@
   opacity: 1;
 }
 
+.panel__handle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -4px;
+}
+
 .panel.is-dragging {
   transition: none !important;
+}
+
+/* Terug / Deel of an open melding in the grip row (phone only, see the mobile block). */
+.panel__detailbar {
+  display: none;
 }
 
 /* ------------------------------------------------------------------ result list */
@@ -179,6 +303,34 @@
   padding: var(--s-2) 0;
 }
 
+/* Mobile-only link at the bottom of the sheet to the explanation under the map. */
+.panel__more {
+  display: none;
+  justify-content: center;
+  align-items: center;
+  min-height: var(--touch);
+  margin: var(--s-2) var(--s-4) var(--s-4);
+  border: 1px dashed var(--border);
+  border-radius: var(--r-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.panel__more:hover { color: var(--text); border-color: var(--text-3); }
+
+/* ------------------------------------------------------------------ detail mode */
+/* An open melding needs its verdict, period and detour in view, not the filters: the answer,
+   the filters and the list bar step aside. The sticky header (search, mode, Wanneer with its
+   date field) stays, so the moment the verdict is for stays visible and editable (mobiel-6). */
+
+.panel.is-detail .panel__answer,
+.panel.is-detail .panel__filters,
+.panel.is-detail .panel__bar {
+  display: none;
+}
+
 /* ------------------------------------------------------------------ desktop panel */
 
 @media (min-width: 769px) {
@@ -191,6 +343,10 @@
   }
 
   .panel::before {
+    border-radius: var(--r-3) var(--r-3) 0 0;
+  }
+
+  .panel__sticky {
     border-radius: var(--r-3) var(--r-3) 0 0;
   }
 }
@@ -227,46 +383,101 @@
     display: flex;
   }
 
-  .panel__head {
-    padding: var(--s-2) var(--s-4) var(--s-3);
-    gap: var(--s-2);
-  }
-
-  /* One horizontally scrollable row of category chips: wrapping them costs four rows of
-     sheet height, which would leave no room for the list itself. The chips keep their full
-     label (`flex: none` in components.css) and the row fades out on the right so it is
-     visible that there is more to scroll to. */
-  .panel .chips--cats {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
-    scrollbar-width: none;
-    padding-bottom: 1px;
-    /* Alpha ramp, not a colour: fades the row itself, so it works in both themes. */
-    mask-image: linear-gradient(to right, rgb(0 0 0) 0, rgb(0 0 0) calc(100% - 32px), rgb(0 0 0 / 0.12) 100%);
-  }
-
-  .panel .chips--cats > .chip {
-    scroll-snap-align: start;
-  }
-
-  .panel .chips--cats::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* In the peek state only the handle, the search box and the summary are reachable. */
-  .panel[data-snap='peek'] .panel__filters {
-    display: none;
+  .panel__sticky {
+    padding: 0 var(--s-4) var(--s-2);
   }
 
   .panel__body {
     padding-bottom: env(safe-area-inset-bottom);
   }
 
+  .panel__more {
+    display: flex;
+  }
+
   .list .empty,
   .list .banner {
     margin: var(--s-3);
+  }
+
+  /* Detail mode on a phone: Terug and Deel ride in the grip row, the search box steps aside, and
+     the date field and the mode share one row, so the verdict starts right under it. */
+  .panel__detailbar:not([hidden]) {
+    position: absolute;
+    z-index: 4;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    height: var(--touch);
+    padding: 0 var(--s-2);
+    /* The grip in the middle stays a drag handle: only the two buttons take the pointer. */
+    pointer-events: none;
+  }
+
+  .panel__detail-btn {
+    pointer-events: auto;
+    min-height: var(--touch);
+    min-width: var(--touch);
+    padding: 0 var(--s-3);
+  }
+
+  .panel.is-detail .detail__top {
+    display: none;
+  }
+
+  .panel.is-detail .detail {
+    padding-top: var(--s-2);
+  }
+
+  /* One compact row: every pixel here pushes the verdict of the melding down. */
+  .panel.is-detail .panel__sticky {
+    padding-bottom: var(--s-1);
+  }
+
+  .panel.is-detail .mode {
+    padding: 1px;
+  }
+
+  .panel.is-detail .panel__sticky {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--s-2);
+  }
+
+  .panel.is-detail .panel__row,
+  .panel.is-detail .when {
+    display: contents;
+  }
+
+  .panel.is-detail .panel__row > [data-search],
+  .panel.is-detail .when__label,
+  .panel.is-detail .when__chips {
+    display: none;
+  }
+
+  .panel.is-detail .when__date {
+    grid-column: 1;
+    grid-row: 1;
+    margin-top: 0;
+  }
+
+  .panel.is-detail .panel__row > [data-mode] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .panel.is-detail .when__notes {
+    grid-column: 1 / -1;
+  }
+
+  .panel.is-detail .when__date-label span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -276,21 +487,23 @@
   }
 }
 
-/* Narrow phones (375 px and below): tighter padding, single-line filter rows. */
+/* Narrow phones (400 px and below): tighter padding; the time chips may take two rows. */
 @media (max-width: 400px) {
-  .panel__head {
+  .panel__sticky {
     padding-inline: var(--s-3);
   }
 
-  .panel__bar {
-    flex-wrap: wrap;
-    row-gap: var(--s-1);
+  /* Detail mode, date field beside the mode: the full "dd-mm-jjjj --:--" needs the room of the
+     icon and of the × (a phone's own date picker has a clear action; back in the list the ×
+     is there again). */
+  .panel.is-detail .when__date-label,
+  .panel.is-detail .when__clear {
+    display: none;
   }
 
-  /* Five time chips do not fit on one 390 px line, so they wrap here instead of scrolling
-     (the segmented control has no fade affordance). */
-  .panel .chips--time {
-    flex-wrap: wrap;
+  .panel.is-detail .when__date {
+    grid-template-columns: minmax(0, 1fr);
+    padding-right: var(--s-2);
   }
 
   .item {
@@ -310,163 +523,6 @@
   transform: none;
 }
 
-/* ------------------------------------------------------------------ v3: mode, wanneer, answer */
-
-/* The vehicle mode sits above the search box: it is the first choice a reader makes. */
-.panel__head > .mode {
-  width: 100%;
-  display: flex;
+.app__stage[data-no-webgl] .panel__scroll::after {
+  height: 0;
 }
-
-.panel__head > .mode .mode__btn {
-  flex: 1 1 0;
-}
-
-/* "Wanneer?" row: label · chips · always-visible datetime input. */
-.when {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--s-2) var(--s-3);
-  align-items: center;
-}
-
-.when__label {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-2);
-}
-
-.when__chips {
-  min-width: 0;
-}
-
-.when__date {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--s-2);
-  min-height: var(--touch);
-  padding: 0 var(--s-2) 0 var(--s-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-2);
-  background: var(--surface-2);
-}
-
-.when.has-moment .when__date {
-  border-color: var(--chrome);
-  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
-}
-
-.when__date-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-2);
-  white-space: nowrap;
-}
-
-.when__date-label svg { width: 16px; height: 16px; color: var(--text-3); }
-
-.when__input {
-  min-height: 40px;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-
-.when__input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-1); }
-
-.when__clear {
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--r-1);
-  color: var(--text-2);
-}
-
-.when__clear:hover { background: var(--surface); color: var(--text); }
-.when__clear svg { width: 16px; height: 16px; }
-
-.when__hint {
-  grid-column: 1 / -1;
-  font-size: var(--text-xs);
-  color: var(--text-2);
-}
-
-/* Answer card (road mode). */
-.panel__answer:not([hidden]) {
-  display: block;
-}
-
-/* The verdict sentence above the list wraps: it is a sentence, not a counter. */
-.panel__summary {
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  font-family: var(--font-body);
-  font-size: var(--text-sm);
-  color: var(--text);
-  line-height: 1.4;
-}
-
-.panel.is-road .panel__summary {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--text-2);
-}
-
-/* Mobile-only link at the bottom of the sheet to the explanation under the map. */
-.panel__more {
-  display: none;
-  justify-content: center;
-  align-items: center;
-  min-height: var(--touch);
-  margin: var(--s-2) var(--s-4) var(--s-4);
-  border: 1px dashed var(--border);
-  border-radius: var(--r-2);
-  color: var(--text-2);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.panel__more:hover { color: var(--text); border-color: var(--text-3); }
-
-@media (max-width: 768px) {
-  .panel__more { display: flex; }
-  .panel[data-snap="peek"] .panel__relevance,
-  .panel[data-snap="peek"] .panel__answer { display: none; }
-  .when { grid-template-columns: 1fr; }
-  .when__label { display: none; }
-  .panel .chips--time { flex-wrap: nowrap; }
-}
-
-/* "12 meldingen alleen voor fietsers verborgen": a button that switches the relevance filter off. */
-.panel__hidden {
-  justify-self: start;
-  min-height: 32px;
-  padding: 0 var(--s-2);
-  margin-left: calc(var(--s-1) * -1);
-  border-radius: var(--r-1);
-  font-size: var(--text-xs);
-  color: var(--text-2);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  text-align: left;
-}
-
-.panel__hidden:hover { color: var(--text); background: var(--surface-2); }
-.panel__hidden:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.panel__relevance { display: grid; gap: 0; }
