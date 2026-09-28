@@ -3,10 +3,10 @@
  * Used by main.ts and every generated page (`mountTopbar()` + `hydrateLivePill()`).
  */
 import { loadMeta } from '../data/load';
-import { ageMinutes, toMs } from '../data/time';
+import { ageMinutes, startOfDay, toMs } from '../data/time';
 import type { Category, Meta } from '../data/types';
 import { CATEGORY_META } from './categories';
-import { esc, fmtTime, formatCount } from './format';
+import { esc, fmtDay, fmtDayTime, fmtTime, formatCount } from './format';
 import { ICONS } from './icons';
 import { currentTheme, onThemeChange, toggleTheme } from './theme';
 
@@ -29,16 +29,39 @@ export function liveStatusFromMeta(meta: Meta, now = Date.now()): LiveStatus {
   return age > STALE_AFTER_MINUTES ? { kind: 'stale', generated: meta.generated } : { kind: 'ok', generated: meta.generated };
 }
 
+/**
+ * When the data is from: "20:17" today, "wo 23 sep 21:31" otherwise. A bare clock time for data
+ * from five days ago read as "a few minutes late" (overzicht-0).
+ */
+export function liveTimeLabel(ms: number, now = Date.now()): string {
+  return startOfDay(ms) === startOfDay(now) ? fmtTime(ms) : fmtDayTime(ms);
+}
+
+/** The "gegevens van …" label for the answer card while the data is stale; undefined otherwise. */
+export function staleDataLabel(status: LiveStatus, now = Date.now()): string | undefined {
+  return status.kind === 'stale' ? liveTimeLabel(toMs(status.generated), now) : undefined;
+}
+
 export interface Topbar {
   root: HTMLElement;
   setLive(status: LiveStatus): void;
   setCounts(counts: Partial<Record<Category, number>>): void;
 }
 
+/**
+ * The pill: full text on wide screens, and on phones a short visible text for the two states a
+ * driver must notice (stale, error) — a coloured dot alone told nobody anything on a touch screen
+ * and nothing at all to colour-blind readers. Those states also swap the dot for an alert icon.
+ * The full text stays in the DOM (visually hidden on phones), so a screen reader reads it once;
+ * the short text is aria-hidden. The pill is not a live region: the warning banner above the
+ * answer (ui/stale-banner.ts) is the one place a stale state is announced.
+ */
 function renderLive(el: HTMLElement, status: LiveStatus): void {
   el.hidden = false;
   el.dataset.state = status.kind;
   let text: string;
+  let short = '';
+  let shortTime = '';
   let title: string;
   switch (status.kind) {
     case 'loading':
@@ -49,18 +72,29 @@ function renderLive(el: HTMLElement, status: LiveStatus): void {
       text = `Bijgewerkt ${fmtTime(toMs(status.generated))}`;
       title = `Laatste update van de gegevens: ${fmtTime(toMs(status.generated))}`;
       break;
-    case 'stale':
-      text = `Gegevens sinds ${fmtTime(toMs(status.generated))} niet vernieuwd`;
-      title = `Laatste update: ${fmtTime(toMs(status.generated))}. De gegevens zijn tijdelijk niet vernieuwd; wat je ziet kan verouderd zijn.`;
+    case 'stale': {
+      const ms = toMs(status.generated);
+      const now = Date.now();
+      text = `Let op: gegevens van ${liveTimeLabel(ms, now)}`;
+      // "Oud · 20:17": the phone topbar has ~100 px for the pill next to brand, theme and menu;
+      // "Niet actueel · 20:17" pushed the menu button off the screen. Below 375 px only "Oud"
+      // and the icon remain (chrome.css); the banner above the answer says it in full.
+      short = 'Oud';
+      shortTime = startOfDay(ms) === startOfDay(now) ? fmtTime(ms) : fmtDay(ms).replace(/^\S+\s/, '');
+      title = `Laatste update: ${liveTimeLabel(ms, now)}. De gegevens zijn sindsdien niet vernieuwd; wat je ziet kan verouderd zijn.`;
       break;
+    }
     case 'error':
-      text = 'Data niet beschikbaar';
+      text = 'Gegevens tijdelijk niet beschikbaar';
+      short = 'Geen data';
       title = 'De gegevens konden niet worden geladen';
       break;
   }
-  el.innerHTML = `<span class="live__dot" aria-hidden="true"></span><span class="live__text">${esc(text)}</span>`;
+  const alert = status.kind === 'stale' || status.kind === 'error';
+  const mark = alert ? `<span class="live__icon" aria-hidden="true">${ICONS.circleAlert}</span>` : '<span class="live__dot" aria-hidden="true"></span>';
+  el.innerHTML = `${mark}<span class="live__text">${esc(text)}</span>${short ? `<span class="live__short" aria-hidden="true">${esc(short)}${shortTime ? `<span class="live__short-time"> · ${esc(shortTime)}</span>` : ''}</span>` : ''}`;
   el.title = title;
-  el.setAttribute('role', 'status');
+  el.removeAttribute('role');
 }
 
 function wireThemeToggle(root: HTMLElement): void {

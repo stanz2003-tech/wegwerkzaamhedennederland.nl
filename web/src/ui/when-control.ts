@@ -3,6 +3,7 @@
  * Nu · Vandaag · Morgen · Dit weekend and an always-visible `datetime-local` input
  * (Europe/Amsterdam). A chosen date deselects the chips; a chip clears the date.
  */
+import { horizonDateLabel } from '../data/answer';
 import { TIME_WINDOWS, WHEN_WINDOWS, type TimeWindowId } from '../data/time';
 import { formatLocalDateTime, parseLocalDateTime } from '../data/url-state';
 import { esc } from './format';
@@ -13,6 +14,11 @@ export interface WhenControl {
   setSelected(id: TimeWindowId): void;
   /** Shows an exact moment as the active choice (null = back to the chips). */
   setMoment(ms: number | null): void;
+  /**
+   * The last moment the planning covers (`Meta.horizon.until`), shown under the date input as
+   * "Planning bekend tot 21 oktober" before anyone picks a later date; undefined hides it.
+   */
+  setHorizon(ms: number | undefined): void;
 }
 
 export interface WhenCallbacks {
@@ -34,16 +40,18 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     <div class="chips chips--time when__chips" role="radiogroup" aria-labelledby="when-label" data-when-chips>${chips}</div>
     <div class="when__date" data-when-date>
       <label class="when__date-label" for="when-input">${ICONS.calendarClock}<span>Kies datum en tijd</span></label>
-      <input id="when-input" class="when__input" type="datetime-local" step="300" aria-describedby="when-hint" />
+      <input id="when-input" class="when__input" type="datetime-local" step="300" aria-describedby="when-hint when-horizon" />
       <button type="button" class="when__clear" data-when-clear aria-label="Datum wissen" hidden>${ICONS.x}</button>
     </div>
-    <p class="when__hint" id="when-hint" hidden></p>`;
+    <p class="when__hint" id="when-hint" hidden></p>
+    <p class="when__horizon" id="when-horizon" hidden></p>`;
 
   const chipsEl = root.querySelector<HTMLElement>('[data-when-chips]');
   const input = root.querySelector<HTMLInputElement>('#when-input');
   const clear = root.querySelector<HTMLButtonElement>('[data-when-clear]');
   const hint = root.querySelector<HTMLElement>('#when-hint');
-  if (!chipsEl || !input || !clear || !hint) throw new Error('when markup ontbreekt');
+  const horizonEl = root.querySelector<HTMLElement>('#when-horizon');
+  if (!chipsEl || !input || !clear || !hint || !horizonEl) throw new Error('when markup ontbreekt');
 
   const render = (): void => {
     chipsEl.querySelectorAll<HTMLButtonElement>('[data-time]').forEach((btn) => {
@@ -136,6 +144,10 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     setMoment(ms) {
       moment = ms;
       render();
+    },
+    setHorizon(ms) {
+      horizonEl.hidden = ms === undefined;
+      horizonEl.textContent = ms === undefined ? '' : `Planning bekend tot ${horizonDateLabel(ms)}`;
     },
   };
 }

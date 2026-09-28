@@ -33,6 +33,14 @@ export interface Answer {
   /** Distinct road numbers among the dicht/rijbaan items, plus one per item without a road. */
   closedPlaces: number;
   closedRoads: number;
+  /**
+   * The question lies past the data horizon, whatever was found. A non-empty answer there is
+   * still true for what IS published, but more work may follow; the card says so next to it.
+   * The level and the headline are never changed by this flag.
+   */
+  beyondHorizon: boolean;
+  /** The horizon this answer was computed against (`Meta.horizon.until` in ms), null if unknown. */
+  horizonMs: number | null;
 }
 
 export const MAX_SPECIFICS = 3;
@@ -55,10 +63,15 @@ function askedFrom(when: When): number {
  */
 export const BEYOND_HORIZON_HEADLINE = 'Nog niet bekend';
 
+const HORIZON_DATE_FMT = new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam' });
+
+/** "21 oktober": how the planning horizon is named everywhere (answer card, date inputs). */
+export function horizonDateLabel(horizonMs: number): string {
+  return HORIZON_DATE_FMT.format(new Date(horizonMs));
+}
+
 function beyondHorizonNote(horizonMs: number): string {
-  const d = new Date(horizonMs);
-  const datum = new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam' }).format(d);
-  return `Wegbeheerders melden hun werk meestal een paar weken vooruit aan; onze planning reikt nu tot ${datum}. Kijk dichter bij de datum nog eens.`;
+  return `Wegbeheerders melden hun werk meestal een paar weken vooruit aan; onze planning reikt nu tot ${horizonDateLabel(horizonMs)}. Kijk dichter bij de datum nog eens.`;
 }
 
 /** Words after which a free-text title stops naming the place and starts describing the measure. */
@@ -183,25 +196,26 @@ export function answerFor(
     if (r) roads.add(r.toUpperCase());
     else noRoad += 1;
   }
+  const knownHorizon = typeof horizonMs === 'number' && Number.isFinite(horizonMs) ? horizonMs : null;
+  const beyondHorizon = knownHorizon !== null && askedFrom(when) > knownHorizon;
   // Only an EMPTY result can be unknown: a measure that already runs and lasts past the horizon
-  // is something we do know about, and its verdict stands.
-  const unknown =
-    sel.items.length === 0 &&
-    typeof horizonMs === 'number' &&
-    Number.isFinite(horizonMs) &&
-    askedFrom(when) > horizonMs;
+  // is something we do know about, and its verdict stands. A non-empty answer past the horizon
+  // keeps its level and headline; `beyondHorizon` lets the card add that more may follow.
+  const unknown = sel.items.length === 0 && beyondHorizon;
 
   return {
     level: unknown ? 'onbekend' : sel.worst,
     headline: unknown ? BEYOND_HORIZON_HEADLINE : headlineFor(sel.items, sel.worst, subject),
     specifics: unknown
-      ? [beyondHorizonNote(horizonMs as number)]
+      ? [beyondHorizonNote(knownHorizon as number)]
       : uniqueLines(sel.items.map((x) => specificLine(x, subject))).slice(0, MAX_SPECIFICS),
     items: sel.items,
     hidden: sel.hidden,
     counts: countLevels(sel.items.map((x) => x.verdict.level)),
     closedPlaces: closed.length,
     closedRoads: roads.size + noRoad,
+    beyondHorizon,
+    horizonMs: knownHorizon,
   };
 }
 
@@ -214,8 +228,12 @@ function n(count: number, one: string, many: string): string {
 /**
  * The summary line of the map panel outside road mode — a verdict sentence, never a bare count:
  * "In beeld: 3 wegen dicht, 12 plekken met hinder, 40 meldingen gelden niet voor auto's (verborgen)".
+ *
+ * @param prefix  What the sentence is about. "In beeld" for the viewport; with a text filter the
+ *                list is no longer the viewport, so the caller passes `Met “Almkerk”` instead —
+ *                "In beeld: geen meldingen" for a typo read as "the road is free".
  */
-export function areaSentence(a: Answer, mode: VehicleMode, hiddenVisible: boolean): string {
+export function areaSentence(a: Answer, mode: VehicleMode, hiddenVisible: boolean, prefix = 'In beeld'): string {
   const parts: string[] = [];
   const closed = a.counts.dicht + a.counts.rijbaan;
   if (closed > 0) {
@@ -228,8 +246,8 @@ export function areaSentence(a: Answer, mode: VehicleMode, hiddenVisible: boolea
   if (a.hidden.length > 0) {
     parts.push(`${n(a.hidden.length, 'melding geldt', 'meldingen gelden')} niet voor ${modeNoun(mode)} (${hiddenVisible ? 'vervaagd' : 'verborgen'})`);
   }
-  if (parts.length === 0) return 'In beeld: geen meldingen';
-  return `In beeld: ${parts.join(', ')}`;
+  if (parts.length === 0) return `${prefix}: geen meldingen`;
+  return `${prefix}: ${parts.join(', ')}`;
 }
 
 /** "12 meldingen alleen voor fietsers verborgen" — the toggle line under the relevance switch. */

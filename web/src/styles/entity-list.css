@@ -181,3 +181,7 @@
   .forecast__strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .forecast__day-counts { display: none; }
 }
+
+/* The stale-data warning page-boot.ts inserts directly above the answer. */
+.entity-stale { margin: 0 0 var(--s-3); }
+.entity-stale[hidden] { display: none; }

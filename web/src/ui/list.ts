@@ -17,12 +17,31 @@ export interface ListCallbacks {
   onRetry(): void;
   /** A road badge inside a row was clicked: enter road mode for that road. */
   onRoad?(road: string): void;
+  /** "Zoekopdracht wissen" in the empty state of a text filter. */
+  onClearQuery?(): void;
+}
+
+/** A spelling suggestion for the empty text-filter state ("Bedoelde je Gorinchem?"). */
+export interface DidYouMean {
+  label: string;
+  onPick(): void;
 }
 
 export interface ListRenderOptions {
   mode?: VehicleMode;
   /** The moment the verdicts are computed for (defaults to `now`). */
   at?: number;
+  /**
+   * The free-text filter behind this list, when there is one. An empty result then gets its own
+   * state: "no match for what you typed" is not "nothing going on in this area", and the old
+   * "Geen meldingen in dit gebied · Zoom uit" for a typo read as "the road is free" (zoek-3).
+   */
+  emptyQuery?: string;
+  /**
+   * Hook for the fuzzy place lookup (P4): when set, the empty text-filter state offers this
+   * suggestion as a button above "Zoekopdracht wissen". Nothing sets it yet.
+   */
+  didYouMean?: DidYouMean;
 }
 
 export interface ListView {
@@ -75,8 +94,23 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     }
   };
 
+  const renderEmptyQuery = (query: string): void => {
+    const suggestion = renderOpts.didYouMean;
+    root.innerHTML = `<div class="empty empty--query">
+        <div class="empty__sign" aria-hidden="true">${ICONS.search}</div>
+        <p class="empty__title">Niets gevonden voor “${esc(query)}”</p>
+        <p class="empty__text">Dat betekent niet dat de weg vrij is. Controleer de spelling of zoek op een wegnummer (A27) of plaatsnaam.</p>
+        ${suggestion ? `<button type="button" class="btn btn--primary" data-did-you-mean>Bedoelde je ${esc(suggestion.label)}?</button>` : ''}
+        <button type="button" class="btn btn--secondary" data-clear-query>${ICONS.x}<span>Zoekopdracht wissen</span></button>
+      </div>`;
+  };
+
   const renderAll = (): void => {
     root.setAttribute('aria-busy', 'false');
+    if (items.length === 0 && renderOpts.emptyQuery) {
+      renderEmptyQuery(renderOpts.emptyQuery);
+      return;
+    }
     if (items.length === 0) {
       root.innerHTML = `<div class="empty">
           <div class="empty__sign" aria-hidden="true">${ICONS.trafficCone}</div>
@@ -95,6 +129,14 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     const target = e.target as HTMLElement;
     if (target.closest('[data-reset]')) {
       cb.onReset();
+      return;
+    }
+    if (target.closest('[data-clear-query]')) {
+      cb.onClearQuery?.();
+      return;
+    }
+    if (target.closest('[data-did-you-mean]')) {
+      renderOpts.didYouMean?.onPick();
       return;
     }
     if (target.closest('[data-retry]')) {

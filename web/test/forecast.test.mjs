@@ -4,7 +4,8 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { forecast, periods as periodsMod, time } from './helpers/src.mjs';
+import { fixtureFiles, readJson } from './helpers/fixtures.mjs';
+import { forecast, periods as periodsMod, time, verdict } from './helpers/src.mjs';
 
 const { dayStrip, isActiveAtMoment, itemsForCell, relativeDayLabel, selectAtMoment, selectInWindow, touchesWindow, STRIP_DAYS } = forecast;
 const { parsePeriods } = periodsMod;
@@ -143,4 +144,33 @@ describe('dayStrip', () => {
     assert.equal(relativeDayLabel(cells[1], NOW, 'do 10'), 'morgen');
     assert.equal(relativeDayLabel(cells[2], NOW, 'vr 11'), 'vr 11');
   });
+});
+
+describe('a picked strip day lists the same items as its cell, worst first (vooruit-1)', () => {
+  // forecast-block.ts lists a day with selectInWindow(items, mode, max(cell.from, now), cell.to, now):
+  // the call dayStrip makes for the cell. This pins both halves of that promise on every fixture
+  // road: the set equals cell.ids, and no row is lighter than the one after it.
+  const ROADS = fixtureFiles().filter((f) => f.startsWith('roads/'));
+  const FIXTURE_NOW = Date.parse(readJson('meta.json').generated);
+  const { VERDICT_SEVERITY } = verdict;
+
+  for (const mode of ['auto', 'vracht', 'fiets']) {
+    it(`${mode}: every cell of every fixture road`, () => {
+      let checked = 0;
+      for (const file of ROADS) {
+        const items = readJson(file).items;
+        const cells = dayStrip(items, mode, FIXTURE_NOW);
+        for (const cell of cells) {
+          const sel = selectInWindow(items, mode, Math.max(cell.from, FIXTURE_NOW), cell.to, FIXTURE_NOW);
+          const ids = sel.items.map((x) => x.item.f.properties.id);
+          assert.deepEqual([...ids].sort(), [...cell.ids].sort(), `${file} ${mode} ${new Date(cell.from).toISOString()}`);
+          const ranks = sel.items.map((x) => VERDICT_SEVERITY.indexOf(x.verdict.level));
+          for (let i = 1; i < ranks.length; i++) assert.ok(ranks[i - 1] <= ranks[i], `${file}: row ${i} is heavier than row ${i - 1}`);
+          if (sel.items.length > 0) assert.equal(sel.items[0].verdict.level, cell.worst, 'the first row carries the cell verdict');
+          checked += sel.items.length;
+        }
+      }
+      assert.ok(checked > 0);
+    });
+  }
 });

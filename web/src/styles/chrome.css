@@ -94,8 +94,10 @@
   gap: var(--s-1);
 }
 
-/* The live pill keeps its own width; on small phones only the status dot remains
-   (the full text stays available as the pill's accessible name / tooltip). */
+/* The live pill keeps its own width. On small phones the normal states ("Bijgewerkt 20:17",
+   "Laden…") shrink to the dot, with the text visually hidden but still read by a screen reader.
+   Stale and error keep a short visible text ("Niet actueel · 20:17" / "Geen data") and their
+   alert icon: a bare coloured dot was the only sign of hours-old data on a phone (mobiel-8). */
 .live {
   flex: none;
 }
@@ -106,6 +108,35 @@
   }
 
   .live .live__text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .live[data-state='stale'] .live__short,
+  .live[data-state='error'] .live__short {
+    display: inline;
+  }
+
+  .live[data-state='stale'],
+  .live[data-state='error'] {
+    gap: 6px;
+  }
+
+  /* Brand, pill, theme and menu must fit 360 px: tighter gaps instead of a hidden menu button. */
+  .topbar {
+    gap: var(--s-2);
+  }
+}
+
+@media (max-width: 374px) {
+  .live__short-time {
     display: none;
   }
 }

@@ -22,7 +22,7 @@ import type { RoadType } from '../data/types';
 import { slugify } from '../data/types';
 import { readUrlState } from '../data/url-state';
 import { renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
-import { bodyAttr, bootPage, setText, stampUpdated } from '../ui/page-boot';
+import { bodyAttr, bootPage, dataAsOfLabel, setText, stampUpdated } from '../ui/page-boot';
 import { loadEntitySource, runEntityPage, sourceFromIndex, type EntitySource } from './entity-page';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
@@ -53,7 +53,9 @@ async function fallbackSource(roadNumber: string): Promise<EntitySource | null> 
 }
 
 async function main(): Promise<void> {
-  stampUpdated(await boot.meta);
+  const meta = await boot.meta;
+  stampUpdated(meta);
+  const dataAsOf = dataAsOfLabel(meta);
 
   if (!road) {
     if (listEl) renderEntityNotice(listEl, DATA_NOTICE);
@@ -82,6 +84,7 @@ async function main(): Promise<void> {
     view: mapView(bbox, lon, lat),
     listEl,
     forecastEl,
+    ...(dataAsOf ? { dataAsOf } : {}),
   });
 }
 

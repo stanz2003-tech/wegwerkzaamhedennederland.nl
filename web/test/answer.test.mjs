@@ -4,8 +4,8 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { loadFixtureData, readJson } from './helpers/fixtures.mjs';
-import { answer as answerMod } from './helpers/src.mjs';
+import { fixtureFiles, loadFixtureData, readJson } from './helpers/fixtures.mjs';
+import { answer as answerMod, answerCard } from './helpers/src.mjs';
 
 const { answerFor, areaSentence, hiddenSentence, itemName, itemSection, placeLabel, specificLine } = answerMod;
 
@@ -164,5 +164,91 @@ describe('data horizon', () => {
   // A window that starts beyond the horizon counts as beyond it too.
   const venster = answerMod.answerFor([], 'auto', { kind: 'window', from: buiten, to: buiten + 86400000 }, subject, buiten, horizon);
   assert.equal(venster.level, 'onbekend');
+  });
+});
+
+describe('beyond the horizon (vooruit-5)', () => {
+  const ROADS = fixtureFiles().filter((f) => f.startsWith('roads/'));
+  const MODES = ['auto', 'vracht', 'fiets'];
+
+  it('a question past the horizon flags beyondHorizon but keeps the level and headline of a non-empty answer', () => {
+    // A horizon one hour before NOW puts NOW itself past it: same items, same moment.
+    const horizon = NOW - 3_600_000;
+    let nonEmpty = 0;
+    for (const file of ROADS) {
+      const items = readJson(file).items;
+      const subject = { kind: 'road', name: file.slice('roads/'.length, -'.json'.length).toUpperCase() };
+      for (const mode of MODES) {
+        const without = answerFor(items, mode, nowMoment, subject, NOW);
+        const past = answerFor(items, mode, nowMoment, subject, NOW, horizon);
+        assert.equal(past.beyondHorizon, true, `${file} ${mode}`);
+        assert.equal(without.beyondHorizon, false);
+        if (without.items.length === 0) continue;
+        nonEmpty += 1;
+        assert.equal(past.level, without.level, `${file} ${mode}: the level must not change`);
+        assert.equal(past.headline, without.headline, `${file} ${mode}: the headline must not change`);
+        assert.deepEqual(past.specifics, without.specifics);
+        assert.equal(past.horizonMs, horizon);
+      }
+    }
+    assert.ok(nonEmpty > 10, `enough non-empty fixture answers were compared (${nonEmpty})`);
+  });
+
+  it('a date well past the horizon: the A27 answer is unchanged and the card adds the warning line', () => {
+    const items = road('a27');
+    const horizon = Date.parse(data.meta.horizon.until);
+    const at = horizon + 40 * 86_400_000;
+    const when = { kind: 'moment', at };
+    const subject = { kind: 'road', name: 'A27' };
+    const without = answerFor(items, 'auto', when, subject, NOW);
+    const past = answerFor(items, 'auto', when, subject, NOW, horizon);
+    assert.equal(past.beyondHorizon, true);
+    assert.equal(past.level, without.items.length === 0 ? 'onbekend' : without.level);
+    if (without.items.length > 0) assert.equal(past.headline, without.headline);
+    const html = answerCard.renderAnswerCard({ road: 'A27', whenLabel: 'x', mode: 'auto', answer: past, total: items.length });
+    if (past.headline === answerMod.BEYOND_HORIZON_HEADLINE) {
+      assert.doesNotMatch(html, /answer__horizon/, 'the empty case keeps its own note');
+    } else {
+      assert.match(html, /class="answer__horizon"/);
+      assert.match(html, new RegExp(`Let op: werk na ${answerMod.horizonDateLabel(horizon)} is nog niet aangemeld`));
+    }
+  });
+
+  it('the card shows the warning for a non-empty answer past the horizon, and never inside it', () => {
+    const subject = { kind: 'road', name: 'A2' };
+    const inside = answerFor(road('a2'), 'auto', nowMoment, subject, NOW, NOW + 86_400_000);
+    const past = answerFor(road('a2'), 'auto', nowMoment, subject, NOW, NOW - 1);
+    const card = (answer) => answerCard.renderAnswerCard({ road: 'A2', whenLabel: 'nu', mode: 'auto', answer, total: 2 });
+    assert.doesNotMatch(card(inside), /answer__horizon/);
+    assert.match(card(past), /answer__horizon/);
+    assert.equal(past.level, inside.level);
+  });
+
+  it('horizonDateLabel names the day and month in Dutch', () => {
+    assert.equal(answerMod.horizonDateLabel(Date.parse('2026-10-21T18:00:00Z')), '21 oktober');
+  });
+});
+
+describe('text filter prefix (zoek-3)', () => {
+  it('areaSentence says what it is about', () => {
+    const empty = answerFor([], 'auto', nowMoment, { kind: 'gebied', name: '' });
+    assert.equal(areaSentence(empty, 'auto', false, 'Met “x”'), 'Met “x”: geen meldingen');
+    assert.equal(areaSentence(empty, 'auto', false), 'In beeld: geen meldingen');
+    const a = answerFor(road('a2'), 'auto', nowMoment, { kind: 'gebied', name: '' });
+    assert.equal(areaSentence(a, 'auto', false, 'Met “A2”'), 'Met “A2”: 1 weg dicht, 1 plek met hinder');
+  });
+});
+
+describe('stale data in the answer card (mobiel-8, taal-10)', () => {
+  const a = answerFor(road('a2'), 'auto', nowMoment, { kind: 'road', name: 'A2' });
+  it('"nu" names the moment of the data while it is stale', () => {
+    const html = answerCard.renderAnswerCard({ road: 'A2', whenLabel: 'nu', mode: 'auto', answer: a, total: 2, dataAsOf: '20:17' });
+    assert.ok(html.includes('voor auto&#39;s · nu (gegevens van 20:17)'), html);
+  });
+  it('a chosen moment keeps its own label, and current data adds nothing', () => {
+    const later = answerCard.renderAnswerCard({ road: 'A2', whenLabel: 'za 3 okt 08:00', mode: 'auto', answer: a, total: 2, dataAsOf: '20:17' });
+    assert.doesNotMatch(later, /gegevens van/);
+    const fresh = answerCard.renderAnswerCard({ road: 'A2', whenLabel: 'nu', mode: 'auto', answer: a, total: 2 });
+    assert.doesNotMatch(fresh, /gegevens van/);
   });
 });

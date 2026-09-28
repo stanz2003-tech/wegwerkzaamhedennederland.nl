@@ -13,7 +13,7 @@ import { readStoredMode, storeMode, type UrlState } from '../data/url-state';
 import { isRelevantFor, verdictFor, type VehicleMode } from '../data/verdict';
 import type { EntityMap, EntityView } from '../map/entity-map';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
-import { renderEntityList, summaryText, type EntitySection } from '../ui/entity-list';
+import { renderEntityList, sortByVerdict, summaryText, type EntitySection } from '../ui/entity-list';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
 import { fmtDay, formatCount } from '../ui/format';
 import { setEmptyVisible, setText } from '../ui/page-boot';
@@ -70,6 +70,8 @@ export interface EntityPageOptions {
   forecastEl: HTMLElement | null;
   /** Hidden nvt items are still counted for the hero counters; the list shows what applies. */
   linkQuery?: string;
+  /** "20:17" while the data is stale: the answer for "nu" then names that moment. */
+  dataAsOf?: string;
 }
 
 /** Writes `?v=` / `?t=` back to the address bar so the page state can be shared. */
@@ -145,12 +147,16 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       at: state.at,
       ...(state.window ? { window: state.window } : {}),
       details,
+      revealClosures: true,
       ...(opts.linkQuery ? { linkQuery: opts.linkQuery } : {}),
     };
     if (state.items === null) {
       const relevant = (list: IndexItem[]): IndexItem[] => list.filter((it) => isRelevantFor(it, state.mode));
+      // "Nu actief" leads with the heaviest pill (impact order within a level): by impact alone
+      // three "Doorrijden mogelijk" incidents stood above the "Rijbaan dicht" at Gorinchem.
+      // "Gepland" keeps its start order, as its heading promises.
       const sections: EntitySection[] = [
-        { title: 'Nu actief', items: relevant(active) },
+        { title: 'Nu actief', items: sortByVerdict(relevant(active), now, listOpts) },
         { title: 'Gepland (komende 30 dagen)', items: relevant(upcoming) },
       ];
       const hidden = active.length + upcoming.length - sections.reduce((n, s) => n + s.items.length, 0);
@@ -194,6 +200,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       roadType: opts.roadType ?? null,
       mode: state.mode,
       moment: opts.url.moment,
+      ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
       onChange: onState,
     });
     state = block.getState();

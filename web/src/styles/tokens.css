@@ -175,7 +175,7 @@
 
 :root {
   --text-3: #636974;
-  --ok-text: #17703a;      /* "Nu actief", bridge closed */
+  --ok-text: #17703a;      /* only the "geen hinder" verdict and a closed (passable) bridge — never time text */
   --warn-text: #8f5500;    /* 6.06 on #ffffff / 5.51 on #f7f4ec */
   --danger-text: #c62828;  /* 5.62 on #ffffff / 5.12 on #f7f4ec */
 

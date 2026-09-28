@@ -1,0 +1,104 @@
+/**
+ * The two answer surfaces of the map panel, moved out of main.ts so the panel can grow (place
+ * mode, "per dag vooruitkijken") without main.ts growing with it:
+ *   - the answer card in road mode ("Kan ik over de A27?"),
+ *   - the one verdict sentence above the list outside road mode ("In beeld: 3 wegen dicht, …").
+ *
+ * Both take the part of the URL state they need, the items and `now`, and write into the
+ * elements they are given; they hold no state of their own.
+ */
+import { answerFor, areaSentence, hiddenSentence } from '../data/answer';
+import type { ForecastItem, When } from '../data/forecast';
+import { horizonMs } from '../data/horizon';
+import { TIME_WINDOWS, timeWindowRange } from '../data/time';
+import type { ItemFeature } from '../data/types';
+import type { UrlState } from '../data/url-state';
+import { renderAnswerCard } from './answer-card';
+import { fmtDayTime, formatCount, plural } from './format';
+
+/** The part of the URL state the panel answer reads. */
+export type PanelQuestion = Pick<UrlState, 'mode' | 'time' | 'moment' | 'road' | 'query'>;
+
+export interface PanelAnswerEls {
+  panel: HTMLElement;
+  answer: HTMLElement;
+  summary: HTMLElement;
+  hiddenBtn: HTMLButtonElement;
+}
+
+/** The "Wanneer?" choice as the answer module sees it. */
+export function whenOf(q: PanelQuestion, now: number): When {
+  if (q.moment !== null) return { kind: 'moment', at: q.moment };
+  if (q.time === 'nu') return { kind: 'moment', at: now };
+  const { from, to } = timeWindowRange(q.time, now);
+  return { kind: 'window', from, to };
+}
+
+/** "nu" / "vandaag" / "za 20 sep 14:00" */
+export function whenLabelOf(q: PanelQuestion): string {
+  if (q.moment !== null) return fmtDayTime(q.moment);
+  return (TIME_WINDOWS.find((w) => w.id === q.time)?.label ?? 'nu').toLowerCase();
+}
+
+/** Map features carry no detail shard: judged conservatively, as the map does (`d: null`). */
+export function asForecast(features: readonly ItemFeature[]): ForecastItem[] {
+  return features.map((f) => ({ f, d: null }));
+}
+
+export interface RoadAnswerOptions {
+  /** "20:17" while the data is stale; the card then says "nu (gegevens van 20:17)". */
+  dataAsOf?: string;
+  onExit(): void;
+}
+
+/** The answer card in road mode; hides the card outside it. */
+export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItems: readonly ItemFeature[], now: number, opts: RoadAnswerOptions): void {
+  const road = q.road;
+  if (!road) {
+    els.answer.hidden = true;
+    els.answer.innerHTML = '';
+    els.panel.classList.remove('is-road');
+    return;
+  }
+  const answer = answerFor(asForecast(roadItems), q.mode, whenOf(q, now), { kind: 'road', name: road }, now, horizonMs());
+  const sample = roadItems.find((f) => f.properties.roadType);
+  els.answer.hidden = false;
+  els.panel.classList.add('is-road');
+  els.answer.innerHTML = renderAnswerCard({
+    road,
+    roadType: sample?.properties.roadType ?? null,
+    whenLabel: whenLabelOf(q),
+    mode: q.mode,
+    answer,
+    total: roadItems.length,
+    ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
+  });
+  els.answer.querySelector('[data-road-exit]')?.addEventListener('click', () => opts.onExit());
+}
+
+/**
+ * The sentence above the list and the "N meldingen … verborgen" button. With a text filter the
+ * list is every match in the country, not the viewport, so the sentence says `Met “Almkerk”:`.
+ */
+export function renderPanelSummary(
+  els: PanelAnswerEls,
+  q: PanelQuestion,
+  inView: readonly ItemFeature[],
+  now: number,
+  counts: { shown: number; total: number },
+  hideNvt: boolean,
+): void {
+  const answer = answerFor(asForecast(inView), q.mode, whenOf(q, now), { kind: 'gebied', name: '' }, now, horizonMs());
+  const prefix = q.query ? `Met “${q.query}”` : 'In beeld';
+  const text = q.road ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}` : areaSentence(answer, q.mode, !hideNvt, prefix);
+  els.summary.textContent = text;
+  els.summary.title = counts.shown < counts.total ? `${text} — de eerste ${formatCount(counts.shown)} staan in de lijst; zoom in of filter om te verfijnen.` : text;
+  const hidden = answer.hidden.length;
+  if (hideNvt && hidden > 0) {
+    els.hiddenBtn.hidden = false;
+    els.hiddenBtn.textContent = hiddenSentence(answer.hidden, q.mode);
+    els.hiddenBtn.title = 'Toon deze meldingen toch (vervaagd op de kaart)';
+  } else {
+    els.hiddenBtn.hidden = true;
+  }
+}

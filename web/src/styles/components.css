@@ -355,9 +355,11 @@
   color: var(--text-2);
 }
 
+/* "Nu actief" / "nog 4 dagen" is a time fact, not a verdict: in green it said "geen hinder"
+   next to a "Weg dicht" pill (toeg-10). Green is kept for the "geen hinder" verdict alone. */
 .item__status--active {
-  color: var(--ok-text);
-  font-weight: 500;
+  color: var(--text-2);
+  font-weight: 600;
 }
 
 .item__status--past {
@@ -502,6 +504,12 @@
   border-color: color-mix(in srgb, var(--live-error-text) 35%, transparent);
 }
 .live[data-state='error'] .live__dot { background: var(--danger); }
+
+/* Stale / error: an alert icon instead of the dot, so the state does not rest on colour alone. */
+.live__icon { display: inline-flex; flex: none; }
+.live__icon svg { width: 14px; height: 14px; }
+/* The phone-only short text ("Niet actueel · 20:17"); chrome.css shows it on small screens. */
+.live__short { display: none; }
 
 /* ------------------------------------------------------------------ category counters */
 .count {
@@ -653,6 +661,9 @@
   font-size: var(--text-sm);
   max-width: 28ch;
 }
+
+.empty--query { padding: var(--s-6) var(--s-4); }
+.empty--query .empty__text { max-width: 34ch; color: var(--text); }
 
 .empty .btn {
   margin-top: var(--s-2);
@@ -868,7 +879,7 @@
 }
 
 .detail__status { margin-top: 6px; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-2); }
-.detail__status--active { color: var(--ok-text); font-weight: 500; }
+.detail__status--active { color: var(--text-2); font-weight: 600; }
 .detail__section { display: grid; gap: var(--s-2); }
 .detail__h { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); font-weight: 600; font-family: var(--font-display); }
 .detail__desc { font-size: var(--text-sm); color: var(--text-2); white-space: pre-line; overflow-wrap: break-word; }
@@ -942,7 +953,7 @@
   color: var(--text-2);
 }
 
-.item__when--active { color: var(--ok-text); font-weight: 500; }
+.item__when--active { color: var(--text-2); font-weight: 600; }
 .item__when--past { color: var(--text-3); }
 
 .item__meta {
@@ -1302,6 +1313,41 @@
   font-size: var(--text-xs);
   color: var(--text-3);
 }
+
+/* Past the planning horizon: "werk na 21 oktober is nog niet aangemeld" — in the 'onbekend'
+   colours, the verdict for "not known", so it never reads as an all-clear. */
+.answer__horizon {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--s-2);
+  align-items: start;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-1);
+  border-left: 3px solid var(--v-onbekend);
+  background: color-mix(in srgb, var(--v-onbekend) 12%, var(--surface));
+  color: var(--v-onbekend-text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.answer__horizon svg { width: 16px; height: 16px; margin-top: 2px; color: var(--v-onbekend); }
+
+/* "Planning bekend tot 21 oktober" under both date inputs (when-control, forecast block). */
+.when__horizon {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.when__horizon[hidden] { display: none; }
+
+/* The stale-data warning above the answer (ui/stale-banner.ts). */
+.stale-banner { margin: 0; }
+.stale-banner .banner__title { font-weight: 600; line-height: 1.4; }
 
 @media (max-width: 768px) {
   .answer__top { grid-template-columns: auto minmax(0, 1fr); }

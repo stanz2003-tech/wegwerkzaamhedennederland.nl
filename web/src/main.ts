@@ -21,35 +21,35 @@ import './styles/panel.css';
 import './styles/app.css';
 
 import site from '../site.config.json';
-import { answerFor, areaSentence, hiddenSentence, type Answer } from './data/answer';
 import { clearDetailCache, loadDetail } from './data/detail';
 import { matchesRoad } from './data/entity';
 import { bboxIntersects, bboxOf, countByCategory, dedupeById, matchesQuery, midpointOf, sortItems, type BBox, type SortId } from './data/filter';
-import { liveAppliesAt, type ForecastItem, type When } from './data/forecast';
+import { liveAppliesAt } from './data/forecast';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
 import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
-import { DEFAULT_TIME_WINDOW, TIME_WINDOWS, isActiveAt, matchesTimeWindow, timeWindowRange, toMs } from './data/time';
+import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, toMs } from './data/time';
 import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
 import { itemDeepLink, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type UrlState } from './data/url-state';
 import { VERDICT_SEVERITY, modeNoun, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
 import { AppMap, NL_BOUNDS, NL_CENTER, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
 import { mountAnalytics } from './ui/analytics';
-import { renderAnswerCard } from './ui/answer-card';
 import { mountCategoryChips } from './ui/chips';
 import { mountSortSelect, mountSwitch } from './ui/controls';
 import { renderDetail } from './ui/detail';
-import { esc, fmtDayTime, fmtTime, formatCount, plural } from './ui/format';
+import { esc, fmtTime, formatCount, plural } from './ui/format';
 import { ICONS } from './ui/icons';
 import { mountLegend } from './ui/legend';
 import { mountList } from './ui/list';
 import { modelFromProps } from './ui/list-item';
 import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
+import { renderPanelSummary, renderRoadAnswer, type PanelAnswerEls } from './ui/panel-answer';
 import { mountSearch } from './ui/search';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
-import { liveStatusFromMeta, mountTopbar } from './ui/topbar';
+import { renderStaleBanner } from './ui/stale-banner';
+import { liveStatusFromMeta, mountTopbar, staleDataLabel, type LiveStatus } from './ui/topbar';
 import { mountWhenControl } from './ui/when-control';
 import { horizonMs } from './data/horizon';
 
@@ -91,11 +91,13 @@ let map: AppMap | null = null;
 let localItems: Promise<readonly IndexItem[]> | null = null;
 /** Set when road mode was entered before the map/data were ready: fit once they are. */
 let pendingRoadFit = false;
+/** Set when a text filter was typed (or came in the URL): fit the map to its matches once. */
+let pendingQueryFit = url.query !== '';
+let liveStatus: LiveStatus = { kind: 'loading' };
 
 /* ------------------------------------------------------------------ chrome */
 
 const topbar = mountTopbar();
-topbar.setLive({ kind: 'loading' });
 mountAnalytics();
 wireCmpLinks(() => showToast('Er worden nu geen advertenties of advertentiecookies gebruikt.'));
 
@@ -108,7 +110,17 @@ const listEl = el<HTMLElement>('[data-list]');
 const detailEl = el<HTMLElement>('[data-detail]');
 const summaryEl = el<HTMLElement>('[data-summary]');
 const answerEl = el<HTMLElement>('[data-answer]');
+const staleEl = el<HTMLElement>('[data-stale]');
 const hiddenBtn = el<HTMLButtonElement>('[data-hidden]');
+const answerEls: PanelAnswerEls = { panel: panelEl, answer: answerEl, summary: summaryEl, hiddenBtn };
+
+/** The data state everywhere it shows: the topbar pill, the banner above the answer, the card. */
+function setLive(status: LiveStatus): void {
+  liveStatus = status;
+  topbar.setLive(status);
+  renderStaleBanner(staleEl, status);
+}
+setLive({ kind: 'loading' });
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -132,19 +144,6 @@ function mapBounds(): BBox | null {
 /** The moment every verdict is computed for. */
 function momentAt(now: number): number {
   return url.moment ?? now;
-}
-
-/** The "Wanneer?" choice as the answer module sees it. */
-function whenFor(now: number): When {
-  if (url.moment !== null) return { kind: 'moment', at: url.moment };
-  if (url.time === 'nu') return { kind: 'moment', at: now };
-  const { from, to } = timeWindowRange(url.time, now);
-  return { kind: 'window', from, to };
-}
-
-function whenLabel(): string {
-  if (url.moment !== null) return fmtDayTime(url.moment);
-  return (TIME_WINDOWS.find((w) => w.id === url.time)?.label ?? 'nu').toLowerCase();
 }
 
 function inTime(p: ItemFeature['properties'], now: number): boolean {
@@ -188,48 +187,6 @@ function withVerdict(j: Judged): ItemFeature {
   return { ...j.f, properties: { ...j.f.properties, v: j.level } as ItemFeature['properties'] };
 }
 
-function asForecast(features: readonly ItemFeature[]): ForecastItem[] {
-  return features.map((f) => ({ f, d: null }));
-}
-
-function renderAnswer(roadItems: readonly ItemFeature[], now: number): void {
-  const road = url.road;
-  if (!road) {
-    answerEl.hidden = true;
-    answerEl.innerHTML = '';
-    panelEl.classList.remove('is-road');
-    return;
-  }
-  const answer: Answer = answerFor(asForecast(roadItems), url.mode, whenFor(now), { kind: 'road', name: road }, now, horizonMs());
-  const sample = roadItems.find((f) => f.properties.roadType);
-  answerEl.hidden = false;
-  panelEl.classList.add('is-road');
-  answerEl.innerHTML = renderAnswerCard({
-    road,
-    roadType: sample?.properties.roadType ?? null,
-    whenLabel: whenLabel(),
-    mode: url.mode,
-    answer,
-    total: roadItems.length,
-  });
-  answerEl.querySelector('[data-road-exit]')?.addEventListener('click', () => exitRoad());
-}
-
-function renderSummary(inView: readonly ItemFeature[], now: number, shown: number, total: number): void {
-  const answer = answerFor(asForecast(inView), url.mode, whenFor(now), { kind: 'gebied', name: '' }, now, horizonMs());
-  const text = url.road ? `${plural(total, 'melding', 'meldingen')} op de ${url.road} · ${whenLabel()}` : areaSentence(answer, url.mode, !hideNvt);
-  summaryEl.textContent = text;
-  summaryEl.title = shown < total ? `${text} — de eerste ${formatCount(shown)} staan in de lijst; zoom in of filter om te verfijnen.` : text;
-  const hidden = answer.hidden.length;
-  if (hideNvt && hidden > 0) {
-    hiddenBtn.hidden = false;
-    hiddenBtn.textContent = hiddenSentence(answer.hidden, url.mode);
-    hiddenBtn.title = 'Toon deze meldingen toch (vervaagd op de kaart)';
-  } else {
-    hiddenBtn.hidden = true;
-  }
-}
-
 /** Signature of the dataset handed to the map, so panning does not re-upload the GeoJSON. */
 let lastMapKey = '';
 
@@ -258,8 +215,10 @@ function render(): void {
     map?.setSelected(selected?.properties.id ?? null);
   }
 
-  // Outside road mode the list follows the viewport; in road mode it is the whole road.
-  const bounds = url.road ? null : mapBounds();
+  // Outside road mode the list follows the viewport; in road mode it is the whole road, and with
+  // a text filter it is every match: "Almkerk" typed with the camera on Amsterdam must not answer
+  // "In beeld: geen meldingen" while Almkerk has a closure (zoek-3).
+  const bounds = url.road || url.query ? null : mapBounds();
   const inView = bounds ? forMap.filter((j) => bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds)) : forMap;
   const ordered = sortItems(
     inView.map((j) => j.f),
@@ -274,23 +233,23 @@ function render(): void {
     ordered.sort((a, b) => (levelOf.get(a.properties.id) ?? 9) - (levelOf.get(b.properties.id) ?? 9));
   }
   const models = ordered.slice(0, LIST_MAX).map((f) => modelFromProps(f.properties));
-  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at });
+  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at, ...(url.query ? { emptyQuery: url.query } : {}) });
 
   // The sentence above the list counts what is in view including the items the relevance
   // switch hides, so it can say how many were hidden and for whom.
   const inViewAll = (cats ? judged.filter((j) => cats.has(j.f.properties.cat)) : judged).filter(
     (j) => !bounds || bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds),
   );
-  renderSummary(
-    inViewAll.map((j) => j.f),
-    now,
-    models.length,
-    ordered.length,
-  );
-  renderAnswer(cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now);
+  renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { shown: models.length, total: ordered.length }, hideNvt);
+  const dataAsOf = staleDataLabel(liveStatus, now);
+  renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
+    map.fitToFeatures(forMap.map((j) => j.f));
+  }
+  if (pendingQueryFit && map && url.query && forMap.length > 0) {
+    pendingQueryFit = false;
     map.fitToFeatures(forMap.map((j) => j.f));
   }
 }
@@ -317,7 +276,7 @@ function showFatal(message: string): void {
     <button type="button" class="btn btn--primary" data-retry>${ICONS.refreshCw}<span>Opnieuw proberen</span></button>`;
   mapErrorEl.querySelector('[data-retry]')?.addEventListener('click', () => void start(true));
   list.setError(message);
-  topbar.setLive({ kind: 'error' });
+  setLive({ kind: 'error' });
 }
 
 function clearFatal(): void {
@@ -333,6 +292,7 @@ function enterRoad(road: string, fit = true): void {
   const key = normalizeRoadParam(road) ?? road.trim().toUpperCase();
   if (!key) return;
   url = { ...url, road: key, query: '' };
+  pendingQueryFit = false;
   search.setQuery(key);
   if (selected) selectItem(null, false);
   pendingRoadFit = fit;
@@ -478,6 +438,14 @@ const list = mountList(listEl, {
   },
   onRetry: () => void start(true),
   onRoad: (road) => enterRoad(road),
+  onClearQuery: () => {
+    url = { ...url, query: '' };
+    pendingQueryFit = false;
+    search.setQuery('');
+    render();
+    syncUrl();
+    search.focus();
+  },
 });
 
 const chips = mountCategoryChips(el<HTMLElement>('[data-cats]'), (cats) => {
@@ -557,6 +525,7 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
       return;
     }
     url = { ...url, query: q };
+    pendingQueryFit = q !== '';
     render();
     syncUrl();
   },
@@ -647,7 +616,7 @@ async function start(retry = false): Promise<void> {
   if (retry) {
     clearFatal();
     list.setLoading();
-    topbar.setLive({ kind: 'loading' });
+    setLive({ kind: 'loading' });
   }
   try {
     const data = await loadStartData();
@@ -658,7 +627,8 @@ async function start(retry = false): Promise<void> {
     lastRefresh = Date.now();
     index();
     clearFatal();
-    topbar.setLive(liveStatusFromMeta(data.meta));
+    setLive(liveStatusFromMeta(data.meta));
+    when.setHorizon(horizonMs());
     topbar.setCounts(data.meta.counts);
     renderHomeCounts(data.meta);
     if (needsGepland()) void ensureGepland();
@@ -684,13 +654,19 @@ async function refresh(): Promise<void> {
     lastRefresh = Date.now();
     clearDetailCache();
     index();
-    topbar.setLive(liveStatusFromMeta(next.meta));
+    setLive(liveStatusFromMeta(next.meta));
+    when.setHorizon(horizonMs());
     topbar.setCounts(next.meta.counts);
     renderHomeCounts(next.meta);
     render();
     if (selected && !byId.has(selected.properties.id)) selectItem(null);
   } catch {
-    if (meta) topbar.setLive({ kind: 'stale', generated: meta.generated });
+    // One failed refresh is not stale data: judge the age of what we have, so the warning appears
+    // once it is really older than STALE_AFTER_MINUTES (owner decision: 30 minutes).
+    if (meta) {
+      setLive(liveStatusFromMeta(meta));
+      render();
+    }
   }
 }
 
@@ -711,7 +687,8 @@ async function boot(): Promise<void> {
       onSelect: (id) => selectItem(id, false),
       onHover: () => undefined,
       onMoveEnd: () => {
-        if (!url.road) render();
+        // Road mode and a text filter list everything they match, wherever the camera is.
+        if (!url.road && !url.query) render();
         syncUrl();
       },
       onBasemap: (kind) => {

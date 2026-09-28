@@ -10,8 +10,9 @@ import { slugify, type Meta } from '../data/types';
 import { mountAds, wireCmpLinks } from './ads';
 import { mountAnalytics } from './analytics';
 import { fmtDayTime } from './format';
+import { renderStaleBanner } from './stale-banner';
 import { showToast } from './toast';
-import { hydrateLivePill, mountTopbar, type Topbar } from './topbar';
+import { hydrateLivePill, liveStatusFromMeta, mountTopbar, staleDataLabel, type Topbar } from './topbar';
 
 const NO_CMP_TEXT = 'Op deze pagina staan geen advertenties, dus er zijn ook geen advertentiecookies om in te stellen.';
 
@@ -48,7 +49,31 @@ export function bootPage(): PageBoot {
         () => null,
       );
 
+  void meta.then(showStaleBanner);
   return { topbar, meta };
+}
+
+/** "20:17" when the loaded data is stale (for the answer card's "nu"); undefined otherwise. */
+export function dataAsOfLabel(meta: Meta | null): string | undefined {
+  return meta ? staleDataLabel(liveStatusFromMeta(meta)) : undefined;
+}
+
+/**
+ * On road and place pages: the stale-data warning directly above the answer (#entity-forecast),
+ * the same banner the map shows. Other pages have no "nu" answer to qualify and keep the pill.
+ */
+function showStaleBanner(meta: Meta | null): void {
+  const forecast = document.getElementById('entity-forecast');
+  if (!forecast?.parentElement) return;
+  let host = document.querySelector<HTMLElement>('[data-stale]');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'entity-stale';
+    host.dataset.stale = '';
+    host.hidden = true;
+    forecast.parentElement.insertBefore(host, forecast);
+  }
+  renderStaleBanner(host, meta ? liveStatusFromMeta(meta) : { kind: 'error' });
 }
 
 /* ------------------------- deep links into the FAQ ------------------------- */

@@ -4,7 +4,8 @@
  * `afsluitingen`, `files`, `vandaag` and `dit-weekend` are data-driven: they load the index
  * (plus live.geojson for the files page), filter by category and time window, and render the
  * result in batches. `wegen`, `plaatsen` and `bruggen` are fully pre-rendered by the generator;
- * there we only add live counts next to the existing links and never touch that markup itself.
+ * there we only add a small state label next to the existing links ("rijbaan dicht gemeld",
+ * "nu open") and never touch that markup itself.
  */
 import '../styles/base.css';
 import '../styles/chrome.css';
@@ -18,8 +19,9 @@ import { indexItemFromRow, loadIndexAll, rowsToItems, type IndexItem } from '../
 import { isIndexRow, loadBridges, loadLive } from '../data/load';
 import { MEDIUM_RUN_MS, toMs } from '../data/time';
 import { slugify, type BridgeEntry } from '../data/types';
+import type { VerdictLevel } from '../data/verdict';
 import { renderEntityList, renderEntityNotice, renderEntitySkeleton, type EntitySection } from '../ui/entity-list';
-import { esc, formatCount, plural } from '../ui/format';
+import { esc, fmtDayTime, formatCount, plural } from '../ui/format';
 import {
   BACKGROUND_TITLE,
   LIST_TITLES,
@@ -29,6 +31,7 @@ import {
   type ListCounts,
 } from '../ui/list-summary';
 import { bodyAttr, bootPage, setEmptyVisible, setText, stampUpdated } from '../ui/page-boot';
+import { roadStateHtml, worstActiveByKey } from '../ui/road-state';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
 
@@ -160,11 +163,17 @@ async function renderDataList(id: DataList): Promise<void> {
 
 /* ----------------------------- pre-rendered lists ---------------------------- */
 
-/** Adds `<span class="live-count">` to a link once; never rewrites the existing markup. */
-function addCount(a: HTMLAnchorElement, text: string, title: string): void {
-  if (a.dataset.liveCount === '1') return;
-  a.dataset.liveCount = '1';
-  a.insertAdjacentHTML('beforeend', ` <span class="live-count" title="${esc(title)}">${esc(text)}</span>`);
+/**
+ * Puts a small label NEXT TO a pre-rendered link, once. Never inside it: text inside the badge
+ * link ran on from the road number ("A1" + "29" read "A129"), and the link's own markup must stay
+ * exactly what the generator wrote.
+ */
+function addSiblingLabel(a: HTMLAnchorElement, html: string): void {
+  if (!html || a.dataset.stateLabel === '1') return;
+  a.dataset.stateLabel = '1';
+  a.insertAdjacentHTML('afterend', html);
+  // The badge rows lay their <li> out with `display: contents`; this keeps badge and label together.
+  a.parentElement?.classList.add('has-state');
 }
 
 function slugFromHref(href: string, prefix: string): string | null {
@@ -173,82 +182,58 @@ function slugFromHref(href: string, prefix: string): string | null {
   return rest === '' || rest.includes('/') ? null : rest;
 }
 
-function countActiveByRoad(rows: readonly IndexItem[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const it of rows) {
-    if (!it.active) continue;
-    const key = roadKey(it.road);
-    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return counts;
-}
-
-/** Counts keyed by both the normalised name and the slug, so either lookup works. */
-function countActiveByPlace(rows: readonly IndexItem[], pick: (it: IndexItem) => string | null): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const it of rows) {
-    if (!it.active) continue;
-    const name = pick(it);
-    if (!name) continue;
-    for (const key of [normalizeText(name), slugify(name)]) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
-
-function decorate(prefix: string, counts: ReadonlyMap<string, number>, keyOf: (slug: string, a: HTMLAnchorElement) => string | null): number {
-  let touched = 0;
+function decorate(prefix: string, worst: ReadonlyMap<string, VerdictLevel>, keyOf: (slug: string, a: HTMLAnchorElement) => string | null): void {
   document.querySelectorAll<HTMLAnchorElement>(`.list-groups a[href^="${prefix}"]`).forEach((a) => {
     const slug = slugFromHref(a.getAttribute('href') ?? '', prefix);
     if (!slug) return;
     const key = keyOf(slug, a);
-    const n = key ? (counts.get(key) ?? 0) : 0;
-    if (n <= 0) return;
-    addCount(a, formatCount(n), `${plural(n, 'melding', 'meldingen')} nu actief`);
-    touched += 1;
+    addSiblingLabel(a, roadStateHtml(key ? worst.get(key) : null));
   });
-  return touched;
 }
 
 async function decorateRoadsOrPlaces(id: 'wegen' | 'plaatsen'): Promise<void> {
   const index = await loadIndexAll();
   const rows = rowsToItems(index.rows);
+  const now = Date.now();
   if (id === 'wegen') {
-    const counts = countActiveByRoad(rows);
-    const n = decorate('/weg/', counts, (slug) => roadKey(slug));
-    if (n > 0) setText('list-summary', `Nu meldingen op ${plural(n, 'weg', 'wegen')}`);
+    const worst = worstActiveByKey(rows, (it) => {
+      const key = roadKey(it.road);
+      return key ? [key] : [];
+    }, now);
+    decorate('/weg/', worst, (slug) => roadKey(slug));
     return;
   }
-  const places = countActiveByPlace(rows, (it) => it.woonplaats);
-  const gemeenten = countActiveByPlace(rows, (it) => it.gemeente);
+  // Keyed by both the normalised name and the slug, so either lookup works.
+  const keysOfName = (name: string | null): string[] => (name ? [normalizeText(name), slugify(name)] : []);
+  const places = worstActiveByKey(rows, (it) => keysOfName(it.woonplaats), now);
+  const gemeenten = worstActiveByKey(rows, (it) => keysOfName(it.gemeente), now);
   const byText = (slug: string, a: HTMLAnchorElement): string => normalizeText(a.textContent ?? '') || slug;
-  const n =
-    decorate('/plaats/', places, (slug, a) => (places.has(byText(slug, a)) ? byText(slug, a) : slug)) +
-    decorate('/gemeente/', gemeenten, (slug, a) => (gemeenten.has(byText(slug, a)) ? byText(slug, a) : slug));
-  if (n > 0) setText('list-summary', `Nu meldingen in ${formatCount(n)} plaatsen en gemeenten`);
+  decorate('/plaats/', places, (slug, a) => (places.has(byText(slug, a)) ? byText(slug, a) : slug));
+  // The gemeente link reads "Alle werkzaamheden in de gemeente X": look it up by its slug.
+  decorate('/gemeente/', gemeenten, (slug, a) => (a.dataset.gemeente ? normalizeText(a.dataset.gemeente) : slug));
+}
+
+/** "nu open" or "volgende opening do 1 okt 10:30" next to a bridge link; nothing without either. */
+function bridgeLabel(entry: BridgeEntry, now: number): string {
+  if (entry.openNow) return '<span class="road-state road-state--brug">nu open</span>';
+  const next = (entry.openings ?? []).map(([start]) => toMs(start)).find((ms) => Number.isFinite(ms) && ms > now);
+  return next === undefined ? '' : `<span class="road-state road-state--plain">volgende opening ${esc(fmtDayTime(next))}</span>`;
 }
 
 async function decorateBridges(): Promise<void> {
   const file = await loadBridges();
   const bySlug = new Map<string, BridgeEntry>();
   for (const b of file.bridges) bySlug.set(b.slug, b);
+  const now = Date.now();
   let open = 0;
   let planned = 0;
   document.querySelectorAll<HTMLAnchorElement>('.list-groups a[href^="/brug/"]').forEach((a) => {
     const slug = slugFromHref(a.getAttribute('href') ?? '', '/brug/');
     const entry = slug ? bySlug.get(slug) : undefined;
     if (!entry) return;
-    if (entry.openNow) {
-      open += 1;
-      addCount(a, 'nu open', 'Deze brug staat op dit moment open');
-      return;
-    }
-    const count = entry.openings?.length ?? 0;
-    if (count > 0) {
-      planned += 1;
-      addCount(a, formatCount(count), `${plural(count, 'geplande opening', 'geplande openingen')} in de komende 7 dagen`);
-    }
+    if (entry.openNow) open += 1;
+    else if ((entry.openings?.length ?? 0) > 0) planned += 1;
+    addSiblingLabel(a, bridgeLabel(entry, now));
   });
   if (open > 0 || planned > 0) {
     const parts: string[] = [];
@@ -263,8 +248,8 @@ async function renderPrerendered(id: PrerenderedList): Promise<void> {
     if (id === 'bruggen') await decorateBridges();
     else await decorateRoadsOrPlaces(id);
   } catch (err) {
-    // The page is complete without the counts; stay quiet.
-    console.warn('[wegwerk] live aantallen niet toegevoegd:', err instanceof Error ? err.message : String(err));
+    // The page is complete without the hints; stay quiet.
+    console.warn('[wegwerk] actuele stand niet toegevoegd:', err instanceof Error ? err.message : String(err));
   }
 }
 

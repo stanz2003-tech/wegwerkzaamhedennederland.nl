@@ -3,7 +3,7 @@
  * the chosen moment, one big verdict line for the chosen mode, at most three specifics and a
  * prominent "× Alle wegen" that leaves road mode. Also used as the headline of /weg/<slug>/.
  */
-import type { Answer } from '../data/answer';
+import { BEYOND_HORIZON_HEADLINE, horizonDateLabel, type Answer } from '../data/answer';
 import type { RoadType } from '../data/types';
 import { VERDICT_META, type VehicleMode, type VerdictLevel } from '../data/verdict';
 import { roadBadge } from './badge';
@@ -24,12 +24,33 @@ export interface AnswerCardModel {
   total: number;
   /** Omit the exit button (entity page headline). */
   exit?: boolean;
+  /**
+   * Set while the data is older than it should be ("20:17" / "wo 23 sep 21:31"): an answer for
+   * "nu" then names the moment it really describes, so it cannot pass for the current situation.
+   */
+  dataAsOf?: string;
 }
 
 const MODE_LABEL: Record<VehicleMode, string> = { auto: "voor auto's", vracht: 'voor vrachtverkeer', fiets: 'voor fietsers' };
 
 function levelOf(a: Answer): VerdictLevel {
   return a.level ?? 'geen';
+}
+
+/**
+ * Past the planning horizon a non-empty answer is true for what IS published, but more work for
+ * that date may still be announced. Without this line "Rijbaan dicht bij Gorinchem" for a date
+ * seven weeks out read exactly as sure as today's answer. The empty case already says
+ * "Nog niet bekend" with its own note.
+ */
+function horizonLine(a: Answer): string {
+  if (!a.beyondHorizon || a.horizonMs === null || a.headline === BEYOND_HORIZON_HEADLINE) return '';
+  return `<p class="answer__horizon">${ICONS.info}<span>Let op: werk na ${esc(horizonDateLabel(a.horizonMs))} is nog niet aangemeld. Hierboven staat alleen wat nu al bekend is; er kan meer dicht zijn.</span></p>`;
+}
+
+function modeLine(m: AnswerCardModel): string {
+  const when = m.dataAsOf && m.whenLabel === 'nu' ? `nu (gegevens van ${m.dataAsOf})` : m.whenLabel;
+  return `${MODE_LABEL[m.mode]} · ${when}`;
 }
 
 export function renderAnswerCard(m: AnswerCardModel): string {
@@ -48,12 +69,13 @@ export function renderAnswerCard(m: AnswerCardModel): string {
       <div class="answer__top">
         ${m.road ? roadBadge(m.road, m.roadType ?? null, { size: 'xl' }) : ''}
         <div class="answer__q">
-          <p class="answer__kicker">${question} <span class="answer__mode">${esc(MODE_LABEL[m.mode])} · ${esc(m.whenLabel)}</span></p>
+          <p class="answer__kicker">${question} <span class="answer__mode">${esc(modeLine(m))}</span></p>
         </div>
         ${m.exit === false ? '' : `<button type="button" class="btn btn--secondary answer__exit" data-road-exit aria-label="Alle wegen tonen">${ICONS.x}<span>Alle wegen</span></button>`}
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}
+      ${horizonLine(m.answer)}
       ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
     </section>`;
 }

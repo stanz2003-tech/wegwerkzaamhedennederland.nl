@@ -7,7 +7,7 @@
  */
 import type { IndexItem } from '../data/index';
 import type { Category, Hindrance, Impact, ItemProperties, RoadType, Vehicle } from '../data/types';
-import { cleanVehicles, isImpact, verdictFor, type VehicleMode } from '../data/verdict';
+import { cleanVehicles, isImpact, verdictFor, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
 import { isLongRunning } from '../data/time';
@@ -124,18 +124,25 @@ export function sectionOf(m: Pick<ListItemModel, 'title' | 'road'>): string {
   return m.title;
 }
 
+/**
+ * The verdict a row's pill shows. Exported so a list can order or batch its rows by exactly the
+ * pill the reader will see, never by a verdict computed some other way.
+ */
+export function listItemVerdict(m: ListItemModel, now: number, opts: ListItemOptions = {}): Verdict {
+  return verdictFor(m, opts.mode ?? 'auto', {
+    periods: opts.periods ?? null,
+    ...(opts.tl ? { tl: opts.tl } : {}),
+    ...(opts.tlTo ? { tlTo: opts.tlTo } : {}),
+    ...(opts.window ? { window: opts.window } : { now: opts.at ?? now }),
+    ...(opts.to ? { to: opts.to } : {}),
+  });
+}
+
 export function renderListItem(m: ListItemModel, now: number, opts: ListItemOptions = {}): string {
   const meta = CATEGORY_META[m.cat];
   const span = { start: m.start, end: m.end };
   const status = statusLine(span, now);
-  const at = opts.at ?? now;
-  const verdict = verdictFor(m, opts.mode ?? 'auto', {
-    periods: opts.periods ?? null,
-    ...(opts.tl ? { tl: opts.tl } : {}),
-    ...(opts.tlTo ? { tlTo: opts.tlTo } : {}),
-    ...(opts.window ? { window: opts.window } : { now: at }),
-    ...(opts.to ? { to: opts.to } : {}),
-  });
+  const verdict = listItemVerdict(m, now, opts);
 
   const where: string[] = [];
   if (opts.from && opts.to) where.push(`${opts.from} → ${opts.to}`);

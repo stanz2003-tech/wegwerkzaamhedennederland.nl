@@ -1041,6 +1041,60 @@
 }
 
 /* ---------------------------------------------------------------------------------------- */
+/* State label next to a link on /wegen/, /plaatsen/, /bruggen/ (pages/list.ts, road-state.ts) */
+/*                                                                                           */
+/* Always a sibling of the link, never inside it: a count inside the badge read "A129". The   */
+/* dot uses the verdict tokens of VERDICT_META, so the colour means what it means everywhere. */
+/* ---------------------------------------------------------------------------------------- */
+
+.road-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: var(--s-1);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+  color: var(--text-2);
+}
+
+.road-state::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--road-state-dot, var(--text-3));
+}
+
+.road-state--dicht { --road-state-dot: var(--v-dicht); }
+.road-state--rijbaan { --road-state-dot: var(--v-rijbaan); }
+.road-state--brug { --road-state-dot: var(--c-brug); }
+
+/* Badge rows lay their <li> out with `display: contents`; a labelled one becomes a small
+   inline group so the label wraps together with its own badge, never under a neighbour's. */
+.page .chips li.has-state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px var(--s-1);
+  margin-right: var(--s-2);
+}
+
+.page .chips li.has-state .road-state { margin-left: 0; }
+
+/* Bridge cards: the label sits under the card text, aligned with it. */
+.entity-links li.has-state {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.entity-links li.has-state .road-state { margin-left: var(--s-3); }
+
+.place-group__body p .road-state { margin-left: var(--s-2); }
+
+/* ---------------------------------------------------------------------------------------- */
 /* Small screens                                                                            */
 /* ---------------------------------------------------------------------------------------- */
 

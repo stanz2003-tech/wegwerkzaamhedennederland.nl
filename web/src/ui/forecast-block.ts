@@ -6,8 +6,8 @@
  *
  * The block owns its state (mode, selection) and tells the page what to list via `onChange`.
  */
-import { answerFor, type AnswerSubject } from '../data/answer';
-import { dayStrip, itemsForCell, relativeDayLabel, selectAtMoment, type DayCell, type ForecastItem, type When } from '../data/forecast';
+import { answerFor, horizonDateLabel, type AnswerSubject } from '../data/answer';
+import { dayStrip, relativeDayLabel, selectAtMoment, selectInWindow, type DayCell, type ForecastItem, type When } from '../data/forecast';
 import { MS } from '../data/time';
 import { formatLocalDateTime, parseLocalDateTime } from '../data/url-state';
 import { VERDICT_META, countsLine, type VehicleMode } from '../data/verdict';
@@ -46,6 +46,8 @@ export interface ForecastBlockOptions {
   mode: VehicleMode;
   /** Initial exact moment (from `?t=`), if any. */
   moment?: number | null;
+  /** "20:17" while the data is stale (see AnswerCardModel.dataAsOf); omit when it is current. */
+  dataAsOf?: string;
   now?: () => number;
   onChange(state: ForecastState): void;
 }
@@ -82,19 +84,25 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
       <label class="forecast__date-label" for="fc-input">${ICONS.calendarClock}<span>Andere datum…</span></label>
       <input id="fc-input" class="forecast__input" type="datetime-local" step="300" />
       <button type="button" class="forecast__clear" data-fc-clear aria-label="Datum wissen" hidden>${ICONS.x}</button>
-    </div>`;
+    </div>
+    <p class="when__horizon forecast__horizon" id="fc-horizon" hidden></p>`;
   const modeEl = root.querySelector<HTMLElement>('[data-fc-mode]');
   const answerEl = root.querySelector<HTMLElement>('[data-fc-answer]');
   const stripEl = root.querySelector<HTMLElement>('[data-fc-strip]');
   const input = root.querySelector<HTMLInputElement>('#fc-input');
   const clear = root.querySelector<HTMLButtonElement>('[data-fc-clear]');
-  if (!modeEl || !answerEl || !stripEl || !input || !clear) throw new Error('forecast markup ontbreekt');
+  const horizonEl = root.querySelector<HTMLElement>('#fc-horizon');
+  if (!modeEl || !answerEl || !stripEl || !input || !clear || !horizonEl) throw new Error('forecast markup ontbreekt');
+  input.setAttribute('aria-describedby', 'fc-horizon');
 
   const state = (): ForecastState => {
     const now = nowFn();
     const at = selection.kind === 'moment' ? selection.at : selection.kind === 'day' ? Math.max(selection.cell.from, now) : now;
     let listed: ForecastItem[] | null = null;
-    if (selection.kind === 'day') listed = itemsForCell(items, selection.cell);
+    // The same call dayStrip makes for the cell, so list and strip always hold the same items —
+    // but worst first. In input order the day's closures sat under 22 "Doorrijden mogelijk" rows,
+    // most of them behind "Toon meer" (vooruit-1).
+    if (selection.kind === 'day') listed = selectInWindow(items, mode, Math.max(selection.cell.from, now), selection.cell.to, now).items.map((x) => x.item);
     if (selection.kind === 'moment') listed = selectAtMoment(items, mode, selection.at, now).items.map((x) => x.item);
     const window = selection.kind === 'day' ? { from: Math.max(selection.cell.from, now), to: selection.cell.to } : undefined;
     return { mode, selection, at, ...(window ? { window } : {}), items: listed, whenLabel: whenLabelOf(selection, now) };
@@ -112,6 +120,7 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
       answer,
       total: items.length,
       exit: false,
+      ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
     });
   };
 
@@ -148,10 +157,19 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
     }
   };
 
+  // Always visible when known: how far ahead the planning reaches, before anyone picks a date
+  // past it (vooruit-5). No min/max on the input — looking further stays possible.
+  const renderHorizon = (): void => {
+    const until = horizonMs();
+    horizonEl.hidden = until === undefined;
+    horizonEl.textContent = until === undefined ? '' : `Planning bekend tot ${horizonDateLabel(until)}`;
+  };
+
   const renderAll = (): void => {
     renderAnswer();
     renderStrip();
     renderDate();
+    renderHorizon();
   };
 
   const emit = (): void => {
