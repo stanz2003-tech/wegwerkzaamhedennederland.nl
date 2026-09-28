@@ -176,3 +176,98 @@ describe('splitFeatures', () => {
     assert.equal(points.features[0].id, 'x');
   });
 });
+
+/* ----------------------- clusters: coloured by the worst verdict ----------------------- */
+
+/**
+ * A tiny evaluator for the expression subset the cluster specs use (get, coalesce, match, max),
+ * so the tests can assert what MapLibre will compute without a browser.
+ */
+function evaluate(expr, props) {
+  if (!Array.isArray(expr)) return expr;
+  const [op, ...args] = expr;
+  if (op === 'get') return props[args[0]] ?? null;
+  if (op === 'coalesce') {
+    for (const a of args) {
+      const v = evaluate(a, props);
+      if (v !== null && v !== undefined) return v;
+    }
+    return null;
+  }
+  if (op === 'match') {
+    const input = evaluate(args[0], props);
+    for (let i = 1; i < args.length - 1; i += 2) if (args[i] === input) return evaluate(args[i + 1], props);
+    return evaluate(args.at(-1), props);
+  }
+  throw new Error(`unsupported op ${op}`);
+}
+
+const { verdict: verdictMod, categories: categoriesMod } = await import('./helpers/src.mjs');
+const { CLUSTER_HEX } = categoriesMod;
+
+function contrast(a, b) {
+  const lum = (h) => {
+    const [r, g, bl] = [1, 3, 5].map((i) => {
+      const c = parseInt(h.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+describe('cluster worst verdict', () => {
+  const src = layers.pointSourceSpec({ type: 'FeatureCollection', features: [] }, true);
+  const [agg, rankExpr] = src.clusterProperties.worst;
+  const rank = (v) => evaluate(rankExpr, v === undefined ? {} : { v });
+
+  it('aggregates the rank with max, so the heaviest verdict in a cluster wins', () => {
+    assert.equal(agg, 'max');
+    assert.deepEqual(rankExpr[1], ['get', 'v'], 'reads the v property that main.ts withVerdict sets');
+  });
+
+  it('ranks follow VERDICT_SEVERITY: every level is heavier than the ones after it', () => {
+    const order = verdictMod.VERDICT_SEVERITY; // worst first
+    for (let i = 0; i + 1 < order.length; i++) {
+      assert.ok(rank(order[i]) > rank(order[i + 1]), `${order[i]} must outrank ${order[i + 1]}`);
+    }
+  });
+
+  it('a missing or unknown v counts as onbekend (3), never lighter', () => {
+    assert.equal(rank(undefined), 3);
+    assert.equal(rank('iets-nieuws'), 3);
+    assert.equal(rank('onbekend'), 3);
+    assert.ok(rank(undefined) > rank('geen'), 'a cluster must not turn green because an item had no verdict');
+  });
+
+  it('is not part of the unclustered source', () => {
+    const plain = layers.pointSourceSpec({ type: 'FeatureCollection', features: [] }, false);
+    assert.equal(plain.clusterProperties, undefined);
+  });
+
+  for (const theme of THEMES) {
+    const byId = new Map(specs(theme, true).map((l) => [l.id, l]));
+    const fill = byId.get(LAYERS.clusters).paint['circle-color'];
+    const text = byId.get(LAYERS.clusterCount).paint['text-color'];
+
+    it(`${theme}: the circle and the count are coloured by the worst property`, () => {
+      assert.equal(fill[0], 'match');
+      assert.ok(JSON.stringify(fill[1]).includes('"worst"'), 'circle-color reads worst');
+      assert.ok(JSON.stringify(text[1]).includes('"worst"'), 'text-color reads worst');
+      for (const level of ['dicht', 'rijbaan', 'hinder', 'onbekend', 'geen', 'nvt']) {
+        const props = { worst: rank(level) };
+        assert.equal(evaluate(fill, props), CLUSTER_HEX[theme][level].fill, `${level} fill`);
+        assert.equal(evaluate(text, props), CLUSTER_HEX[theme][level].text, `${level} text`);
+      }
+      assert.equal(evaluate(fill, {}), CLUSTER_HEX[theme].onbekend.fill, 'no worst → onbekend colour');
+    });
+
+    it(`${theme}: every cluster count is readable on its fill (≥ 4.5:1)`, () => {
+      for (const [level, { fill: f, text: t }] of Object.entries(CLUSTER_HEX[theme])) {
+        const c = contrast(t, f);
+        assert.ok(c >= 4.5, `${theme} ${level}: ${t} on ${f} = ${c.toFixed(2)}:1`);
+      }
+    });
+  }
+});

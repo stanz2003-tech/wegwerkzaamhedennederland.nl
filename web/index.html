@@ -89,7 +89,6 @@
         <span class="brand__sub">Nederland</span>
       </a>
       <p class="topbar__tagline">Alle wegwerkzaamheden van Nederland op één kaart</p>
-      <div class="topbar__counters" data-counters hidden aria-label="Actieve meldingen per categorie"></div>
       <span class="live" data-live hidden></span>
       <nav class="topbar__nav" id="topbar-nav" data-nav aria-label="Hoofdnavigatie">
         <ul>
@@ -150,8 +149,11 @@
               <div data-relevant></div>
               <button type="button" class="panel__hidden" data-hidden hidden></button>
             </div>
+            <!-- The one live region of the page (ui/announce.ts): a short answer after a user action,
+                 never the list or the counts, and never after panning or the 90 s refresh (toeg-1). -->
+            <p class="sr-only" role="status" data-announce></p>
             <div class="panel__bar">
-              <p class="panel__summary" data-summary aria-live="polite">Meldingen worden geladen…</p>
+              <p class="panel__summary" data-summary>Meldingen worden geladen…</p>
               <div class="panel__tools">
                 <div data-sort></div>
                 <div data-legend></div>
@@ -180,7 +182,7 @@
               <article class="home__card">
                 <h2 class="home__card-title">Zo lees je de kaart</h2>
                 <ul class="home__pills" aria-label="Betekenis van de kleuren">
-                  <li><span class="vpill vpill--dicht vpill--sm" style="--vpill-color: var(--v-dicht)"><span class="vpill__dot" aria-hidden="true"></span>Weg dicht</span><span>Je kunt er niet langs; volg de omleiding. Op de kaart rood met witte streepjes.</span></li>
+                  <li><span class="vpill vpill--dicht vpill--sm" style="--vpill-color: var(--v-dicht)"><span class="vpill__icon" aria-hidden="true"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>Weg dicht</span><span>Je kunt er niet langs; volg de omleiding. Op de kaart rood met witte streepjes.</span></li>
                   <li><span class="vpill vpill--rijbaan vpill--sm" style="--vpill-color: var(--v-rijbaan)"><span class="vpill__dot" aria-hidden="true"></span>Rijbaan dicht</span><span>Eén rijbaan of richting is dicht; de andere kant is meestal open.</span></li>
                   <li><span class="vpill vpill--hinder vpill--sm" style="--vpill-color: var(--v-hinder)"><span class="vpill__dot" aria-hidden="true"></span>Doorrijden mogelijk</span><span>Je kunt er langs, met minder rijstroken, een lagere snelheid of wat vertraging.</span></li>
                   <li><span class="vpill vpill--geen vpill--sm" style="--vpill-color: var(--v-geen)"><span class="vpill__dot" aria-hidden="true"></span>Geen hinder</span><span>Gemeld, maar zonder merkbaar gevolg voor het verkeer.</span></li>

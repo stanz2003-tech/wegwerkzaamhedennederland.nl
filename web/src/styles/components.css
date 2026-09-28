@@ -511,42 +511,6 @@
 /* The phone-only short text ("Niet actueel · 20:17"); chrome.css shows it on small screens. */
 .live__short { display: none; }
 
-/* ------------------------------------------------------------------ category counters */
-.count {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--chrome-text);
-  font-size: var(--text-sm);
-  text-decoration: none;
-  padding: 4px 6px;
-  border-radius: var(--r-1);
-  opacity: 0.9;
-}
-
-.count:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.count__dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--count-color);
-}
-
-.count__n {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-}
-
-.count__label {
-  color: rgba(247, 244, 236, 0.7);
-  font-size: var(--text-xs);
-}
-
 /* ------------------------------------------------------------------ toast */
 .toast {
   position: fixed;
@@ -967,8 +931,9 @@
 
 .item__meta > svg { width: 14px; height: 14px; color: var(--tag-color); flex: none; }
 .item__meta .tag--long { margin-left: 2px; }
-.detail__badge { display: inline-flex; padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--r-2); }
-.detail__badge:hover .badge { box-shadow: 0 0 0 2px var(--accent); }
+/* "Alleen de A27 bekijken": the keyboard- and screen-reader route to road mode (toeg-13). */
+.detail__road { justify-self: start; min-height: var(--touch); gap: var(--s-2); }
+.detail__road-badge { display: inline-flex; }
 
 /* ------------------------------------------------------------------ verdict pills & banner */
 /* The verdict is the first thing on every row, in the legend and on the day strip. Text sits
@@ -1009,12 +974,32 @@
 .vpill--nvt { --vpill-text: var(--v-nvt-text); }
 .vpill--onbekend { --vpill-text: var(--v-onbekend-text); }
 
-/* Closed = the road-sign look: filled, white text. */
+/* Closed = the road-sign look: filled. The fill has its own token (not the map colour) so the
+   text reaches 4.5:1 in both themes: white on dark red in light, near-black on light red in dark
+   (toeg-2, tokens.css). The two closed levels also differ without colour: "Weg dicht" carries a
+   cross instead of the dot, "Rijbaan dicht" the barrier stripe in its dot. */
 .vpill--dicht,
 .vpill--rijbaan {
-  background: var(--vpill-color);
-  border-color: var(--vpill-color);
-  --vpill-text: #ffffff;
+  --vpill-text: var(--v-closed-on);
+}
+
+.vpill--dicht { background: var(--v-dicht-fill); border-color: var(--v-dicht-fill); }
+.vpill--rijbaan { background: var(--v-rijbaan-fill); border-color: var(--v-rijbaan-fill); }
+
+.vpill__icon {
+  display: inline-flex;
+  flex: none;
+  margin-inline: -1px;
+}
+
+.vpill__icon svg { width: 12px; height: 12px; stroke-width: 3.25; }
+.vpill--lg .vpill__icon svg { width: 14px; height: 14px; }
+
+.vpill--rijbaan .vpill__dot {
+  width: 10px;
+  height: 10px;
+  background: repeating-linear-gradient(135deg, var(--geel) 0 2px, var(--geel-ink) 2px 4px);
+  box-shadow: 0 0 0 1.5px var(--v-closed-on);
 }
 
 .vpill--nvt { border-style: dashed; }
@@ -1037,7 +1022,11 @@
 
 .item[data-verdict='nvt'] .item__verdict-detail,
 .item[data-verdict='nvt'] .item__title { color: var(--text-2); }
-.item[data-verdict='nvt'] { opacity: 0.8; }
+/* Faded, but the pill keeps its full contrast: the opacity sat on the whole row and took
+   "Geldt niet voor auto's" down to 3.5:1 (toeg-2). The pill's dashed border already says "faded".
+   Only the --text-2 lines fade (still ≥ 4.5:1); the --text-3 meta line would drop below it. */
+.item[data-verdict='nvt'] .item__where,
+.item[data-verdict='nvt'] .item__verdict-detail { opacity: 0.8; }
 
 /* Detail banner: full width, verdict colour on the left, label big. */
 .vbanner {
@@ -1201,13 +1190,31 @@
   flex: none;
 }
 
-.legend__line {
-  display: inline-block;
+/* Map line per verdict level (legend.ts). "Weg dicht" carries the white dash the map draws on
+   it; "geldt niet voor jou" is faded as on the map (NVT_OPACITY in map/layers.ts is 0.25, a bit
+   more here so the swatch stays visible at this size). */
+.legend__vline {
+  position: relative;
+  flex: none;
   width: 26px;
-  height: 0;
-  margin-top: 7px;
-  border-top: 3px dashed var(--v-dicht);
+  height: 5px;
+  border-radius: 3px;
+  background: var(--legend-color);
 }
+
+.legend__vline--dicht {
+  height: 6px;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 3px, #ffffff 3px 6px) center / 100% 2px no-repeat,
+    var(--legend-color);
+}
+
+.legend__vline--rijbaan { height: 6px; }
+.legend__vline--geen,
+.legend__vline--nvt { height: 3px; }
+.legend__vline--nvt { opacity: 0.45; }
+
+.legend__note { color: var(--text-3); }
 
 /* ------------------------------------------------------------------ answer card */
 /* "Kan ik over de A27?" — road mode in the panel and the headline of every road / gemeente page

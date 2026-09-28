@@ -45,13 +45,15 @@ export interface DetailState {
   mode: VehicleMode;
   /** The moment the verdict is asked for (the "Wanneer?" choice); defaults to now. */
   at?: number;
+  /** The road the app is already showing on its own (`?weg=`); "Alleen de A27 bekijken" is then moot. */
+  roadMode?: string | null;
 }
 
 export interface DetailCallbacks {
   onBack(): void;
   onShare(): void;
   onRetry(): void;
-  /** Road badge clicked: enter road mode. */
+  /** "Alleen de A27 bekijken" clicked: enter road mode. */
   onRoad?(road: string): void;
 }
 
@@ -192,9 +194,14 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   if (p.road) links.push(`<a class="btn btn--link" href="/weg/${esc(slugify(p.road))}/">${ICONS.milestone}<span>Wegpagina ${esc(p.road)}</span></a>`);
   if (p.gemeente) links.push(`<a class="btn btn--link" href="/gemeente/${esc(slugify(p.gemeente))}/">${ICONS.mapPin}<span>Gemeente ${esc(p.gemeente)}</span></a>`);
 
-  const badge = p.road
-    ? `<button type="button" class="item__badge detail__badge" data-road="${esc(p.road)}" title="Alleen de ${esc(p.road)} tonen">${roadBadge(p.road, p.roadType, { size: 'xl', place: p.woonplaats ?? p.gemeente })}</button>`
-    : roadBadge(p.road, p.roadType, { size: 'xl', place: p.woonplaats ?? p.gemeente });
+  const badge = roadBadge(p.road, p.roadType, { size: 'xl', place: p.woonplaats ?? p.gemeente });
+  // A visible, focusable button instead of a clickable badge with only a title: the badge route to
+  // "alleen deze weg" worked for a mouse and for nobody else (toeg-13). The small badge inside is
+  // decoration; the button's name is its text.
+  const onlyRoad =
+    p.road && cb.onRoad && p.road.toUpperCase() !== (state.roadMode ?? '').toUpperCase()
+      ? `<button type="button" class="btn btn--secondary detail__road" data-road="${esc(p.road)}"><span class="detail__road-badge" aria-hidden="true">${roadBadge(p.road, p.roadType, { size: 'sm' })}</span><span>Alleen de ${esc(p.road)} bekijken</span></button>`
+      : '';
 
   root.innerHTML = `<article class="detail" data-cat="${p.cat}" data-verdict="${verdict.level}" aria-labelledby="detail-title">
       <div class="detail__top">
@@ -217,6 +224,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
           <p class="detail__status detail__status--${status.kind}">${esc(status.text)}</p>
         </div>
       </header>
+      ${onlyRoad}
       ${timeline(p, now)}
       ${
         state.loading
@@ -251,7 +259,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   root.querySelector('[data-back]')?.addEventListener('click', () => cb.onBack());
   root.querySelector('[data-share]')?.addEventListener('click', () => cb.onShare());
   root.querySelector('[data-retry]')?.addEventListener('click', () => cb.onRetry());
-  root.querySelector<HTMLElement>('.detail__badge[data-road]')?.addEventListener('click', (e) => {
+  root.querySelector<HTMLElement>('.detail__road[data-road]')?.addEventListener('click', (e) => {
     const road = (e.currentTarget as HTMLElement).dataset.road;
     if (road && cb.onRoad) cb.onRoad(road);
   });

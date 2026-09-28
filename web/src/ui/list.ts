@@ -1,9 +1,14 @@
 /**
  * The result list: batches of 40 with "Toon meer", skeleton while loading, empty state with a
- * reset action, error banner with retry. Items are buttons (keyboard: arrows move between them).
+ * reset action, error banner with retry. Items are buttons (keyboard: arrows move between them);
+ * the open one carries `aria-current`, not `aria-pressed` — a row opens the details, it is no
+ * toggle, and "schakelknop, niet ingedrukt" on every row said otherwise (toeg-13).
+ *
+ * The list is NOT a live region: re-rendered on every pan, it made screen readers read thousands
+ * of characters (toeg-1). ui/announce.ts speaks the short answer after a user action instead.
  */
 import type { VehicleMode } from '../data/verdict';
-import { esc, plural } from './format';
+import { esc, formatCount, plural } from './format';
 import { ICONS } from './icons';
 import { renderListItem, type ListItemModel } from './list-item';
 
@@ -42,6 +47,17 @@ export interface ListRenderOptions {
    * suggestion as a button above "Zoekopdracht wissen". Nothing sets it yet.
    */
   didYouMean?: DidYouMean;
+  /**
+   * How many items matched before the caller capped the models it passes (main.ts: 800). When
+   * larger than the items given, a visible line under the list says that the rest is missing.
+   */
+  total?: number;
+}
+
+/** "Je ziet de eerste 800 van 1.234 meldingen. …" — or '' when nothing was cut off. */
+export function capLine(shown: number, total: number | undefined): string {
+  if (total === undefined || total <= shown) return '';
+  return `Je ziet de eerste ${formatCount(shown)} van ${plural(total, 'melding', 'meldingen')}. Zoom in of zoek een weg om de rest te zien.`;
 }
 
 export interface ListView {
@@ -58,7 +74,6 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
   root.classList.add('list');
   root.setAttribute('role', 'region');
   root.setAttribute('aria-label', 'Meldingen');
-  root.setAttribute('aria-live', 'polite');
   root.setAttribute('aria-busy', 'false');
 
   let items: readonly ListItemModel[] = [];
@@ -120,7 +135,8 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
         </div>`;
       return;
     }
-    root.innerHTML = `<div class="list__items"></div><button type="button" class="btn btn--ghost list__more" hidden></button>`;
+    const cap = capLine(items.length, renderOpts.total);
+    root.innerHTML = `<div class="list__items"></div><button type="button" class="btn btn--ghost list__more" hidden></button>${cap ? `<p class="list__cap">${esc(cap)}</p>` : ''}`;
     shown = 0;
     renderMore();
   };
@@ -213,7 +229,8 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
       root.querySelectorAll<HTMLElement>('.item[data-id]').forEach((el) => {
         const on = el.dataset.id === id;
         el.classList.toggle('is-selected', on);
-        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        if (on) el.setAttribute('aria-current', 'true');
+        else el.removeAttribute('aria-current');
       });
     },
     focusItem(id) {

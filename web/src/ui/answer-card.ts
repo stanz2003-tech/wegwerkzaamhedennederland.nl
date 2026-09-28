@@ -48,18 +48,40 @@ function horizonLine(a: Answer): string {
   return `<p class="answer__horizon">${ICONS.info}<span>Let op: werk na ${esc(horizonDateLabel(a.horizonMs))} is nog niet aangemeld. Hierboven staat alleen wat nu al bekend is; er kan meer dicht zijn.</span></p>`;
 }
 
+/** "nu", or "nu (gegevens van 20:17)" while the data is stale. */
+function whenText(m: AnswerCardModel): string {
+  return m.dataAsOf && m.whenLabel === 'nu' ? `nu (gegevens van ${m.dataAsOf})` : m.whenLabel;
+}
+
 function modeLine(m: AnswerCardModel): string {
-  const when = m.dataAsOf && m.whenLabel === 'nu' ? `nu (gegevens van ${m.dataAsOf})` : m.whenLabel;
-  return `${MODE_LABEL[m.mode]} · ${when}`;
+  return `${MODE_LABEL[m.mode]} · ${whenText(m)}`;
+}
+
+/**
+ * The headline the card shows. `level === null` means the selection was empty within the data we
+ * have; `'onbekend'` with an empty selection means the question was about a date the dataset does
+ * not reach yet. The second must not borrow the reassuring wording of the first.
+ */
+export function cardHeadline(m: Pick<AnswerCardModel, 'answer' | 'total'>): string {
+  return m.answer.level === null ? (m.total === 0 ? 'Niets gemeld' : 'Geen hinder gemeld') : m.answer.headline;
+}
+
+/**
+ * What a screen reader hears after the user changes the question (ui/announce.ts): the subject,
+ * the mode, the moment and the card headline — "A27, voor auto's, morgen: Rijbaan dicht bij
+ * Gorinchem." Built from the same model as the card, so the spoken answer is never lighter
+ * than the one on screen; the stale-data moment is spoken too.
+ */
+export function answerAnnouncement(m: AnswerCardModel): string {
+  const raw = m.road ?? m.subject ?? 'dit gebied';
+  const subject = raw.charAt(0).toUpperCase() + raw.slice(1);
+  return `${subject}, ${MODE_LABEL[m.mode]}, ${whenText(m)}: ${cardHeadline(m).replace(/[.s]+$/, '')}.`;
 }
 
 export function renderAnswerCard(m: AnswerCardModel): string {
   const level = levelOf(m.answer);
   const meta = VERDICT_META[level];
-  // `level === null` means the selection was empty within the data we have; `'onbekend'` with an
-  // empty selection means the question was about a date the dataset does not reach yet. The second
-  // must not borrow the reassuring wording of the first.
-  const headline = m.answer.level === null ? (m.total === 0 ? 'Niets gemeld' : 'Geen hinder gemeld') : m.answer.headline;
+  const headline = cardHeadline(m);
   const specifics = m.answer.specifics.map((s) => `<li>${esc(s)}</li>`).join('');
   const hidden = m.answer.hidden.length;
   const question = m.road

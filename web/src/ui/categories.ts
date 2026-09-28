@@ -59,6 +59,31 @@ export const VERDICT_HEX: Record<'light' | 'dark', Record<'dicht' | 'rijbaan' | 
 };
 
 /**
+ * Cluster circles at national zoom, coloured by the WORST verdict inside (map/layers.ts), with the
+ * count on top. The fill is VERDICT_HEX, except where neither near-black nor white text reaches
+ * 4.5:1 on it (light "geen" and "nvt"): there the same hue one step darker. `text` is the count
+ * colour per fill; test/map-layers.test.mjs checks every pair.
+ */
+export const CLUSTER_HEX: Record<'light' | 'dark', Record<keyof (typeof VERDICT_HEX)['light'], { fill: string; text: string }>> = {
+  light: {
+    dicht: { fill: VERDICT_HEX.light.dicht, text: '#ffffff' },
+    rijbaan: { fill: VERDICT_HEX.light.rijbaan, text: '#1b1b1f' },
+    hinder: { fill: VERDICT_HEX.light.hinder, text: '#1b1b1f' },
+    onbekend: { fill: VERDICT_HEX.light.onbekend, text: '#ffffff' },
+    geen: { fill: '#17703a', text: '#ffffff' },
+    nvt: { fill: '#6b717c', text: '#ffffff' },
+  },
+  dark: {
+    dicht: { fill: VERDICT_HEX.dark.dicht, text: '#1b1b1f' },
+    rijbaan: { fill: VERDICT_HEX.dark.rijbaan, text: '#1b1b1f' },
+    hinder: { fill: VERDICT_HEX.dark.hinder, text: '#1b1b1f' },
+    onbekend: { fill: VERDICT_HEX.dark.onbekend, text: '#1b1b1f' },
+    geen: { fill: VERDICT_HEX.dark.geen, text: '#1b1b1f' },
+    nvt: { fill: VERDICT_HEX.dark.nvt, text: '#1b1b1f' },
+  },
+};
+
+/**
  * Colour of the dashed detour line drawn when a detail with `detourGeom` is open. Mirrors the
  * appended `--omleiding` token in tokens.css (light / dark); map paint only.
  */

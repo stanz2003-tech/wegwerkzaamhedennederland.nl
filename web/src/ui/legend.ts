@@ -1,15 +1,38 @@
 /**
- * "Legenda": a small dismissible popover with the category colours, the verdict pills with
- * their meaning, and the two line styles (dashed red = rijbaan/weg dicht, dashed blue =
- * omleiding). Keyboard accessible: Escape closes, focus returns to the button.
+ * "Legenda": a small dismissible popover with the verdict pills and their meaning, then the map
+ * colours. The map colours lines and points by VERDICT (map/layers.ts), so the legend shows a line
+ * swatch per verdict level — it used to list the category colours, and "geel = werkzaamheden" in
+ * the legend contradicted "geel = doorrijden mogelijk" on the map (overzicht-7). Files and
+ * incidents keep their own colour on the map, so they keep a point swatch here, plus the dashed
+ * detour line. Keyboard accessible: Escape closes, focus returns to the button.
  */
-import { VERDICT_META, type VerdictLevel } from '../data/verdict';
-import { ALL_CATEGORIES, CATEGORY_META } from './categories';
+import { VERDICT_META, VERDICT_SEVERITY, type VerdictLevel } from '../data/verdict';
+import { CATEGORY_META } from './categories';
 import { esc } from './format';
 import { ICONS } from './icons';
 import { renderVerdictPill } from './verdict-pill';
 
-const LEVELS: readonly VerdictLevel[] = ['dicht', 'rijbaan', 'hinder', 'geen', 'nvt', 'onbekend'];
+/** Worst first, the order of the list rows and the day strip. */
+const LEVELS: readonly VerdictLevel[] = VERDICT_SEVERITY;
+
+/** How each level looks on the map, in words (the swatch shows it; the text says it for everyone). */
+const LINE_NOTE: Partial<Record<VerdictLevel, string>> = {
+  dicht: 'rood met witte streepjes',
+  nvt: 'vervaagd',
+};
+
+/**
+ * One line swatch per verdict level. The colour comes from the level's --v-* token, which
+ * VERDICT_HEX mirrors for the map paint (test/v3-ui.test.mjs keeps the two equal), so the swatch
+ * follows the theme exactly as the map does.
+ */
+export function verdictLinesHtml(): string {
+  return LEVELS.map((level) => {
+    const m = VERDICT_META[level];
+    const note = LINE_NOTE[level];
+    return `<li style="--legend-color: var(${m.color})"><span class="legend__vline legend__vline--${level}" aria-hidden="true"></span><span>${esc(m.label)}${note ? ` <span class="legend__note">(${esc(note)})</span>` : ''}</span></li>`;
+  }).join('');
+}
 
 export interface Legend {
   root: HTMLElement;
@@ -17,10 +40,12 @@ export interface Legend {
 }
 
 function popHtml(): string {
-  const cats = ALL_CATEGORIES.map((cat) => {
-    const m = CATEGORY_META[cat];
-    return `<li style="--legend-color: var(${m.color})"><span class="legend__swatch" aria-hidden="true"></span>${m.icon}<span>${esc(m.plural)}</span></li>`;
-  }).join('');
+  const points = (['file', 'incident'] as const)
+    .map((cat) => {
+      const m = CATEGORY_META[cat];
+      return `<li style="--legend-color: var(${m.color})"><span class="legend__swatch" aria-hidden="true"></span>${m.icon}<span>${esc(m.label)} (eigen kleur)</span></li>`;
+    })
+    .join('');
   const verdicts = LEVELS.map((level) => {
     const m = VERDICT_META[level];
     return `<li>${renderVerdictPill({ level, label: m.label }, { size: 'sm' })}<span>${esc(m.meaning)}</span></li>`;
@@ -33,9 +58,9 @@ function popHtml(): string {
       <h3 class="legend__h">Wat betekent het voor jou</h3>
       <ul class="legend__list">${verdicts}</ul>
       <h3 class="legend__h">Kleuren op de kaart</h3>
-      <ul class="legend__cats">${cats}</ul>
+      <ul class="legend__cats legend__lines">${verdictLinesHtml()}</ul>
+      <ul class="legend__cats">${points}</ul>
       <ul class="legend__list">
-        <li><span class="legend__line" aria-hidden="true"></span><span>Gestippeld rood: rijbaan of weg dicht</span></li>
         <li><span class="swatch--detour" aria-hidden="true"></span><span>Gestippeld blauw: omleiding (bij een geopende melding)</span></li>
       </ul>
     </div>`;

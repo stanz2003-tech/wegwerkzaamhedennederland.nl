@@ -257,3 +257,34 @@
     --omleiding: #78aaff;
   }
 }
+
+/* ---------------------------------------------------------------------------------------- */
+/* Appended: filled "closed" pills (toeg-2).                                                 */
+/* "Weg dicht" and "Rijbaan dicht" are filled pills, the road-sign look. White on the map    */
+/* colours measured 3.61:1 (rijbaan, light), 2.79:1 (dicht, dark) and 2.34:1 (rijbaan, dark) */
+/* — the most important words on the site were the least readable. The pills get their own  */
+/* fills, so the map line colours (--v-dicht / --v-rijbaan, VERDICT_HEX) stay as they are:   */
+/*   light  #ffffff on #b3161d 6.89:1 · on #b53f0b 5.71:1                                     */
+/*   dark   #1b1b1f on #ff6b62 6.16:1 · on #ff8a4c 7.35:1  (dark text on the light fills)     */
+/* test/contrast.test.mjs recomputes these for every pill level in all three blocks.         */
+/* ---------------------------------------------------------------------------------------- */
+
+:root {
+  --v-dicht-fill: #b3161d;
+  --v-rijbaan-fill: #b53f0b;
+  --v-closed-on: #ffffff;
+}
+
+:root[data-theme="dark"] {
+  --v-dicht-fill: #ff6b62;
+  --v-rijbaan-fill: #ff8a4c;
+  --v-closed-on: #1b1b1f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --v-dicht-fill: #ff6b62;
+    --v-rijbaan-fill: #ff8a4c;
+    --v-closed-on: #1b1b1f;
+  }
+}

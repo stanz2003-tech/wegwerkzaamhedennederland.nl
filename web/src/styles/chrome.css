@@ -6,7 +6,7 @@
 .topbar {
   position: relative;
   z-index: var(--z-topbar);
-  /* Flex, not grid: the nav and the counters must be the parts that shrink, and which
+  /* Flex, not grid: the nav and the tagline must be the parts that shrink, and which
      children are present differs per breakpoint (and per page). */
   display: flex;
   align-items: center;
@@ -85,15 +85,6 @@
   text-overflow: ellipsis;
 }
 
-.topbar__counters {
-  display: none;
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  align-items: center;
-  gap: var(--s-1);
-}
-
 /* The live pill keeps its own width. On small phones the normal states ("Bijgewerkt 20:17",
    "Laden…") shrink to the dot, with the text visually hidden but still read by a screen reader.
    Stale and error keep a short visible text ("Niet actueel · 20:17" / "Geen data") and their
@@ -141,11 +132,6 @@
   }
 }
 
-/* Category counters: dot + number; the label appears only on very wide screens. */
-.count__label {
-  display: none;
-}
-
 /* ------------------------------------------------------------------ navigation */
 
 .topbar__nav {
@@ -155,7 +141,7 @@
 
 @media (min-width: 900px) {
   /* Pushes the navigation and the theme toggle to the right edge; everything before it
-     (brand, counters, live pill) stays grouped on the left. */
+     (brand, live pill) stays grouped on the left. */
   .topbar__nav {
     flex: 0 1 auto;
     margin-left: auto;
@@ -317,21 +303,13 @@
   }
 }
 
-/* The counters only appear once the full navigation still fits next to them (measured:
-   brand 145 + live 153 + nav 644 + toggle 40 + gaps ≈ 1050 px, counters ≈ 325 px). */
-@media (min-width: 1400px) {
-  .topbar__counters {
-    display: flex;
-  }
-}
-
 @media (min-width: 1440px) {
   .topbar {
     padding-inline: var(--s-5);
   }
 }
 
-/* The tagline only fits next to the counters and the full navigation on very wide screens;
+/* The tagline only fits next to the full navigation on very wide screens;
    below that the same sentence is the <h1> of the page. */
 @media (min-width: 1800px) {
   .topbar__tagline {
@@ -339,11 +317,6 @@
   }
 }
 
-@media (min-width: 1680px) {
-  .count__label {
-    display: inline;
-  }
-}
 
 @media (max-width: 480px) {
   .brand__sub {

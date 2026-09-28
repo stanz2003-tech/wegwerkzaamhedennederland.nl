@@ -5,13 +5,16 @@
  * `datetime-local` input (Europe/Amsterdam) that answers exactly, using `periods` when present.
  *
  * The block owns its state (mode, selection) and tells the page what to list via `onChange`.
+ * After a change by the user it also speaks the new answer (ui/announce.ts); a data refresh
+ * through `setItems` re-renders silently.
  */
 import { answerFor, horizonDateLabel, type AnswerSubject } from '../data/answer';
 import { dayStrip, relativeDayLabel, selectAtMoment, selectInWindow, type DayCell, type ForecastItem, type When } from '../data/forecast';
 import { MS } from '../data/time';
 import { formatLocalDateTime, parseLocalDateTime } from '../data/url-state';
 import { VERDICT_META, countsLine, type VehicleMode } from '../data/verdict';
-import { renderAnswerCard } from './answer-card';
+import { announce } from './announce';
+import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
 import { esc, fmtDay, fmtDayTime, fmtWeekdayShort } from './format';
 import { ICONS } from './icons';
 import { mountModeSelect } from './mode-select';
@@ -108,10 +111,13 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
     return { mode, selection, at, ...(window ? { window } : {}), items: listed, whenLabel: whenLabelOf(selection, now) };
   };
 
+  /** The card as last rendered: the spoken answer after a change is built from the same model. */
+  let card: AnswerCardModel | null = null;
+
   const renderAnswer = (): void => {
     const now = nowFn();
     const answer = answerFor(items, mode, whenOf(selection, now), opts.subject, now, horizonMs());
-    answerEl.innerHTML = renderAnswerCard({
+    card = {
       road: opts.subject.kind === 'road' ? opts.subject.name : null,
       roadType: opts.roadType ?? null,
       subject: opts.subject.kind === 'gemeente' ? `de gemeente ${opts.subject.name}` : opts.subject.name,
@@ -121,7 +127,8 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
       total: items.length,
       exit: false,
       ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
-    });
+    };
+    answerEl.innerHTML = renderAnswerCard(card);
   };
 
   const renderStrip = (): void => {
@@ -172,9 +179,11 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
     renderHorizon();
   };
 
+  // Only the user's own changes come through here (mode, a day, a date, clearing it).
   const emit = (): void => {
     renderAll();
     opts.onChange(state());
+    if (card) announce(answerAnnouncement(card));
   };
 
   mountModeSelect(modeEl, mode, (m) => {

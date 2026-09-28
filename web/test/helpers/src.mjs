@@ -75,3 +75,7 @@ export const topbar = await load('ui/topbar.ts');
 export const staleBanner = await load('ui/stale-banner.ts');
 export const answerCard = await load('ui/answer-card.ts');
 export const panelAnswer = await load('ui/panel-answer.ts');
+export const announce = await load('ui/announce.ts');
+export const uiList = await load('ui/list.ts');
+export const legend = await load('ui/legend.ts');
+export const verdictPill = await load('ui/verdict-pill.ts');

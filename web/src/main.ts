@@ -33,6 +33,7 @@ import { itemDeepLink, normalizeRoadParam, readStoredMode, readUrlState, storeMo
 import { VERDICT_SEVERITY, modeNoun, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
 import { AppMap, NL_BOUNDS, NL_CENTER, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
+import { announce } from './ui/announce';
 import { mountAnalytics } from './ui/analytics';
 import { mountCategoryChips } from './ui/chips';
 import { mountSortSelect, mountSwitch } from './ui/controls';
@@ -80,6 +81,7 @@ let actueel: ItemFeature[] = [];
 let live: ItemFeature[] = [];
 let gepland: ItemFeature[] = [];
 let geplandLoad: Promise<void> | null = null;
+let geplandLoaded = false;
 let meta: Meta | null = null;
 let byId = new Map<string, ItemFeature>();
 let selected: ItemFeature | null = null;
@@ -189,6 +191,8 @@ function withVerdict(j: Judged): ItemFeature {
 
 /** Signature of the dataset handed to the map, so panning does not re-upload the GeoJSON. */
 let lastMapKey = '';
+/** What the last render put on screen, in the form a screen reader should hear it. */
+let lastAnswerText = '';
 
 function render(): void {
   const now = Date.now();
@@ -233,16 +237,17 @@ function render(): void {
     ordered.sort((a, b) => (levelOf.get(a.properties.id) ?? 9) - (levelOf.get(b.properties.id) ?? 9));
   }
   const models = ordered.slice(0, LIST_MAX).map((f) => modelFromProps(f.properties));
-  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at, ...(url.query ? { emptyQuery: url.query } : {}) });
+  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at, total: ordered.length, ...(url.query ? { emptyQuery: url.query } : {}) });
 
   // The sentence above the list counts what is in view including the items the relevance
   // switch hides, so it can say how many were hidden and for whom.
   const inViewAll = (cats ? judged.filter((j) => cats.has(j.f.properties.cat)) : judged).filter(
     (j) => !bounds || bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds),
   );
-  renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { shown: models.length, total: ordered.length }, hideNvt);
+  const summaryText = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt);
   const dataAsOf = staleDataLabel(liveStatus, now);
-  renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
+  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
+  lastAnswerText = roadText ?? summaryText;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
@@ -286,6 +291,25 @@ function clearFatal(): void {
   mapErrorEl.innerHTML = '';
 }
 
+/* ------------------------------------------------------------------ announcements */
+
+/**
+ * Speaks the answer on screen after a user action (never from moveend or the refresh; see
+ * ui/announce.ts). When the choice needs the planned works that are still loading, the answer
+ * on screen is not complete yet: "morgen: Geen hinder gemeld" spoken before werk-gepland arrived
+ * would be a false all-clear, so we wait for it — and say nothing if it fails (the toast does).
+ */
+function announceAnswer(): void {
+  if (!dataOk) return;
+  if (needsGepland() && !geplandLoaded && geplandLoad) {
+    void geplandLoad.then(() => {
+      if (geplandLoaded) announce(lastAnswerText);
+    });
+    return;
+  }
+  announce(lastAnswerText);
+}
+
 /* ------------------------------------------------------------------ road mode */
 
 function enterRoad(road: string, fit = true): void {
@@ -300,15 +324,18 @@ function enterRoad(road: string, fit = true): void {
   panel.ensureAtLeast('half');
   syncUrl();
   answerEl.querySelector<HTMLElement>('.answer__headline')?.focus();
+  announceAnswer();
 }
 
-function exitRoad(): void {
+/** `quiet`: the caller moves on to something else (a place, a deep-linked item) that speaks for itself. */
+function exitRoad(quiet = false): void {
   url = { ...url, road: null };
   search.setQuery('');
   pendingRoadFit = false;
   render();
   syncUrl();
   search.focus();
+  if (!quiet) announceAnswer();
 }
 
 /* ------------------------------------------------------------------ detail view */
@@ -339,6 +366,7 @@ function paintDetail(): void {
       error: detailError,
       mode: url.mode,
       at: momentAt(now),
+      roadMode: url.road,
     },
     now,
     {
@@ -420,6 +448,7 @@ const modeSelect = mountModeSelect(el<HTMLElement>('[data-mode]'), url.mode, (mo
   render();
   if (selected) paintDetail();
   syncUrl();
+  announceAnswer();
 });
 
 const list = mountList(listEl, {
@@ -435,6 +464,7 @@ const list = mountList(listEl, {
     search.setQuery('');
     render();
     syncUrl();
+    announceAnswer();
   },
   onRetry: () => void start(true),
   onRoad: (road) => enterRoad(road),
@@ -452,6 +482,7 @@ const chips = mountCategoryChips(el<HTMLElement>('[data-cats]'), (cats) => {
   url = { ...url, cats: cats ? [...cats] : null };
   render();
   syncUrl();
+  announceAnswer();
 });
 
 const when = mountWhenControl(
@@ -464,6 +495,7 @@ const when = mountWhenControl(
       render();
       if (selected) paintDetail();
       syncUrl();
+      announceAnswer();
     },
     onMoment: (ms) => {
       url = { ...url, moment: ms };
@@ -471,6 +503,7 @@ const when = mountWhenControl(
       render();
       if (selected) paintDetail();
       syncUrl();
+      announceAnswer();
     },
   },
 );
@@ -513,7 +546,7 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
     void resolveDeepLink(hit.id);
   },
   onPickPlace: (loc, zoom) => {
-    if (url.road) exitRoad();
+    if (url.road) exitRoad(true);
     if (loc.bbox) map?.fitBBox(loc.bbox, zoom);
     else map?.flyTo(loc.center, zoom);
     panel.snap('peek');
@@ -560,6 +593,7 @@ async function ensureGepland(): Promise<void> {
   geplandLoad = loadGepland()
     .then((items) => {
       gepland = items;
+      geplandLoaded = true;
       index();
       render();
     })
@@ -604,7 +638,7 @@ function ensureItemVisible(feature: ItemFeature): void {
     url = { ...url, cats: null };
     chips.setSelected(null);
   }
-  if (url.road && !matchesRoad(p.road, url.road)) exitRoad();
+  if (url.road && !matchesRoad(p.road, url.road)) exitRoad(true);
   if (hideNvt && verdictFor(p, url.mode, {}).level === 'nvt') {
     hideNvt = false;
     relevance.set(false);
@@ -629,7 +663,6 @@ async function start(retry = false): Promise<void> {
     clearFatal();
     setLive(liveStatusFromMeta(data.meta));
     when.setHorizon(horizonMs());
-    topbar.setCounts(data.meta.counts);
     renderHomeCounts(data.meta);
     if (needsGepland()) void ensureGepland();
     if (url.road) pendingRoadFit = true;
@@ -656,7 +689,6 @@ async function refresh(): Promise<void> {
     index();
     setLive(liveStatusFromMeta(next.meta));
     when.setHorizon(horizonMs());
-    topbar.setCounts(next.meta.counts);
     renderHomeCounts(next.meta);
     render();
     if (selected && !byId.has(selected.properties.id)) selectItem(null);

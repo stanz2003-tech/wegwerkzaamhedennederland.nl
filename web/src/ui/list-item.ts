@@ -157,9 +157,9 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
   if (isLongRunning(span, now)) line3.push(`<span class="tag tag--long" title="Deze maatregel loopt langer dan 90 dagen">${LONG_RUNNING_TAG}</span>`);
 
   const tag = opts.href ? 'a' : 'button';
-  const attrs = opts.href
-    ? `href="${esc(opts.href)}"`
-    : `type="button" aria-pressed="${opts.selected ? 'true' : 'false'}"`;
+  // A row opens the details; it is not a toggle, so no aria-pressed ("schakelknop, niet
+  // ingedrukt" on every row). The open row is marked current instead (toeg-13).
+  const attrs = opts.href ? `href="${esc(opts.href)}"` : `type="button"${opts.selected ? ' aria-current="true"' : ''}`;
   const style = opts.index !== undefined && opts.index < 8 ? ` style="--i:${opts.index}"` : '';
   const badge = m.road
     ? `<span class="item__badge" data-road="${esc(m.road)}" title="Alleen de ${esc(m.road)} tonen">${roadBadge(m.road, m.roadType, { size: 'sm', place: m.woonplaats ?? m.gemeente })}</span>`

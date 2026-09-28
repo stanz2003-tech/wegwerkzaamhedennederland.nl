@@ -5,7 +5,9 @@
  *   - the one verdict sentence above the list outside road mode ("In beeld: 3 wegen dicht, …").
  *
  * Both take the part of the URL state they need, the items and `now`, and write into the
- * elements they are given; they hold no state of their own.
+ * elements they are given; they hold no state of their own. Both return the sentence a screen
+ * reader should hear when the user changed the question (main.ts passes it to ui/announce.ts
+ * after a user action only).
  */
 import { answerFor, areaSentence, hiddenSentence } from '../data/answer';
 import type { ForecastItem, When } from '../data/forecast';
@@ -13,8 +15,8 @@ import { horizonMs } from '../data/horizon';
 import { TIME_WINDOWS, timeWindowRange } from '../data/time';
 import type { ItemFeature } from '../data/types';
 import type { UrlState } from '../data/url-state';
-import { renderAnswerCard } from './answer-card';
-import { fmtDayTime, formatCount, plural } from './format';
+import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
+import { fmtDayTime, plural } from './format';
 
 /** The part of the URL state the panel answer reads. */
 export type PanelQuestion = Pick<UrlState, 'mode' | 'time' | 'moment' | 'road' | 'query'>;
@@ -51,20 +53,23 @@ export interface RoadAnswerOptions {
   onExit(): void;
 }
 
-/** The answer card in road mode; hides the card outside it. */
-export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItems: readonly ItemFeature[], now: number, opts: RoadAnswerOptions): void {
+/**
+ * The answer card in road mode; hides the card outside it. Returns the spoken form of the card
+ * ("A27, voor auto's, morgen: Rijbaan dicht bij Gorinchem."), or null outside road mode.
+ */
+export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItems: readonly ItemFeature[], now: number, opts: RoadAnswerOptions): string | null {
   const road = q.road;
   if (!road) {
     els.answer.hidden = true;
     els.answer.innerHTML = '';
     els.panel.classList.remove('is-road');
-    return;
+    return null;
   }
   const answer = answerFor(asForecast(roadItems), q.mode, whenOf(q, now), { kind: 'road', name: road }, now, horizonMs());
   const sample = roadItems.find((f) => f.properties.roadType);
   els.answer.hidden = false;
   els.panel.classList.add('is-road');
-  els.answer.innerHTML = renderAnswerCard({
+  const model: AnswerCardModel = {
     road,
     roadType: sample?.properties.roadType ?? null,
     whenLabel: whenLabelOf(q),
@@ -72,27 +77,31 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
     answer,
     total: roadItems.length,
     ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
-  });
+  };
+  els.answer.innerHTML = renderAnswerCard(model);
   els.answer.querySelector('[data-road-exit]')?.addEventListener('click', () => opts.onExit());
+  return answerAnnouncement(model);
 }
 
 /**
  * The sentence above the list and the "N meldingen … verborgen" button. With a text filter the
  * list is every match in the country, not the viewport, so the sentence says `Met “Almkerk”:`.
+ * Returns the sentence. That the list stops at its first 800 rows is said under the list itself
+ * (ui/list.ts), not in a `title` that touch and screen-reader users never get (toeg-11).
  */
 export function renderPanelSummary(
   els: PanelAnswerEls,
   q: PanelQuestion,
   inView: readonly ItemFeature[],
   now: number,
-  counts: { shown: number; total: number },
+  counts: { total: number },
   hideNvt: boolean,
-): void {
+): string {
   const answer = answerFor(asForecast(inView), q.mode, whenOf(q, now), { kind: 'gebied', name: '' }, now, horizonMs());
   const prefix = q.query ? `Met “${q.query}”` : 'In beeld';
   const text = q.road ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}` : areaSentence(answer, q.mode, !hideNvt, prefix);
   els.summary.textContent = text;
-  els.summary.title = counts.shown < counts.total ? `${text} — de eerste ${formatCount(counts.shown)} staan in de lijst; zoom in of filter om te verfijnen.` : text;
+  els.summary.removeAttribute('title');
   const hidden = answer.hidden.length;
   if (hideNvt && hidden > 0) {
     els.hiddenBtn.hidden = false;
@@ -101,4 +110,5 @@ export function renderPanelSummary(
   } else {
     els.hiddenBtn.hidden = true;
   }
+  return text;
 }

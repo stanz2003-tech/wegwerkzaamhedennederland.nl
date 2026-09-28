@@ -7,6 +7,8 @@
  * the app on every feature it hands to the map), not by category: red = dicht/rijbaan (white
  * dash for `dicht`), amber = doorrijden met hinder, green = geen hinder, grey = onbekend, faded
  * = geldt niet voor jou (`nvt`). Files keep their own live colour; incidents keep theirs as points.
+ * Clusters (national zoom) take the colour of the worst verdict inside them (`worst`, a cluster
+ * property), so the country view shows where it is closed, not just how many items lie there.
  * Feature ids come from `properties.id` (promoteId) so feature-state (hover/selected) works.
  */
 import type {
@@ -17,7 +19,7 @@ import type {
   SourceSpecification,
 } from 'maplibre-gl';
 import type { ItemCollection, ItemFeature } from '../data/types';
-import { CATEGORY_HEX, DETOUR_HEX, VERDICT_HEX } from '../ui/categories';
+import { CATEGORY_HEX, CLUSTER_HEX, DETOUR_HEX, VERDICT_HEX } from '../ui/categories';
 import type { BasemapTheme } from './restyle';
 
 export const SRC_LINES = 'ww-lines';
@@ -162,6 +164,49 @@ const notFile: ExpressionSpecification = ['!=', ['get', 'cat'], 'file'];
 const isCluster: ExpressionSpecification = ['has', 'point_count'];
 const notCluster: ExpressionSpecification = ['!', ['has', 'point_count']];
 
+/* --------------------------------- clusters --------------------------------- */
+
+/**
+ * Rank per verdict for the cluster aggregate: higher = worse, in VERDICT_SEVERITY order
+ * (data/verdict.ts). A missing or unknown `v` counts as `onbekend` (3), never lighter — a
+ * cluster must not turn green because one of its items had no verdict.
+ */
+export const CLUSTER_RANK = { dicht: 6, rijbaan: 5, hinder: 4, onbekend: 3, geen: 2, nvt: 1 } as const;
+export const CLUSTER_RANK_UNKNOWN = CLUSTER_RANK.onbekend;
+
+/** Per-feature map expression of the `worst` cluster property: the rank of the item's verdict. */
+export const clusterRankExpr: ExpressionSpecification = [
+  'match',
+  ['get', 'v'],
+  'dicht',
+  CLUSTER_RANK.dicht,
+  'rijbaan',
+  CLUSTER_RANK.rijbaan,
+  'hinder',
+  CLUSTER_RANK.hinder,
+  'onbekend',
+  CLUSTER_RANK.onbekend,
+  'geen',
+  CLUSTER_RANK.geen,
+  'nvt',
+  CLUSTER_RANK.nvt,
+  CLUSTER_RANK_UNKNOWN,
+];
+
+/** MapLibre `clusterProperties`: `worst` = the highest rank among the clustered points. */
+export const CLUSTER_PROPERTIES: Record<string, [unknown, unknown]> = { worst: ['max', clusterRankExpr] };
+
+const worstRank: ExpressionSpecification = ['coalesce', ['get', 'worst'], CLUSTER_RANK_UNKNOWN];
+
+/** Cluster fill or count colour by `worst` (CLUSTER_HEX: every text/fill pair ≥ 4.5:1). */
+export function clusterPaint(theme: BasemapTheme, part: 'fill' | 'text'): ExpressionSpecification {
+  const hex = CLUSTER_HEX[theme];
+  const expr: unknown[] = ['match', worstRank];
+  for (const level of ['dicht', 'rijbaan', 'hinder', 'onbekend', 'geen', 'nvt'] as const) expr.push(CLUSTER_RANK[level], hex[level][part]);
+  expr.push(hex.onbekend[part]);
+  return expr as ExpressionSpecification;
+}
+
 /* --------------------------------- sources --------------------------------- */
 
 export function lineSourceSpec(data: ItemCollection): SourceSpecification {
@@ -170,7 +215,15 @@ export function lineSourceSpec(data: ItemCollection): SourceSpecification {
 
 export function pointSourceSpec(data: ItemCollection, cluster: boolean): SourceSpecification {
   return cluster
-    ? { type: 'geojson', data, promoteId: 'id', cluster: true, clusterMaxZoom: CLUSTER_MAX_ZOOM, clusterRadius: 44 }
+    ? {
+        type: 'geojson',
+        data,
+        promoteId: 'id',
+        cluster: true,
+        clusterMaxZoom: CLUSTER_MAX_ZOOM,
+        clusterRadius: 44,
+        clusterProperties: CLUSTER_PROPERTIES,
+      }
     : { type: 'geojson', data, promoteId: 'id' };
 }
 
@@ -185,7 +238,6 @@ const ACCENT = '#ffc917';
 export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
   const dark = opts.theme === 'dark';
   const casing = dark ? '#15171b' : '#ffffff';
-  const ink = '#1b1b1f';
   const colour = verdictColour(opts.theme);
   const catColour = categoryColour(opts.theme);
   const detour = DETOUR_HEX[opts.theme];
@@ -298,11 +350,11 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
         source: SRC_POINTS,
         filter: isCluster,
         paint: {
-          'circle-color': ACCENT,
+          'circle-color': clusterPaint(opts.theme, 'fill'),
           'circle-radius': ['step', ['get', 'point_count'], 14, 10, 18, 50, 23, 200, 29],
           'circle-stroke-width': 2,
-          'circle-stroke-color': ink,
-          'circle-opacity': 0.96,
+          'circle-stroke-color': casing,
+          'circle-opacity': 1,
         },
       },
       {
@@ -316,7 +368,7 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
           'text-size': 12,
           'text-allow-overlap': true,
         },
-        paint: { 'text-color': ink },
+        paint: { 'text-color': clusterPaint(opts.theme, 'text') },
       },
     );
   }
