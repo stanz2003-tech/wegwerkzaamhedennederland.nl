@@ -8,6 +8,7 @@ import { BEYOND_HORIZON_HEADLINE, horizonDateLabel, type Answer } from '../data/
 import type { RoadType } from '../data/types';
 import { VERDICT_META, type VehicleMode, type VerdictLevel } from '../data/verdict';
 import { roadBadge } from './badge';
+import { HIDDEN_WORD } from './copy';
 import { esc } from './format';
 import { ICONS } from './icons';
 import { questionText } from './when-words';
@@ -50,6 +51,11 @@ export interface AnswerCardModel {
    */
   pageHref?: string;
   pageLabel?: string;
+  /**
+   * False where the page already says it under its own relevance switch (the map panel): the
+   * same hidden items counted in two sentences read as twice as many (taal-8). Default true.
+   */
+  hiddenNote?: boolean;
 }
 
 const MODE_LABEL: Record<VehicleMode, string> = { auto: "voor auto's", vracht: 'voor vrachtverkeer', fiets: 'voor fietsers' };
@@ -62,7 +68,7 @@ function levelOf(a: Answer): VerdictLevel {
  * Past the planning horizon a non-empty answer is true for what IS published, but more work for
  * that date may still be announced. Without this line "Rijbaan dicht bij Gorinchem" for a date
  * seven weeks out read exactly as sure as today's answer. The empty case already says
- * "Nog niet bekend" with its own note.
+ * BEYOND_HORIZON_HEADLINE with its own note.
  */
 function horizonLine(a: Answer): string {
   if (!a.beyondHorizon || a.horizonMs === null || a.headline === BEYOND_HORIZON_HEADLINE) return '';
@@ -130,7 +136,7 @@ export function renderAnswerCard(m: AnswerCardModel): string {
   const meta = VERDICT_META[level];
   const headline = cardHeadline(m);
   const specifics = m.answer.specifics.map((s) => `<li>${esc(s)}</li>`).join('');
-  const hidden = m.answer.hidden.length;
+  const hidden = m.hiddenNote === false ? 0 : m.answer.hidden.length;
   const question = esc(questionText(m, m.mode, m.questionWhen ?? ''));
   const kicker = m.questionWhen !== undefined ? 'answer__kicker answer__kicker--when' : 'answer__kicker';
   return `<section class="answer answer--${level}" style="--vpill-color: var(${meta.color})" aria-labelledby="answer-q answer-title">
@@ -149,6 +155,6 @@ export function renderAnswerCard(m: AnswerCardModel): string {
       ${m.pageHref ? `<a class="btn btn--secondary answer__page" href="${esc(m.pageHref)}">${esc(m.pageLabel ?? 'Per dag bekijken →')}</a>` : ''}
       ${horizonLine(m.answer)}
       ${m.backToNow ? `<button type="button" class="btn btn--secondary answer__now" data-answer-now>${ICONS.clock}<span>Terug naar nu</span></button>` : ''}
-      ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
+      ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} ${HIDDEN_WORD}.</p>` : ''}
     </section>`;
 }

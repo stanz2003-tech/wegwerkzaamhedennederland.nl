@@ -26,7 +26,7 @@ import './styles/app.css';
 
 import site from '../site.config.json';
 import { clearDetailCache, loadDetail } from './data/detail';
-import { matchesRoad } from './data/entity';
+import { matchesRoad, orderAlongRoad } from './data/entity';
 import { bboxIntersects, bboxOf, countByCategory, dedupeById, matchesQuery, midpointOf, sortItems, type BBox, type SortId } from './data/filter';
 import { liveAppliesAt } from './data/forecast';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
@@ -45,7 +45,7 @@ import {
   type HistoryMarker,
   type UrlState,
 } from './data/url-state';
-import { VERDICT_SEVERITY, modeNoun, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
+import { VERDICT_SEVERITY, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
 import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
 import { announce } from './ui/announce';
@@ -55,8 +55,10 @@ import { mountSortSelect, mountSwitch } from './ui/controls';
 import { renderDetail } from './ui/detail';
 import { mountLegend } from './ui/legend';
 import { mountList } from './ui/list';
-import { clearMapNotice, copyLink, renderHomeCounts, showMapNotice, wireUitlegLinks } from './ui/map-page';
-import { modelFromProps } from './ui/list-item';
+import { clearMapNotice, copyLink, renderUpdatedLine, showMapNotice, wireUitlegLinks } from './ui/map-page';
+import { modelFromFeature } from './ui/list-item';
+import { NATIONAL_ZOOM, MAX_CLOSED_ROADS, closedMotorways, renderClosedRoads } from './ui/closed-roads';
+import { relevanceLabel } from './ui/copy';
 import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
 import { mountPanelLayout } from './ui/panel-layout';
@@ -97,7 +99,7 @@ if (!window.location.search.includes('v=')) {
   if (stored) url = { ...url, mode: stored };
 }
 let sort: SortId = 'impact';
-/** "Alleen relevant voor …": hide the items that do not apply to the vehicle mode. */
+/** "Alleen wat voor … geldt": hide the items that do not apply to the vehicle mode. */
 let hideNvt = true;
 let actueel: ItemFeature[] = [];
 let live: ItemFeature[] = [];
@@ -136,6 +138,7 @@ const summaryEl = el<HTMLElement>('[data-summary]');
 const answerEl = el<HTMLElement>('[data-answer]');
 const staleEl = el<HTMLElement>('[data-stale]');
 const hiddenBtn = el<HTMLButtonElement>('[data-hidden]');
+const closedRoadsEl = el<HTMLElement>('[data-closed-roads]');
 const listHeading = el<HTMLElement>('#list-heading');
 const answerEls: PanelAnswerEls = { panel: panelEl, answer: answerEl, summary: summaryEl, hiddenBtn };
 
@@ -271,19 +274,28 @@ function render(): void {
   // "In beeld: geen meldingen" while Almkerk has a closure (zoek-3).
   const bounds = url.road || url.query || place ? null : mapBounds();
   const inView = bounds ? forMap.filter((j) => bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds)) : forMap;
-  const ordered = sortItems(
+  let ordered = sortItems(
     inView.map((j) => j.f),
     sort,
     map?.getCenter() ?? null,
     now,
   );
-  // "Impact" answers the one question first: every "weg dicht" above every "doorrijden
-  // mogelijk", whatever the DATEX severity says; within a level the impact score decides.
+  // "Ernstigste eerst" answers the one question first: every "weg dicht" above every
+  // "doorrijden mogelijk", whatever the DATEX severity says; within a level the impact score
+  // decides — or, in road mode, the position along the road (overzicht-4).
   if (sort === 'impact') {
     const levelOf = new Map(inView.map((j) => [j.f.properties.id, VERDICT_SEVERITY.indexOf(j.level)]));
     ordered.sort((a, b) => (levelOf.get(a.properties.id) ?? 9) - (levelOf.get(b.properties.id) ?? 9));
+    if (url.road) {
+      const judgedLevel = new Map(inView.map((j) => [j.f.properties.id, j.level]));
+      const points = ordered.map((f) => {
+        const mid = midpointOf(f.geometry) ?? [0, 0];
+        return { id: f.properties.id, lon: mid[0], lat: mid[1], f };
+      });
+      ordered = orderAlongRoad(points, (x) => judgedLevel.get(x.id) ?? 'nvt').map((x) => x.f);
+    }
   }
-  const models = ordered.slice(0, LIST_MAX).map((f) => modelFromProps(f.properties));
+  const models = ordered.slice(0, LIST_MAX).map(modelFromFeature);
   list.setItems(models, now, selected?.properties.id ?? null, {
     mode: url.mode,
     at,
@@ -299,6 +311,10 @@ function render(): void {
   );
   const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt, place ? placePrefix(place) : undefined);
   layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
+  // At national zoom, outside road, place and text mode: name the motorways with a closure.
+  const national = !url.road && !url.query && !place && (map?.getZoom() ?? url.zoom ?? NL_ZOOM) < NATIONAL_ZOOM;
+  const closedRoads = national ? closedMotorways(summary.answer.items, Number.POSITIVE_INFINITY) : [];
+  const closedText = renderClosedRoads(closedRoadsEl, closedRoads.slice(0, MAX_CLOSED_ROADS), whenLabelOf(url), closedRoads.length > MAX_CLOSED_ROADS);
   const dataAsOf = staleDataLabel(liveStatus, now);
   const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, {
     ...(dataAsOf ? { dataAsOf } : {}),
@@ -316,7 +332,7 @@ function render(): void {
       onNow: () => backToNow(),
     });
   } else clearPlaceAnswer(answerEls);
-  lastAnswerText = roadText ?? placeText ?? summary.text;
+  lastAnswerText = roadText ?? placeText ?? closedText ?? summary.text;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
@@ -561,7 +577,7 @@ const layout = mountPanelLayout(
 const modeSelect = mountModeSelect(el<HTMLElement>('[data-mode]'), url.mode, (mode) => {
   url = { ...url, mode };
   storeMode(mode);
-  relevance.setLabel(`Alleen relevant voor ${modeNoun(mode)}`);
+  relevance.setLabel(relevanceLabel(mode));
   render();
   if (selected) paintDetail();
   syncUrl();
@@ -642,9 +658,14 @@ const when = mountWhenControl(
   },
 );
 
-const relevance = mountSwitch(el<HTMLElement>('[data-relevant]'), `Alleen relevant voor ${modeNoun(url.mode)}`, true, (on) => {
+const relevance = mountSwitch(el<HTMLElement>('[data-relevant]'), relevanceLabel(url.mode), true, (on) => {
   hideNvt = on;
   render();
+});
+
+closedRoadsEl.addEventListener('click', (e) => {
+  const road = (e.target as HTMLElement).closest<HTMLElement>('[data-road]')?.dataset.road;
+  if (road) enterRoad(road);
 });
 
 hiddenBtn.addEventListener('click', () => {
@@ -789,7 +810,7 @@ async function start(retry = false): Promise<void> {
     clearMapNotice(mapErrorEl);
     setLive(liveStatusFromMeta(data.meta));
     when.setHorizon(horizonMs());
-    renderHomeCounts(data.meta);
+    renderUpdatedLine(data.meta);
     if (needsGepland()) void ensureGepland();
     if (url.road) pendingRoadFit = true;
     if (url.place) places.wantFit();
@@ -817,7 +838,7 @@ async function refresh(): Promise<void> {
     setLive(liveStatusFromMeta(next.meta));
     when.setHorizon(horizonMs());
     when.refresh();
-    renderHomeCounts(next.meta);
+    renderUpdatedLine(next.meta);
     render();
     if (selected && !byId.has(selected.properties.id)) selectItem(null);
   } catch {

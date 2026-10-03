@@ -149,7 +149,8 @@ export function timelineBar(p: ItemProperties, now: number, at: number): string 
   // The year is part of the label when it is not the current one: a measure that runs from
   // 2023 to 2028 must not print two bare "31 mei" style dates.
   const startLabel = fmtDayTimeYear(start, now);
-  const endLabel = open ? 'einddatum onbekend' : fmtDayTimeYear(end, now);
+  // An open end is said once, in the status line of "Wanneer" (taal-7): the bar shows a dash.
+  const endLabel = open ? '–' : fmtDayTimeYear(end, now);
   const chosenInSpan = at >= start && (open || at <= end);
   let markers = '';
   let spoken = '';
@@ -164,14 +165,14 @@ export function timelineBar(p: ItemProperties, now: number, at: number): string 
       spoken = `, gekozen moment ${fmtDayTime(at)}`;
     }
   }
-  return `<div class="timeline timeline--${state}" role="img" aria-label="Periode van ${esc(startLabel)} tot ${esc(open ? 'onbekend' : endLabel)}${esc(spoken)}">
+  return `<div class="timeline timeline--${state}" role="img" aria-label="Periode vanaf ${esc(startLabel)}${open ? ', einde niet opgegeven' : ` tot ${esc(endLabel)}`}${esc(spoken)}">
       <div class="timeline__bar"><span class="timeline__elapsed" style="width:${nowPct}%"></span>
         ${markers}
       </div>
       <div class="timeline__labels">
         <span><span class="timeline__k">Start</span><time datetime="${esc(p.start)}">${esc(startLabel)}</time></span>
         <span class="timeline__dur">${esc(duration)}</span>
-        <span><span class="timeline__k">Einde</span>${open ? '<span>onbekend</span>' : `<time datetime="${esc(p.end ?? '')}">${esc(endLabel)}</time>`}</span>
+        <span><span class="timeline__k">Einde</span>${open ? '<span>–</span>' : `<time datetime="${esc(p.end ?? '')}">${esc(endLabel)}</time>`}</span>
       </div>
     </div>`;
 }

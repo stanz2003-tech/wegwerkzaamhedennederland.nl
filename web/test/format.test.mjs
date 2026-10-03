@@ -9,7 +9,7 @@ import { format } from './helpers/src.mjs';
 const {
   delayLabel, directionLabel, esc, fmtDate, fmtDateTimeFull, fmtDay, fmtDayTime, fmtDuration,
   fmtPeriod, fmtPeriodMs, fmtRemaining, fmtTime, fmtWeekdayShort, formatCount, hindLabel,
-  lanesLabel, planningStatusLabel, plural, probabilityLabel, queueLabel, relatedNote, statusLine,
+  lanesLabel, plural, probabilityLabel, queueLabel, relatedIds, relatedNote, sourceLabel, statusLine,
   subLabel, vehiclesLabel,
 } = format;
 
@@ -157,9 +157,13 @@ describe('impact labels', () => {
     assert.equal(hindLabel(undefined), null);
   });
 
-  it('labels lanes with correct singular and plural', () => {
-    assert.equal(lanesLabel({ closed: 1, open: 2, total: 3 }), '1 rijstrook dicht · 2 open');
+  it('labels lanes in plain words, never "0 rijstroken dicht" (taal-6)', () => {
+    assert.equal(lanesLabel({ closed: 1, open: 2, total: 3 }), '1 van de 3 rijstroken dicht');
+    assert.equal(lanesLabel({ closed: 1, open: 1 }), '1 van de 2 rijstroken dicht');
     assert.equal(lanesLabel({ closed: 2 }), '2 rijstroken dicht');
+    assert.equal(lanesLabel({ closed: 1 }), '1 rijstrook dicht');
+    assert.equal(lanesLabel({ closed: 0, open: 1 }), 'alle rijstroken open');
+    assert.equal(lanesLabel({ open: 2 }), '2 rijstroken open');
     assert.equal(lanesLabel({ total: 2 }), '2 rijstroken');
     assert.equal(lanesLabel(undefined), null);
     assert.equal(lanesLabel({}), null);
@@ -167,23 +171,25 @@ describe('impact labels', () => {
 
   it('prefers from → to over the coded direction', () => {
     assert.equal(directionLabel('both', 'Lunetten', 'Utrecht-Noord'), 'Lunetten → Utrecht-Noord');
-    assert.equal(directionLabel(undefined, 'Lunetten'), 'vanaf Lunetten');
-    assert.equal(directionLabel(undefined, undefined, 'Gouda'), 'tot Gouda');
-    assert.equal(directionLabel('positive'), 'oplopende hectometrering');
-    assert.equal(directionLabel('negative'), 'aflopende hectometrering');
+    assert.equal(directionLabel(undefined, 'Gorinchem'), 'vanaf Gorinchem (richting niet gemeld)');
+    assert.equal(directionLabel(undefined, undefined, 'Breda'), 'richting Breda');
+    assert.equal(directionLabel('positive'), null, 'hectometre directions mean nothing to a driver');
+    assert.equal(directionLabel('negative'), null);
+    assert.equal(directionLabel('both'), 'beide richtingen');
     assert.equal(directionLabel(undefined), null);
   });
 
-  it('labels probability, planning status, sub type and vehicles', () => {
+  it('labels probability, sub type and vehicles in plain words', () => {
     assert.equal(probabilityLabel('certain'), 'zeker');
-    assert.equal(probabilityLabel('riskOf'), 'kans op');
+    assert.equal(probabilityLabel('probable'), 'Gaat waarschijnlijk door');
+    assert.equal(probabilityLabel('riskOf'), 'Misschien');
     assert.equal(probabilityLabel(undefined), null);
-    assert.equal(planningStatusLabel('running'), 'actuele maatregel');
-    assert.equal(planningStatusLabel('published'), 'planning');
-    assert.equal(planningStatusLabel('onbekend'), null);
-    assert.equal(planningStatusLabel(undefined), null);
     assert.equal(subLabel('roadClosed'), 'weg afgesloten');
     assert.equal(subLabel('stationaryTraffic'), 'stilstaand verkeer');
+    assert.equal(subLabel('vehicleObstruction'), 'stilstaand voertuig');
+    assert.equal(subLabel('brokenDownVehicle'), 'voertuig met pech');
+    assert.equal(subLabel('queueingTraffic'), 'file');
+    assert.equal(subLabel('generalObstruction'), 'obstakel op de weg');
     assert.equal(subLabel('bridgeSwingInOperation'), 'brug open');
     assert.equal(subLabel('ietsNieuws'), null);
     assert.equal(subLabel(null), null);
@@ -215,15 +221,24 @@ describe('numbers and escaping', () => {
 });
 
 describe('merged double publications (ItemDetail.related)', () => {
-  it('says in one sentence that two publisher ids describe one work', () => {
+  it('says in plain words that one work stood in the data more than once, without ids (taal-6)', () => {
     assert.equal(
       relatedNote(['RWS01_SM1013188_D2']),
-      'Deze melding en de planning van de wegbeheerder (RWS01_SM1013188_D2) gaan over dezelfde werkzaamheid en zijn samengevoegd.',
+      'Deze werkzaamheid stond twee keer in de gegevens (aankondiging en uitvoering); we tonen ze als één melding.',
     );
     assert.equal(
       relatedNote(['NDW03_2100901', 'RWS01_SM1052757_D2']),
-      'Deze melding is samengevoegd met 2 planningsmeldingen (NDW03_2100901, RWS01_SM1052757_D2) over dezelfde werkzaamheid.',
+      'Deze werkzaamheid stond drie keer in de gegevens (aankondiging en uitvoering); we tonen ze als één melding.',
     );
+    assert.equal(relatedNote(['RWS01_SM1013188_D2'])?.includes('RWS01'), false, 'the ids go in the "Melding …" line');
+    assert.deepEqual(relatedIds(['', 'NDW03_2100901']), ['NDW03_2100901']);
+  });
+
+  it('names the wegbeheerder readably', () => {
+    assert.equal(sourceLabel('RWS10'), 'Rijkswaterstaat');
+    assert.equal(sourceLabel('WNZ-Z [RWS West-Nederland Zuid District Zuid]'), 'Rijkswaterstaat West-Nederland Zuid District Zuid');
+    assert.equal(sourceLabel('NDW06'), 'Nationaal Dataportaal Wegverkeer');
+    assert.equal(sourceLabel('Gemeente Utrecht'), 'Gemeente Utrecht');
   });
 
   it('stays silent when nothing was merged', () => {

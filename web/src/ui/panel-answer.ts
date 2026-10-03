@@ -2,14 +2,15 @@
  * The two answer surfaces of the map panel, moved out of main.ts so the panel can grow (place
  * mode, "per dag vooruitkijken") without main.ts growing with it:
  *   - the answer card in road mode ("Kan ik over de A27?"),
- *   - the one verdict sentence above the list outside road mode ("In beeld: 3 wegen dicht, …").
+ *   - the line above the list outside road mode: "Zoek je weg of plaats voor een antwoord", or
+ *     with a text filter the verdict sentence for the matches ("Met “Almkerk”: 1 plek dicht").
  *
  * Both take the part of the URL state they need, the items and `now`, and write into the
  * elements they are given; they hold no state of their own. Both return the sentence a screen
  * reader should hear when the user changed the question (main.ts passes it to ui/announce.ts
  * after a user action only).
  */
-import { answerFor, areaSentence, hiddenSentence } from '../data/answer';
+import { answerFor, areaSentence, hiddenSentence, type Answer } from '../data/answer';
 import type { ForecastItem, When } from '../data/forecast';
 import { horizonMs } from '../data/horizon';
 import { TIME_WINDOWS, dayWindow, timeWindowRange, windowFromNow } from '../data/time';
@@ -17,6 +18,7 @@ import type { ItemFeature } from '../data/types';
 import type { UrlState } from '../data/url-state';
 import { slugify } from '../data/types';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
+import { SEARCH_PROMPT } from './copy';
 import { fmtDay, fmtDayTime, plural } from './format';
 import { roadPageHref } from './map-link';
 import { dayQuestionWords, momentLong, windowQuestionWords } from './when-words';
@@ -111,6 +113,8 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
     mode: q.mode,
     answer,
     total: roadItems.length,
+    // The panel says how many items the relevance switch hides under the switch itself.
+    hiddenNote: false,
     ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
     // The day overview lives on the road page; the panel links there instead of growing a
     // second strip next to "Wanneer?" (zoek-6, vooruit-8).
@@ -125,9 +129,13 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
 /**
  * The sentence above the list and the "N meldingen … verborgen" button. With a text filter the
  * list is every match in the country, not the viewport, so the sentence says `Met “Almkerk”:`.
- * Returns the sentence and how many items the relevance switch hides (for the filters summary,
- * ui/panel-layout.ts). That the list stops at its first 800 rows is said under the list itself
- * (ui/list.ts), not in a `title` that touch and screen-reader users never get (toeg-11).
+ * Without one there is no count sentence ("In beeld: 2604 plekken dicht, …" answered nothing,
+ * overzicht-5): the panel asks for a road or place, and main.ts adds the closed motorways at
+ * national zoom (ui/closed-roads.ts) from the `answer` returned here.
+ * Returns the sentence, how many items the relevance switch hides (for the filters summary,
+ * ui/panel-layout.ts) and the answer for the view. That the list stops at its first 800 rows is
+ * said under the list itself (ui/list.ts), not in a `title` that touch and screen-reader users
+ * never get (toeg-11).
  */
 export function renderPanelSummary(
   els: PanelAnswerEls,
@@ -138,19 +146,25 @@ export function renderPanelSummary(
   hideNvt: boolean,
   /** Place mode: the list is that place, not the viewport ("In Almkerk: …"). */
   placePrefix?: string,
-): { text: string; hidden: number } {
+): { text: string; hidden: number; answer: Answer } {
   const answer = answerFor(asForecast(inView), q.mode, whenOf(q, now), { kind: 'gebied', name: '' }, now, horizonMs());
-  const prefix = placePrefix ?? (q.query ? `Met “${q.query}”` : 'In beeld');
-  const text = q.road ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}` : areaSentence(answer, q.mode, !hideNvt, prefix);
+  // Without a subject or a text filter there is no question to answer yet: the panel asks for one
+  // (P8 overzicht-5). A place (P4) or a text filter gets the sentence about its own items.
+  const prefix = placePrefix ?? (q.query ? `Met “${q.query}”` : null);
+  const text = q.road
+    ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}`
+    : prefix
+      ? areaSentence(answer, prefix)
+      : SEARCH_PROMPT;
   els.summary.textContent = text;
   els.summary.removeAttribute('title');
   const hidden = hideNvt ? answer.hidden.length : 0;
   if (hidden > 0) {
     els.hiddenBtn.hidden = false;
     els.hiddenBtn.textContent = hiddenSentence(answer.hidden, q.mode);
-    els.hiddenBtn.title = 'Toon deze meldingen toch (vervaagd op de kaart)';
+    els.hiddenBtn.title = 'Toon deze meldingen toch (lichter op de kaart)';
   } else {
     els.hiddenBtn.hidden = true;
   }
-  return { text, hidden };
+  return { text, hidden, answer };
 }

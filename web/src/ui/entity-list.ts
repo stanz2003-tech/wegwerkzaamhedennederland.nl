@@ -7,6 +7,8 @@ import type { IndexItem } from '../data/index';
 import type { ItemDetail } from '../data/types';
 import { VERDICT_SEVERITY, type Verdict, type VehicleMode } from '../data/verdict';
 import { esc, formatCount, plural } from './format';
+import { groupSeries, memberCount, type GroupFields, type ListGroup } from './list-group';
+import { renderGroupHtml } from './list-group-row';
 import { listItemVerdict, modelFromIndexItem, renderListItem, type ListItemOptions } from './list-item';
 
 /** Default number of items rendered before "Toon meer". */
@@ -101,15 +103,44 @@ export function firstBatchSize(items: readonly IndexItem[], batch: number, now: 
   return Math.max(batch, last + 1);
 }
 
-function renderBatch(container: HTMLElement, items: readonly IndexItem[], from: number, count: number, now: number, opts: EntityListOptions): void {
-  const slice = items.slice(from, from + count);
-  const html = slice
-    .map((it, i) =>
-      renderListItem(modelFromIndexItem(it), now, {
-        href: itemHref(it.id, opts),
-        index: from === 0 ? i : 99,
-        ...rowOptions(it, opts),
-      }),
+/** What grouping reads of a row: its section and direction from the detail, its index point. */
+function groupFields(it: IndexItem, opts: EntityListOptions): GroupFields {
+  const d = opts.details?.get(it.id);
+  // A live extra without a point geometry carries 0,0: no position rather than a false neighbour.
+  const pos: [number, number] | null = it.lon === 0 && it.lat === 0 ? null : [it.lon, it.lat];
+  return { id: it.id, road: it.road, title: it.title, start: it.start, end: it.end, from: d?.from, to: d?.to, pos };
+}
+
+/**
+ * The rows of a section folded into series and street parts (ui/list-group.ts), judged with the
+ * same verdict the pills show. Each member keeps its own pill in the expansion.
+ */
+export function groupRows(items: readonly IndexItem[], now: number, opts: EntityListOptions = {}): ListGroup<IndexItem>[] {
+  return groupSeries(items, (it) => rowVerdict(it, now, opts).level, (it) => groupFields(it, opts));
+}
+
+/** `firstBatchSize` for grouped rows: no group with a closure behind "Toon meer". */
+export function firstGroupBatch(groups: readonly ListGroup<IndexItem>[], batch: number, opts: EntityListOptions = {}): number {
+  if (!opts.revealClosures) return batch;
+  let last = -1;
+  groups.forEach((g, i) => {
+    if (g.level === 'dicht' || g.level === 'rijbaan') last = i;
+  });
+  return Math.max(batch, last + 1);
+}
+
+function renderBatch(container: HTMLElement, groups: readonly ListGroup<IndexItem>[], from: number, count: number, now: number, opts: EntityListOptions): void {
+  const html = groups
+    .slice(from, from + count)
+    .map((g, i) =>
+      renderGroupHtml(g, (it, extra) =>
+        renderListItem(modelFromIndexItem(it), now, {
+          href: itemHref(it.id, opts),
+          index: from === 0 ? i : 99,
+          ...rowOptions(it, opts),
+          ...extra,
+        }),
+      ),
     )
     .join('');
   container.insertAdjacentHTML('beforeend', html);
@@ -146,25 +177,27 @@ function buildSection(section: EntitySection, now: number, opts: EntityListOptio
   const items = document.createElement('div');
   items.className = 'entity-list__items';
   group.appendChild(items);
-  const first = firstBatchSize(section.items, batch, now, opts);
-  renderBatch(items, section.items, 0, first, now, opts);
+  const rows = groupRows(section.items, now, opts);
+  const first = firstGroupBatch(rows, batch, opts);
+  renderBatch(items, rows, 0, first, now, opts);
 
-  let shown = Math.min(first, section.items.length);
-  if (shown < section.items.length) {
+  let shown = Math.min(first, rows.length);
+  if (shown < rows.length) {
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'btn btn--secondary entity-list__more';
     const label = (): void => {
-      more.textContent = `Toon meer (${plural(section.items.length - shown, 'melding', 'meldingen')})`;
+      more.textContent = `Toon meer (${plural(memberCount(rows.slice(shown)), 'melding', 'meldingen')})`;
     };
     label();
     more.addEventListener('click', () => {
       const before = shown;
-      renderBatch(items, section.items, shown, batch, now, opts);
-      shown = Math.min(shown + batch, section.items.length);
-      if (shown >= section.items.length) more.remove();
+      renderBatch(items, rows, shown, batch, now, opts);
+      shown = Math.min(shown + batch, rows.length);
+      if (shown >= rows.length) more.remove();
       else label();
-      items.querySelectorAll<HTMLElement>('.item')[before]?.focus();
+      const next = items.children[before];
+      (next?.matches('.item') ? (next as HTMLElement) : next?.querySelector<HTMLElement>('.item'))?.focus();
     });
     group.appendChild(more);
   }

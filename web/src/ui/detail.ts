@@ -12,7 +12,7 @@
 import { entityPagesNow } from '../data/entity-pages';
 import { itemVerdict, type ForecastItem } from '../data/forecast';
 import { toMs } from '../data/time';
-import { phraseAt, phraseIn } from '../data/time-phrase';
+import { OPEN_END_PHRASE, phraseAt, phraseIn } from '../data/time-phrase';
 import { parseTimeline, segmentAt } from '../data/timeline';
 import type { ItemDetail, ItemProperties } from '../data/types';
 import { slugify } from '../data/types';
@@ -24,16 +24,19 @@ import {
   directionLabel,
   esc,
   fmtDayTime,
+  fmtDayTimeYear,
   hindLabel,
   kindLabel,
   lanesLabel,
-  planningStatusLabel,
   probabilityLabel,
   queueLabel,
+  relatedIds,
   relatedNote,
+  sourceLabel,
   subLabel,
   vehiclesLabel,
 } from './format';
+import { NO_DESCRIPTION } from './copy';
 import { isNow, periodsBlock, phasesBlock, timelineBar, whenBlock } from './detail-when';
 import { ICONS } from './icons';
 import { renderVerdictBanner } from './verdict-pill';
@@ -90,9 +93,11 @@ function impactRows(p: ItemProperties, d: ItemDetail | null): Row[] {
     push(ICONS.truck, 'Geldt voor', vehiclesLabel(p.veh));
   }
   push(ICONS.triangleAlert, 'Hinder', hindLabel(p.hind));
-  const status = planningStatusLabel(d?.status);
-  const prob = probabilityLabel(p.prob);
-  push(ICONS.info, 'Status', [status, prob && prob !== 'zeker' ? prob : null].filter(Boolean).join(' · ') || null);
+  // No "Status: planning" row: the status line already says "Nu actief" or "Start …", and the
+  // publisher's planning status contradicted it for works that run right now (taal-6). Only an
+  // uncertain melding says so.
+  const prob = p.prob && p.prob !== 'certain' ? probabilityLabel(p.prob) : null;
+  push(ICONS.info, 'Zekerheid', prob);
   return rows;
 }
 
@@ -177,6 +182,12 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   // The pipeline folds the planning object and the actual measure of one roadwork into a single
   // item; say so, otherwise the reader cannot tell why one id covers two publications.
   const merged = relatedNote(d?.related);
+  const mergedIds = relatedIds(d?.related);
+  // An "overig" melding without a sub type or a description said only "OVERIG"; say that the
+  // wegbeheerder gave no explanation instead of leaving the reader to guess (taal-7).
+  const noDescription = d !== null && !desc && p.cat === 'overig' && !subLabel(p.sub);
+  // An open end is said once, in the "Wanneer" status line under the title (taal-7).
+  const bannerWhen = phrase && phrase !== OPEN_END_PHRASE ? [phrase] : [];
 
   const links: string[] = [];
   if (d?.url) links.push(`<a class="btn btn--link" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${ICONS.externalLink}<span>Meer info bij wegbeheerder</span></a>`);
@@ -200,7 +211,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
         <button type="button" class="btn btn--ghost detail__back" data-back>${ICONS.arrowLeft}<span>Terug</span></button>
         <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Link kopiëren">${ICONS.share2}<span>Deel</span></button>
       </div>
-      ${renderVerdictBanner(bannerVerdict(verdict), [phrase], kicker)}
+      ${renderVerdictBanner(bannerVerdict(verdict), bannerWhen, kicker)}
       <header class="detail__head">
         ${badge}
         <div>
@@ -244,11 +255,11 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
       ${phasesBlock(item, state.mode, now, ref)}
       ${d ? periodsBlock(d, now, ref) : ''}
       ${timelineBar(p, now, ref)}
-      ${desc ? `<section class="detail__section"><h3 class="detail__h">Toelichting</h3><p class="detail__desc">${esc(desc)}</p></section>` : ''}
+      ${desc || noDescription ? `<section class="detail__section"><h3 class="detail__h">Toelichting</h3><p class="detail__desc">${esc(desc || NO_DESCRIPTION)}</p></section>` : ''}
       ${links.length ? `<div class="detail__actions">${links.join('')}</div>` : ''}
       <footer class="detail__source">
-        <p>Bron: <strong>${esc(d?.src ?? p.src)}</strong>${d?.upd ? ` · bijgewerkt <time datetime="${esc(d.upd)}">${esc(fmtDayTime(toMs(d.upd)))}</time>` : ''}</p>
-        <p class="detail__id">Melding ${esc(p.id)}</p>
+        <p>Bron: <strong>${esc(sourceLabel(d?.src ?? p.src))}</strong>${d?.upd ? ` · bijgewerkt <time datetime="${esc(d.upd)}">${esc(fmtDayTimeYear(toMs(d.upd), now))}</time>` : ''}</p>
+        <p class="detail__id">Melding ${esc(p.id)}${mergedIds.length ? ` (ook ${esc(mergedIds.join(', '))})` : ''}</p>
         ${merged ? `<p class="detail__merged">${esc(merged)}</p>` : ''}
       </footer>
     </article>`;

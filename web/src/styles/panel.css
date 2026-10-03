@@ -188,8 +188,9 @@
   white-space: nowrap;
 }
 
+/* Wide enough for "Ernstigste eerst" (taal-13); the longest label may still end in an ellipsis. */
 .panel .sort__select {
-  max-width: 7.5rem;
+  max-width: 11rem;
 }
 
 .panel__tools {
@@ -533,3 +534,49 @@
 .app__stage[data-no-webgl] .panel__scroll::after {
   height: 0;
 }
+
+/* ------------------------------------------------------------------ closed motorways */
+/* "Nu dicht op snelwegen: [A2] [A27] …" at national zoom (ui/closed-roads.ts). Every badge is a
+   44 px button that opens road mode. */
+.closed-roads {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-1) var(--s-2);
+  padding: var(--s-1) var(--s-3) var(--s-2) var(--s-4);
+}
+
+.closed-roads[hidden] { display: none; }
+
+.closed-roads__lead {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.closed-roads__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.closed-roads__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0 2px;
+  border: 0;
+  border-radius: var(--r-1);
+  background: none;
+  cursor: pointer;
+}
+
+.closed-roads__btn:hover .badge { box-shadow: 0 0 0 2px var(--accent); }
+.closed-roads__btn:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.closed-roads__more { font-size: var(--text-sm); color: var(--text-2); padding-left: var(--s-1); }

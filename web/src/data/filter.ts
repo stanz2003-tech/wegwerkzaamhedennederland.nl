@@ -33,9 +33,9 @@ export type BBox = [west: number, south: number, east: number, north: number];
 export type SortId = 'impact' | 'start' | 'afstand';
 
 export const SORT_OPTIONS: readonly { id: SortId; label: string }[] = [
-  { id: 'impact', label: 'Impact' },
-  { id: 'start', label: 'Starttijd' },
-  { id: 'afstand', label: 'Afstand tot kaartmidden' },
+  { id: 'impact', label: 'Ernstigste eerst' },
+  { id: 'start', label: 'Wat het eerst begint' },
+  { id: 'afstand', label: 'Dichtbij (midden van de kaart)' },
 ];
 
 export function isSortId(v: string): v is SortId {

@@ -128,6 +128,8 @@ export function renderPlaceAnswer(els: PanelAnswerEls, q: PanelQuestion, place: 
     mode: q.mode,
     answer,
     total: items.length,
+    // The panel says how many items the relevance switch hides under the switch itself (taal-8).
+    hiddenNote: false,
     exitLabel: 'Alle plaatsen',
     exitAction: 'Alle plaatsen tonen',
     ...(opts.pageHref ? { pageHref: opts.pageHref, pageLabel: placePageLabel(place) } : {}),

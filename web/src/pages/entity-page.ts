@@ -4,18 +4,18 @@
  * and drive the forecast block, the list and the small map from one set of items.
  */
 import type { AnswerSubject } from '../data/answer';
-import { featureFromIndexItem, splitForEntity } from '../data/entity';
+import { featureFromIndexItem, orderAlongRoad, splitForEntity } from '../data/entity';
 import { indexItemFromFeature, loadEntityFile } from '../data/entity-file';
 import type { ForecastItem } from '../data/forecast';
 import type { IndexItem } from '../data/index';
 import type { EntityItem, ItemDetail, ItemFeature, RoadType } from '../data/types';
 import { readStoredMode, setWhenParams, storeMode, type UrlState } from '../data/url-state';
-import { isRelevantFor, verdictFor, type VehicleMode } from '../data/verdict';
+import { isRelevantFor, modeNotFor, verdictFor, type VehicleMode } from '../data/verdict';
 import type { EntityMap, EntityView } from '../map/entity-map';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
 import { mountAnswerBar } from '../ui/answer-bar';
 import { roadBadge } from '../ui/badge';
-import { renderEntityList, sortByVerdict, type EntitySection } from '../ui/entity-list';
+import { renderEntityList, rowVerdict, sortByVerdict, type EntitySection } from '../ui/entity-list';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
 import { fmtDay } from '../ui/format';
 import { cameraParams, dayFromUrl, entityMapHref, mapContextQuery, whenParamsOf, type MapTarget } from '../ui/map-link';
@@ -142,17 +142,22 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
     };
     if (state.items === null) {
       const relevant = (list: IndexItem[]): IndexItem[] => list.filter((it) => isRelevantFor(it, state.mode));
-      // "Nu actief" leads with the heaviest pill (impact order within a level): by impact alone
-      // three "Doorrijden mogelijk" incidents stood above the "Rijbaan dicht" at Gorinchem.
+      // "Nu actief" leads with the heaviest pill: by impact alone three "Doorrijden mogelijk"
+      // incidents stood above the "Rijbaan dicht" at Gorinchem. On a road page the rows of one
+      // level then follow the road from end to end (overzicht-4); a place has no such axis.
       // "Gepland" keeps its start order, as its heading promises.
+      const nowRows =
+        opts.subject.kind === 'road'
+          ? orderAlongRoad(relevant(active), (it) => rowVerdict(it, now, listOpts).level, (it) => details.get(it.id)?.to ?? '')
+          : sortByVerdict(relevant(active), now, listOpts);
       const sections: EntitySection[] = [
-        { title: 'Nu actief', items: sortByVerdict(relevant(active), now, listOpts) },
+        { title: 'Nu actief', items: nowRows },
         { title: 'Gepland (komende 30 dagen)', items: relevant(upcoming) },
       ];
       const hidden = active.length + upcoming.length - sections.reduce((n, s) => n + s.items.length, 0);
       if (hidden > 0) {
         const others = [...active, ...upcoming].filter((it) => !isRelevantFor(it, state.mode));
-        sections.push({ title: 'Geldt niet voor jou', items: others, collapsed: true, note: `Deze ${hidden === 1 ? 'melding geldt' : 'meldingen gelden'} alleen voor ander verkeer (bijvoorbeeld een fietspad).` });
+        sections.push({ title: modeNotFor(state.mode), items: others, collapsed: true, note: `Deze ${hidden === 1 ? 'melding geldt' : 'meldingen gelden'} alleen voor ander verkeer (bijvoorbeeld een fietspad).` });
       }
       renderEntityList(listEl, sections, now, listOpts);
       return;

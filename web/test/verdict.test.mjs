@@ -82,7 +82,7 @@ describe('impact levels', () => {
 
   it('geen and onbekend', () => {
     assert.deepEqual(verdictFor(item({ imp: 'geen' }), 'auto'), { level: 'geen', label: 'Geen hinder', detail: undefined });
-    assert.equal(verdictFor(item({ imp: 'onbekend' }), 'auto').label, 'Hinder onbekend');
+    assert.equal(verdictFor(item({ imp: 'onbekend' }), 'auto').label, 'Gevolgen niet gemeld');
     // v2 data: no imp at all.
     assert.equal(verdictFor({ cat: 'werk' }, 'auto').level, 'onbekend');
     assert.equal(verdictFor(item({ imp: 'gesloten' }), 'auto').level, 'onbekend');

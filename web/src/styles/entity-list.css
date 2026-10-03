@@ -308,3 +308,45 @@
 /* The stale-data warning page-boot.ts inserts directly above the answer. */
 .entity-stale { margin: 0 0 var(--s-3); }
 .entity-stale[hidden] { display: none; }
+
+/* ------------------------------------------------------------------ motorways block */
+/* "Snelwegen dit weekend" above the list of /dit-weekend/ and /vandaag/ (ui/motorway-block.ts):
+   one 44 px row per motorway with a closure, linking to its road page. */
+.motorways { display: grid; gap: var(--s-2); margin-bottom: var(--s-2); }
+.motorways .entity-list__group-title { margin-top: 0; }
+
+.motorways__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+
+.motorways__list li + li { border-top: 1px solid var(--border); }
+
+.motorways__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: var(--touch);
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-4);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.motorways__row:hover { background: var(--surface-2); }
+.motorways__row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.motorways__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.motorways__facts { font-size: var(--text-sm); color: var(--text-2); }

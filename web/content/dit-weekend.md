@@ -6,7 +6,7 @@ title: Wegwerkzaamheden en afsluitingen dit weekend in Nederland
 description: Welke wegen dit weekend dicht zijn of hinder geven: alle weekendafsluitingen en werkzaamheden van vrijdagavond tot maandagochtend, met omleidingen.
 heading: Wegwerkzaamheden dit weekend
 kicker: Dit weekend
-lead: Alle werkzaamheden en afsluitingen die dit weekend gelden, van vrijdagavond tot maandagochtend vroeg. Grote weekendafsluitingen van snelwegen staan bovenaan, daarna de rest op volgorde van starttijd.
+lead: Alle werkzaamheden en afsluitingen die dit weekend gelden, van vrijdagavond tot maandagochtend vroeg. Bovenaan staan de snelwegen waar iets dicht is; daaronder eerst wat dicht is, met de grootste wegen voorop.
 emptyTitle: Geen meldingen voor dit weekend.
 emptyText: Op dit moment zijn er bij NDW geen werkzaamheden of afsluitingen voor het komende weekend aangemeld, of de gegevens konden niet worden geladen.
 ---

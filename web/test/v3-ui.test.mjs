@@ -88,7 +88,9 @@ describe('verdict-first list row', () => {
     assert.ok(html.includes('Lunetten → Utrecht-Noord'), 'section without the road prefix');
     assert.ok(html.includes('tot wo 9 sep 20:00'), 'when line in clock time, without "Nu actief"');
     assert.ok(html.includes('data-road="A27"'), 'badge is a road-mode target');
-    assert.ok(html.includes('Rijkswaterstaat'), 'wegbeheerder on the muted line');
+    assert.equal(html.includes('Rijkswaterstaat'), false, 'the wegbeheerder is in the detail only');
+    // A sub type that repeats the effect (rijstrookafzetting) is left out, as on P7's kind line.
+    assert.ok(html.includes('<span class="sr-only">Werkzaamheden</span>'), 'category named for screen readers');
   });
 
   it('follows the vehicle mode: a cycle path is nvt for cars and dicht for cyclists', () => {
@@ -101,7 +103,7 @@ describe('verdict-first list row', () => {
   it('renders as a link on the generated pages and reads a v2 feature as onbekend', () => {
     const html = renderListItem(modelFromProps({ ...props, imp: undefined }), NOW, { href: '/?id=x1' });
     assert.ok(html.startsWith('<a class="item"'));
-    assert.ok(html.includes('Hinder onbekend'));
+    assert.ok(html.includes('Gevolgen niet gemeld'));
     assert.equal(sectionOf({ title: 'Los', road: null }), 'Los');
   });
 });
@@ -186,6 +188,7 @@ describe('list row times from the chosen moment or day (vooruit-3, taal-3, taal-
     const html = renderListItem(cycle, TODAY, { mode: 'auto' });
     assert.ok(html.includes('Geldt niet voor auto&#39;s'));
     assert.doesNotMatch(html, /rijbaan afgesloten/);
-    assert.ok(html.includes('<span>Afsluiting'));
+    // The category is named for screen readers next to its icon (P8's two-line row).
+    assert.ok(html.includes('<span class="sr-only">Afsluiting</span>'));
   });
 });

@@ -1,20 +1,22 @@
 /**
  * Shared list-item component: used as <button> in the app panel and as <a href="/?id=…"> on the
- * generated pages. Verdict-first:
- *   line 1  verdict pill + specifics ("Doorrijden mogelijk · 1 rijstrook dicht · tot 10 min")
- *   line 2  road badge + place/section + when ("tot di 29 sep 05:00" / "begint za 13 sep 22:00"),
- *           from the chosen moment or day when the reader looks ahead (data/time-phrase.ts)
- *   line 3  (muted) category icon + label + wegbeheerder
+ * generated pages. Verdict-first, two lines so a list of dozens can be scanned (overzicht-8):
+ *   line 1  verdict pill + road badge + section ("Rijbaan dicht [A27] Lunetten → Nieuwegein · Houten")
+ *   line 2  category icon (named for screen readers) + when + "richting X" + the verdict detail
+ *           ("tot di 29 sep 05:00 · richting Utrecht · 1 rijstrook dicht · max 70 km/u"); the
+ *           when counts from the chosen moment or day when the reader looks ahead
+ *           (data/time-phrase.ts)
+ * The wegbeheerder is in the detail only; the category no longer repeats the pill in words.
  */
 import type { ForecastItem } from '../data/forecast';
 import type { IndexItem } from '../data/index';
+import { midpointOf } from '../data/filter';
 import { phraseAt, phraseIn } from '../data/time-phrase';
-import type { Category, Hindrance, Impact, ItemDetail, ItemProperties, RoadType, Vehicle } from '../data/types';
+import type { Category, Hindrance, Impact, ItemDetail, ItemFeature, ItemProperties, RoadType, Vehicle } from '../data/types';
 import { cleanVehicles, isImpact, verdictFor, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
-import { isLongRunning } from '../data/time';
-import { LONG_RUNNING_TAG, esc, kindLabel, statusLine, whenLabel } from './format';
+import { esc, kindLabel, statusLine, whenLabel } from './format';
 import { renderVerdictPill } from './verdict-pill';
 
 export interface ListItemModel {
@@ -38,6 +40,8 @@ export interface ListItemModel {
   per: boolean;
   spd: number | null;
   lc: number | null;
+  /** Representative point [lon, lat] when known: lets the list fold one street's parts (ui/list-group.ts). */
+  pos?: readonly [number, number] | null;
 }
 
 export function modelFromProps(p: ItemProperties): ListItemModel {
@@ -85,7 +89,13 @@ export function modelFromIndexItem(it: IndexItem): ListItemModel {
     per: it.per,
     spd: it.spd,
     lc: it.lc,
+    pos: it.lon === 0 && it.lat === 0 ? null : [it.lon, it.lat],
   };
+}
+
+/** The model of a map feature, with the midpoint of its geometry as its position. */
+export function modelFromFeature(f: ItemFeature): ListItemModel {
+  return { ...modelFromProps(f.properties), pos: midpointOf(f.geometry) };
 }
 
 export interface ListItemOptions {
@@ -109,10 +119,13 @@ export interface ListItemOptions {
   tl?: unknown;
   tlTo?: string;
   /**
-   * The "when" text, when the caller has worded it already. Without it the row words it itself:
-   * from the chosen moment or day (`at` / `window`) when that is not now, else from now.
+   * The "when" text, when the caller has worded it already (a grouped row lists the dates of its
+   * members, ui/list-group.ts). Without it the row words it itself: from the chosen moment or day
+   * (`at` / `window`) when that is not now, else from now.
    */
   whenText?: string;
+  /** A short extra on line 2 ("3 delen van deze straat"). */
+  note?: string;
 }
 
 /** Place shown next to the section: woonplaats when it adds information beyond the title, else gemeente. */
@@ -180,6 +193,23 @@ function rowWhen(m: ListItemModel, now: number, opts: ListItemOptions): { text: 
   return { text: phraseAt(forecastItemOf(m, opts), mode, at) || whenLabel(span, at), ref: at };
 }
 
+/**
+ * "Werkzaamheden · asfalteren": what the category icon stands for, for its title and screen
+ * readers. A sub type that only repeats the effect ("rijbaan afgesloten") is left out (P7,
+ * taal-2): next to "Geldt niet voor auto's" on a cycle-path closure it contradicted the pill.
+ */
+export function categoryName(m: Pick<ListItemModel, 'cat' | 'sub' | 'spd'>): string {
+  const name = kindLabel(m.cat, m.sub, { spd: m.spd });
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+/** "richting Utrecht" when the detail names a direction that neither the section nor the verdict already says. */
+function directionText(verdict: Verdict, opts: ListItemOptions): string | null {
+  if (!opts.to || opts.from) return null;
+  const text = `richting ${opts.to}`;
+  return (verdict.detail ?? '').includes(text) ? null : text;
+}
+
 export function renderListItem(m: ListItemModel, now: number, opts: ListItemOptions = {}): string {
   const meta = CATEGORY_META[m.cat];
   const span = { start: m.start, end: m.end };
@@ -192,11 +222,15 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
   else where.push(sectionOf(m));
   const place = placeTag(m);
   if (place && !where.join(' ').toLowerCase().includes(place.toLowerCase())) where.push(place);
+  const whereText = where.join(' · ');
 
-  const line3: string[] = [];
-  line3.push(esc(kindLabel(m.cat, m.sub, { spd: m.spd })));
-  if (m.src) line3.push(esc(m.src));
-  if (isLongRunning(span, now)) line3.push(`<span class="tag tag--long" title="Deze maatregel loopt langer dan 90 dagen">${LONG_RUNNING_TAG}</span>`);
+  const sep = ' <span aria-hidden="true">·</span> ';
+  const line2: string[] = [`<span class="item__when item__when--${status.kind}">${esc(when.text)}</span>`];
+  const dir = directionText(verdict, opts);
+  if (dir) line2.push(`<span>${esc(dir)}</span>`);
+  if (verdict.detail) line2.push(`<span class="item__verdict-detail">${esc(verdict.detail)}</span>`);
+  if (opts.note) line2.push(`<span class="item__note">${esc(opts.note)}</span>`);
+  const cat = categoryName(m);
 
   const tag = opts.href ? 'a' : 'button';
   // A row opens the details; it is not a toggle, so no aria-pressed ("schakelknop, niet
@@ -208,9 +242,8 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
     : roadBadge(null, m.roadType, { size: 'sm', place: m.woonplaats ?? m.gemeente });
   return `<${tag} class="item${opts.selected ? ' is-selected' : ''}" data-id="${esc(m.id)}" data-cat="${m.cat}" data-verdict="${verdict.level}" ${attrs}${style}>
     <span class="item__body">
-      <span class="item__verdict">${renderVerdictPill(verdict, { size: 'sm' })}${verdict.detail ? `<span class="item__verdict-detail">${esc(verdict.detail)}</span>` : ''}</span>
-      <span class="item__where">${badge}<span class="item__title">${esc(where.join(' · '))}</span><span class="item__when item__when--${status.kind}">${esc(when.text)}</span></span>
-      <span class="item__meta">${meta.icon}<span>${line3.join(' <span aria-hidden="true">·</span> ')}</span></span>
+      <span class="item__where">${renderVerdictPill(verdict, { size: 'sm' })}${badge}<span class="item__title" title="${esc(whereText)}">${esc(whereText)}</span></span>
+      <span class="item__meta"><span class="item__cat" title="${esc(cat)}">${meta.icon}<span class="sr-only">${esc(cat)}</span></span><span class="item__facts">${line2.join(sep)}</span></span>
     </span>
     <span class="item__chevron" aria-hidden="true"></span>
   </${tag}>`;
