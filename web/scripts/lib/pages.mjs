@@ -149,6 +149,23 @@ export function buildModel({ webRoot, repoRoot, listsDir, now = new Date(), warn
   };
 }
 
+/** File name of the entity-page manifest at the site root (web/src/data/entity-pages.ts reads it). */
+export const ENTITY_MANIFEST_FILE = 'entity-pages.json';
+
+/**
+ * Which road, woonplaats and gemeente pages this build generates, from the same lists the pages
+ * come from: the map links to /plaats/<slug>/ only when the page exists, and resolves `?plaats=`
+ * back to a name. The gemeente of a woonplaats disambiguates the 70 names that occur twice.
+ */
+export function buildEntityManifest(model) {
+  return {
+    v: 1,
+    roads: model.lists.roads.map((r) => r.slug),
+    woonplaatsen: model.lists.woonplaatsen.map((w) => ({ slug: w.slug, name: w.naam, gemeente: w.gemeente ?? null })),
+    gemeenten: model.lists.gemeenten.map((g) => ({ slug: g.slug, name: g.naam })),
+  };
+}
+
 /** ≈ 30 representative pages for `--sample`. */
 export function samplePages(model) {
   const pick = [];

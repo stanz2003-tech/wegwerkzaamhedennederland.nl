@@ -1,7 +1,8 @@
 /**
  * The answer card at the top of the panel in road mode ("Kan ik over de A27?"): road badge,
  * the chosen moment, one big verdict line for the chosen mode, at most three specifics and a
- * prominent "× Alle wegen" that leaves road mode. Also used as the headline of /weg/<slug>/.
+ * prominent "× Alle wegen" that leaves road mode. Also used as the headline of /weg/<slug>/, and
+ * in place mode on the map ("Kan ik door Almkerk?", "× Alle plaatsen", a link to the place page).
  */
 import { BEYOND_HORIZON_HEADLINE, horizonDateLabel, type Answer } from '../data/answer';
 import type { RoadType } from '../data/types';
@@ -24,6 +25,16 @@ export interface AnswerCardModel {
   total: number;
   /** Omit the exit button (entity page headline). */
   exit?: boolean;
+  /** Visible text of the exit button: "Alle wegen" (default), "Alle plaatsen" in place mode. */
+  exitLabel?: string;
+  /** What the exit does, as its accessible name: "Alle wegen tonen" (default). */
+  exitAction?: string;
+  /**
+   * A page that answers the same question per day ("Almkerk per dag bekijken →" to
+   * /plaats/almkerk/). Only set when that page exists (data/entity-pages.ts).
+   */
+  pageHref?: string;
+  pageLabel?: string;
   /**
    * Set while the data is older than it should be ("20:17" / "wo 23 sep 21:31"): an answer for
    * "nu" then names the moment it really describes, so it cannot pass for the current situation.
@@ -78,6 +89,12 @@ export function answerAnnouncement(m: AnswerCardModel): string {
   return `${subject}, ${MODE_LABEL[m.mode]}, ${whenText(m)}: ${cardHeadline(m).replace(/[.s]+$/, '')}.`;
 }
 
+/** "× Alle wegen" / "× Alle plaatsen": leaves road or place mode (the caller wires `[data-answer-exit]`). */
+function exitButton(m: AnswerCardModel): string {
+  const action = esc(m.exitAction ?? 'Alle wegen tonen');
+  return `<button type="button" class="btn btn--secondary answer__exit" data-answer-exit aria-label="${action}" title="${action}">${ICONS.x}<span class="answer__exit-text">${esc(m.exitLabel ?? 'Alle wegen')}</span></button>`;
+}
+
 export function renderAnswerCard(m: AnswerCardModel): string {
   const level = levelOf(m.answer);
   const meta = VERDICT_META[level];
@@ -93,11 +110,12 @@ export function renderAnswerCard(m: AnswerCardModel): string {
         <div class="answer__q">
           <p class="answer__kicker" id="answer-q">${question} <span class="answer__mode">${esc(modeLine(m))}</span></p>
         </div>
-        ${m.exit === false ? '' : `<button type="button" class="btn btn--secondary answer__exit" data-road-exit aria-label="Alle wegen tonen" title="Alle wegen tonen">${ICONS.x}<span class="answer__exit-text">Alle wegen</span></button>`}
+        ${m.exit === false ? '' : exitButton(m)}
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}
       ${horizonLine(m.answer)}
+      ${m.pageHref ? `<p class="answer__page"><a class="btn btn--link answer__page-link" href="${esc(m.pageHref)}">${esc(m.pageLabel ?? 'Per dag bekijken →')}</a></p>` : ''}
       ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
     </section>`;
 }

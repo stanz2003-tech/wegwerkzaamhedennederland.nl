@@ -3,18 +3,21 @@
  * list, detail) and the top bar around ONE question: "Kan ik erdoor?"
  *
  * Every filter is strict and shared — whatever the list shows is exactly what the map shows:
- * category chips, vehicle relevance, road mode (`?weg=a27`) and the chosen moment. Outside road
- * mode the list follows the map viewport. The verdict for the chosen vehicle mode colours the
- * map, leads every list row and the detail, and is summarised in one sentence above the list
- * (in road mode: the answer card).
+ * category chips, vehicle relevance, road mode (`?weg=a27`) or place mode (`?plaats=almkerk`) and
+ * the chosen moment. Outside road and place mode the list follows the map viewport. The verdict
+ * for the chosen vehicle mode colours the map, leads every list row and the detail, and is
+ * summarised in one sentence above the list (in road and place mode: the answer card).
  *
  * Flow: URL state → map (PDOK basemap with fallbacks) → meta + werk-actueel + live → layers →
  * filters/list → detail on select. `werk-gepland.geojson` is loaded lazily the first time a
  * window beyond "Nu" or a future moment is chosen; `live.geojson` + `meta.json` refresh every
- * 90 s while the document is visible. URL state is written back debounced (replaceState).
+ * 90 s while the document is visible. URL state is written back debounced (replaceState); a
+ * road, a place (ui/place-controller.ts) or an opened item gets its own history entry, so the
+ * phone's back gesture undoes that step instead of leaving the site.
  */
 import './styles/base.css';
 import './styles/components.css';
+import './styles/place-search.css';
 import './styles/chrome.css';
 // map.css + the MapLibre stylesheet come in via src/map/map.ts.
 import './styles/panel.css';
@@ -30,7 +33,18 @@ import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
 import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
 import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, toMs } from './data/time';
 import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
-import { itemDeepLink, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type UrlState } from './data/url-state';
+import { entityPagesNow } from './data/entity-pages';
+import {
+  detailStepBackAllowed,
+  itemDeepLink,
+  normalizeRoadParam,
+  readStoredMode,
+  readUrlState,
+  storeMode,
+  writeUrlState,
+  type HistoryMarker,
+  type UrlState,
+} from './data/url-state';
 import { VERDICT_SEVERITY, modeNoun, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
 import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
@@ -48,6 +62,8 @@ import { mountPanel } from './ui/panel';
 import { mountPanelLayout } from './ui/panel-layout';
 import { renderPanelSummary, renderRoadAnswer, type PanelAnswerEls } from './ui/panel-answer';
 import { mountSearch } from './ui/search';
+import { QUIETLY, createPlaceController, type LeaveOptions } from './ui/place-controller';
+import { clearPlaceAnswer, hasPlacePage, placeMatcher, placePageHref, placePrefix, renderPlaceAnswer, resolvePlace } from './ui/place-mode';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
 import { renderStaleBanner } from './ui/stale-banner';
@@ -159,11 +175,17 @@ function inTime(p: ItemFeature['properties'], now: number): boolean {
   return matchesTimeWindow(p, url.time, now);
 }
 
-function syncUrl(): void {
+const STEP: HistoryMarker = { wegwerk: true };
+
+/**
+ * Writes the state to the address bar. `push`: this was a step the back button should undo
+ * (a road, a place, an opened item; mobiel-5); everything else replaces the current entry.
+ */
+function syncUrl(push: HistoryMarker | false = false): void {
   if (map) {
     url = { ...url, zoom: map.getZoom(), center: map.getCenter() };
   }
-  writeUrlState(url);
+  writeUrlState(url, push ? { push: true, marker: push } : {});
 }
 
 /** Camera padding so `fitBounds` keeps the feature clear of the panel / sheet. */
@@ -206,10 +228,14 @@ function render(): void {
   const items = allItems();
   const cats = catSet();
 
-  // 1. time (moment or window), 2. road mode, 3. free text.
+  // 1. time (moment or window), 2. road or place mode, 3. free text.
+  const place = places.active();
+  const inPlace = place ? placeMatcher(place, entityPagesNow()) : null;
   let base = items.filter((f) => inTime(f.properties, now));
   const roadAll = url.road ? items.filter((f) => matchesRoad(f.properties.road, url.road ?? '')) : items;
+  const placeAll = inPlace ? items.filter((f) => inPlace(f.properties)) : [];
   if (url.road) base = base.filter((f) => matchesRoad(f.properties.road, url.road ?? ''));
+  if (inPlace) base = base.filter((f) => inPlace(f.properties));
   if (url.query) base = base.filter((f) => matchesQuery(f.properties, url.query));
 
   // 4. vehicle relevance (the verdict decides), 5. categories.
@@ -218,7 +244,7 @@ function render(): void {
   chips.setCounts(countByCategory(relevant.map((j) => j.f)));
   const forMap = cats ? relevant.filter((j) => cats.has(j.f.properties.cat)) : relevant;
 
-  const mapKey = `${at}|${url.time}|${url.cats?.join(',') ?? '*'}|${url.query}|${url.mode}|${hideNvt}|${url.road ?? ''}|${forMap.length}|${items.length}`;
+  const mapKey = `${at}|${url.time}|${url.cats?.join(',') ?? '*'}|${url.query}|${url.mode}|${hideNvt}|${url.road ?? ''}|${place?.slug ?? ''}|${forMap.length}|${items.length}`;
   if (mapKey !== lastMapKey) {
     lastMapKey = mapKey;
     map?.setItems(forMap.map(withVerdict));
@@ -228,7 +254,7 @@ function render(): void {
   // Outside road mode the list follows the viewport; in road mode it is the whole road, and with
   // a text filter it is every match: "Almkerk" typed with the camera on Amsterdam must not answer
   // "In beeld: geen meldingen" while Almkerk has a closure (zoek-3).
-  const bounds = url.road || url.query ? null : mapBounds();
+  const bounds = url.road || url.query || place ? null : mapBounds();
   const inView = bounds ? forMap.filter((j) => bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds)) : forMap;
   const ordered = sortItems(
     inView.map((j) => j.f),
@@ -243,21 +269,34 @@ function render(): void {
     ordered.sort((a, b) => (levelOf.get(a.properties.id) ?? 9) - (levelOf.get(b.properties.id) ?? 9));
   }
   const models = ordered.slice(0, LIST_MAX).map((f) => modelFromProps(f.properties));
-  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at, total: ordered.length, ...(url.query ? { emptyQuery: url.query } : {}) });
+  list.setItems(models, now, selected?.properties.id ?? null, {
+    mode: url.mode,
+    at,
+    total: ordered.length,
+    ...(url.query ? { emptyQuery: url.query, ...(ordered.length === 0 ? places.didYouMeanOpt(url.query) : {}) } : {}),
+  });
 
   // The sentence above the list counts what is in view including the items the relevance
   // switch hides, so it can say how many were hidden and for whom.
   const inViewAll = (cats ? judged.filter((j) => cats.has(j.f.properties.cat)) : judged).filter(
     (j) => !bounds || bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds),
   );
-  const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt);
+  const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt, place ? placePrefix(place) : undefined);
   layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
   const dataAsOf = staleDataLabel(liveStatus, now);
   const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
-  lastAnswerText = roadText ?? summary.text;
+  let placeText: string | null = null;
+  if (place) {
+    const pageHref = hasPlacePage(place, entityPagesNow()) ? placePageHref(place, url) : null;
+    placeText = renderPlaceAnswer(answerEls, url, place, cats ? placeAll.filter((f) => cats.has(f.properties.cat)) : placeAll, now, { ...(dataAsOf ? { dataAsOf } : {}), pageHref, onExit: () => places.exit() });
+  } else clearPlaceAnswer(answerEls);
+  lastAnswerText = roadText ?? placeText ?? summary.text;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
+    map.fitToFeatures(forMap.map((j) => j.f));
+  }
+  if (map && place && forMap.length > 0 && places.takeFit()) {
     map.fitToFeatures(forMap.map((j) => j.f));
   }
   if (pendingQueryFit && map && url.query && forMap.length > 0) {
@@ -291,38 +330,72 @@ function announceAnswer(): void {
   announce(lastAnswerText);
 }
 
-/* ------------------------------------------------------------------ road mode */
+/* ------------------------------------------------------------------ road and place mode */
 
-function enterRoad(road: string, fit = true): void {
-  const key = normalizeRoadParam(road) ?? road.trim().toUpperCase();
-  if (!key) return;
-  url = { ...url, road: key, query: '' };
-  pendingQueryFit = false;
-  search.setQuery(key);
-  if (selected) selectItem(null, false);
-  pendingRoadFit = fit;
-  render();
+/**
+ * After entering a road or place: the answer in view, its headline focused and spoken. `withMap`
+ * (place mode, owner decision 3): on a phone the sheet goes back to half, also from the full
+ * sheet the search box opened, so the place shows on the map above the answer.
+ */
+function showAnswer(withMap = false): void {
   // On a short phone the half sheet is all sticky header: open it fully so the answer shows.
-  panel.ensureAtLeast(panel.isMobile() && window.innerHeight < SHORT_VIEWPORT_PX ? 'full' : 'half');
-  syncUrl();
+  const short = panel.isMobile() && window.innerHeight < SHORT_VIEWPORT_PX;
+  if (withMap && panel.isMobile() && !short) panel.snap('half');
+  else panel.ensureAtLeast(short ? 'full' : 'half');
   answerEl.querySelector<HTMLElement>('.answer__headline')?.focus({ preventScroll: true });
   panel.scrollTo(answerEl);
   announceAnswer();
 }
 
-/** `quiet`: the caller moves on to something else (a place, a deep-linked item) that speaks for itself. */
-function exitRoad(quiet = false): void {
+function enterRoad(road: string, fit = true, push = true): void {
+  const key = normalizeRoadParam(road) ?? road.trim().toUpperCase();
+  if (!key) return;
+  url = { ...url, road: key, place: null, query: '' };
+  pendingQueryFit = false;
+  search.setQuery(key);
+  if (selected) selectItem(null, false);
+  pendingRoadFit = fit;
+  render();
+  syncUrl(push ? STEP : false);
+  showAnswer();
+}
+
+/** `push` (default): "Alle wegen" is a step of its own; not when the caller moves on to something else. */
+function exitRoad(o: LeaveOptions = {}): void {
   url = { ...url, road: null };
   search.setQuery('');
   pendingRoadFit = false;
   render();
-  syncUrl();
+  syncUrl(o.push === false ? false : STEP);
+  afterLeave(o);
+}
+
+function afterLeave(o: LeaveOptions): void {
   // On a phone a focused input brings up the keyboard and the full sheet, while "Alle wegen"
   // asks for the map: there the focus goes to the list heading instead.
-  if (panel.isMobile()) listHeading.focus({ preventScroll: true });
-  else search.focus();
-  if (!quiet) announceAnswer();
+  if (o.focus !== false) {
+    if (panel.isMobile()) listHeading.focus({ preventScroll: true });
+    else search.focus();
+  }
+  if (!o.quiet) announceAnswer();
 }
+
+const places = createPlaceController({
+  url: () => url,
+  setUrl: (next) => (url = next),
+  dataOk: () => dataOk,
+  render,
+  syncUrl,
+  map: () => map,
+  setQuery: (q) => search.setQuery(q),
+  pickInSearch: (hit) => search.pickPlace(hit),
+  deselect: () => selected && selectItem(null, false),
+  leaveRoad: exitRoad,
+  showAnswer,
+  afterLeave,
+  repaintDetail: () => selected && paintDetail(),
+  peek: () => panel.snap('peek'),
+});
 
 /* ------------------------------------------------------------------ detail view */
 
@@ -364,7 +437,7 @@ function paintDetail(open = false): void {
     },
     now,
     {
-      onBack: () => selectItem(null),
+      onBack: () => closeDetail(),
       onShare: () => void share(),
       onRetry: () => void loadDetailFor(selected),
       onRoad: (road) => enterRoad(road),
@@ -396,8 +469,25 @@ async function loadDetailFor(feature: ItemFeature | null, open = false): Promise
   paintDetail();
 }
 
-/** Selects an item (or clears the selection) and updates map, URL and panel. */
-function selectItem(id: string | null, fly = true): void {
+/**
+ * "Terug" in the detail: when this page view pushed the entry of the open item, step back in the
+ * history (the back gesture and the button then agree); after a deep link or a reload there is
+ * no such entry, and the detail just closes — "Terug" never leaves the site.
+ */
+function closeDetail(): void {
+  if (selected && detailStepBackAllowed()) {
+    window.history.back();
+    return;
+  }
+  selectItem(null);
+}
+
+/**
+ * Selects an item (or clears the selection) and updates map, URL and panel. `push` (default:
+ * opening an item while none was open) gives the item its own history entry; switching from one
+ * item to the next replaces it, so the back button does not walk through every row.
+ */
+function selectItem(id: string | null, fly = true, push?: boolean): void {
   const previous = selected?.properties.id ?? null;
   const feature = id ? (byId.get(id) ?? null) : null;
   selected = feature;
@@ -417,7 +507,7 @@ function selectItem(id: string | null, fly = true): void {
   updatePadding();
   if (fly) map?.fitToFeature(feature);
   void loadDetailFor(feature, true);
-  syncUrl();
+  syncUrl((push ?? previous === null) ? { wegwerk: true, detail: true } : false);
 }
 
 /* ------------------------------------------------------------------ UI mounts */
@@ -437,7 +527,7 @@ const layout = mountPanelLayout(
     detail: detailEl,
   },
   panel,
-  { onBack: () => selectItem(null), onShare: () => void share() },
+  { onBack: () => closeDetail(), onShare: () => void share() },
 );
 
 const modeSelect = mountModeSelect(el<HTMLElement>('[data-mode]'), url.mode, (mode) => {
@@ -454,7 +544,7 @@ const list = mountList(listEl, {
   onSelect: (id) => selectItem(id),
   onHover: (id) => map?.setHover(id),
   onReset: () => {
-    url = { ...url, cats: null, time: DEFAULT_TIME_WINDOW, moment: null, query: '', road: null };
+    url = { ...url, cats: null, time: DEFAULT_TIME_WINDOW, moment: null, query: '', road: null, place: null };
     hideNvt = true;
     chips.setSelected(null);
     when.setSelected(DEFAULT_TIME_WINDOW);
@@ -543,21 +633,21 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
       selectItem(hit.id);
       return;
     }
-    void resolveDeepLink(hit.id);
+    void resolveDeepLink(hit.id, true);
   },
-  onPickPlace: (loc, zoom) => {
-    if (url.road) exitRoad(true);
-    if (loc.bbox) map?.fitBBox(loc.bbox, zoom);
-    else map?.flyTo(loc.center, zoom);
-    panel.snap('peek');
-  },
+  onPickPlace: (loc, zoom, hit) => places.pick(loc, zoom, hit),
   onPickRoad: (road) => enterRoad(road),
   onQuery: (q) => {
     if (url.road && q === '') {
       exitRoad();
       return;
     }
-    url = { ...url, query: q };
+    if (url.place && q === '') {
+      places.exit();
+      return;
+    }
+    // A typed text filter replaces place mode: one subject at a time.
+    url = { ...url, query: q, place: q ? null : url.place };
     pendingQueryFit = q !== '';
     render();
     syncUrl();
@@ -565,6 +655,8 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
   // On a phone the keyboard takes the lower half of the screen: open the sheet fully so the
   // search box sits at the top and the suggestions above the keyboard (mobiel-4).
   onFocus: () => (panel.isMobile() ? panel.snap('full') : panel.ensureAtLeast('half')),
+  // The suggestions show the verdict the list row shows: same vehicle, same moment.
+  context: () => ({ mode: url.mode, at: momentAt(Date.now()) }),
 });
 
 search.setQuery(url.road ?? url.query);
@@ -596,8 +688,8 @@ function index(): void {
   byId = new Map(allItems().map((f) => [f.properties.id, f]));
 }
 
-/** Loads the item behind `?id=` even when it is not in the active set. */
-async function resolveDeepLink(id: string): Promise<void> {
+/** Loads the item behind `?id=` even when it is not in the active set. `push`: picked by the user. */
+async function resolveDeepLink(id: string, push = false): Promise<void> {
   if (!byId.has(id) && !geplandLoad) await ensureGepland();
   const feature = byId.get(id);
   if (!feature) {
@@ -607,7 +699,7 @@ async function resolveDeepLink(id: string): Promise<void> {
     return;
   }
   ensureItemVisible(feature);
-  selectItem(id);
+  selectItem(id, true, push && !selected);
 }
 
 /** Relaxes the filters so a deep-linked item is actually on the map. */
@@ -626,7 +718,9 @@ function ensureItemVisible(feature: ItemFeature): void {
     url = { ...url, cats: null };
     chips.setSelected(null);
   }
-  if (url.road && !matchesRoad(p.road, url.road)) exitRoad(true);
+  if (url.road && !matchesRoad(p.road, url.road)) exitRoad(QUIETLY);
+  const place = places.active();
+  if (place && !placeMatcher(place, entityPagesNow())(p)) places.exit(QUIETLY);
   if (hideNvt && verdictFor(p, url.mode, {}).level === 'nvt') {
     hideNvt = false;
     relevance.set(false);
@@ -654,6 +748,7 @@ async function start(retry = false): Promise<void> {
     renderHomeCounts(data.meta);
     if (needsGepland()) void ensureGepland();
     if (url.road) pendingRoadFit = true;
+    if (url.place) places.wantFit();
     render();
     for (const warning of data.warnings) {
       showToast(`Onderdeel niet geladen: ${warning}`, 'error');
@@ -716,7 +811,7 @@ async function boot(): Promise<void> {
       onHover: () => undefined,
       onMoveEnd: () => {
         // Road mode and a text filter list everything they match, wherever the camera is.
-        if (!url.road && !url.query) render();
+        if (!url.road && !url.query && !places.active()) render();
         syncUrl();
       },
       onBasemap: (kind) => {
@@ -735,7 +830,7 @@ async function boot(): Promise<void> {
   // free. On desktop that is the default zoom re-centred next to the panel (the BRT tiles only
   // carry water and terrain fills from zoom 7, so we do not zoom out below it); on a phone the
   // sheet covers half the stage, so there we fit the whole country into what is left.
-  if (map && url.center === null && url.zoom === null && !url.road) {
+  if (map && url.center === null && url.zoom === null && !url.road && !url.place) {
     if (panel.isMobile()) {
       map.setMinZoom(MOBILE_MIN_ZOOM);
       frameCountry();
@@ -751,6 +846,7 @@ async function boot(): Promise<void> {
     // The first render may have run without a map; push the data into the new sources.
     lastMapKey = '';
     if (url.road) pendingRoadFit = true;
+    if (url.place) places.wantFit();
     render();
     if (selected) {
       // A deep link can have its detail loaded before the map existed: re-apply the detour.
@@ -764,7 +860,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (selected) {
     e.preventDefault();
-    selectItem(null);
+    closeDetail();
     return;
   }
   if (panel.isMobile() && panel.getSnap() !== 'peek') {
@@ -777,18 +873,26 @@ window.setInterval(() => void refresh(), REFRESH_MS);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && Date.now() - lastRefresh > REFRESH_MS) void refresh();
 });
+/**
+ * The back (and forward) button: restores the subject (road or place), the text filter and the
+ * open item of that entry. Vehicle, moment, filters and camera stay as they are now — closing an
+ * item with the back gesture must not also undo the vehicle chosen while it was open.
+ */
 window.addEventListener('popstate', () => {
   const next = readUrlState();
-  url = { ...next, zoom: url.zoom, center: url.center };
-  when.setSelected(url.time);
-  when.setMoment(url.moment);
-  chips.setSelected(catSet());
-  modeSelect.set(url.mode);
-  search.setQuery(url.road ?? url.query);
-  if (needsGepland()) void ensureGepland();
+  const before = { road: url.road, place: url.place };
+  const samePlace = next.place && before.place?.kind === next.place.kind && before.place.slug === next.place.slug;
+  const place = next.place ? (samePlace ? before.place : resolvePlace(next.place, entityPagesNow())) : null;
+  url = { ...url, road: next.road, place, query: next.query, id: next.id };
+  search.setQuery(url.road ?? place?.name ?? url.query);
+  pendingRoadFit = url.road !== null && url.road !== before.road;
+  if (place !== null && !samePlace) places.wantFit();
   render();
-  if (next.id) void resolveDeepLink(next.id);
-  else if (selected) selectItem(null);
+  if (next.id) {
+    if (next.id !== selected?.properties.id) void resolveDeepLink(next.id);
+  } else if (selected) selectItem(null);
+  else syncUrl();
+  if (panel.isMobile()) panel.snap('half');
 });
 
 void boot();

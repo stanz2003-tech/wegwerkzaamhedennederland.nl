@@ -1,0 +1,46 @@
+/* The filter field on /wegen/, /plaatsen/ and /bruggen/ (pages/list-filter.ts, zoek-9). Only the
+   script inserts it; without JavaScript the lists stay complete. Tokens only. */
+
+.list-filter {
+  display: grid;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-6);
+}
+
+.list-filter__label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: var(--text-base);
+  color: var(--text);
+}
+
+.list-filter__input {
+  width: 100%;
+  max-width: 28rem;
+  min-height: var(--touch);
+  padding: 0 var(--s-3);
+  border-radius: var(--r-2);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-base);
+  appearance: none;
+}
+
+.list-filter__input:focus {
+  border-color: var(--text);
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.list-filter__empty {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+/* Badge rows lay their <li> out with `display: contents` (pages.css), which would beat the UA
+   rule for [hidden]: a filtered-out chip must really go. */
+.list-groups [hidden] {
+  display: none !important;
+}

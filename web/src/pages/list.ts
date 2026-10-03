@@ -12,6 +12,7 @@ import '../styles/chrome.css';
 import '../styles/components.css';
 import '../styles/entity-list.css';
 import '../styles/pages.css';
+import '../styles/list-filter.css';
 
 import { compareImpact, compareStart, dedupeItems, roadKey } from '../data/entity';
 import { groupByWindow, normalizeText } from '../data/filter';
@@ -32,6 +33,7 @@ import {
 } from '../ui/list-summary';
 import { bodyAttr, bootPage, setEmptyVisible, setText, stampUpdated } from '../ui/page-boot';
 import { roadStateHtml, worstActiveByKey } from '../ui/road-state';
+import { FILTER_LABELS, mountListFilter } from './list-filter';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
 
@@ -64,6 +66,10 @@ const itemsEl = document.getElementById('list-items');
 if (itemsEl && isDataList(list)) renderEntitySkeleton(itemsEl, 5);
 
 const boot = bootPage();
+
+// The pre-rendered lists are long (342 gemeenten, 550 N-roads): a filter field on top (zoek-9).
+const groupsEl = document.querySelector<HTMLElement>('.list-groups');
+if (groupsEl && isPrerenderedList(list)) mountListFilter(groupsEl, FILTER_LABELS[list]);
 
 /* ------------------------------ data-driven lists ----------------------------- */
 

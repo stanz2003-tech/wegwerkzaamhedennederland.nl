@@ -4,6 +4,7 @@
  * when the wegbeheerder published its geometry), then header, timeline, impact rows from the
  * detail shard, description, periods, source and actions.
  */
+import { entityPagesNow } from '../data/entity-pages';
 import { itemVerdict } from '../data/forecast';
 import { summarizePeriods } from '../data/periods';
 import { itemInterval, toMs } from '../data/time';
@@ -192,6 +193,9 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   const links: string[] = [];
   if (d?.url) links.push(`<a class="btn btn--link" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${ICONS.externalLink}<span>Meer info bij wegbeheerder</span></a>`);
   if (p.road) links.push(`<a class="btn btn--link" href="/weg/${esc(slugify(p.road))}/">${ICONS.milestone}<span>Wegpagina ${esc(p.road)}</span></a>`);
+  // The village itself before its gemeente (21 villages in Altena): only when the page exists.
+  const placePage = p.woonplaats ? (entityPagesNow()?.findWoonplaats(p.woonplaats, p.gemeente) ?? null) : null;
+  if (placePage) links.push(`<a class="btn btn--link" href="/plaats/${esc(placePage.slug)}/">${ICONS.mapPin}<span>Alles in ${esc(placePage.name)}</span></a>`);
   if (p.gemeente) links.push(`<a class="btn btn--link" href="/gemeente/${esc(slugify(p.gemeente))}/">${ICONS.mapPin}<span>Gemeente ${esc(p.gemeente)}</span></a>`);
 
   const badge = roadBadge(p.road, p.roadType, { size: 'xl', place: p.woonplaats ?? p.gemeente });

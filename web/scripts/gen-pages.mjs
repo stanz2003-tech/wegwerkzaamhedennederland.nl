@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 
 import { loadPartials, loadTemplates } from './lib/render.mjs';
-import { PAGE_TYPES, buildModel, outFileFor, renderPage, samplePages } from './lib/pages.mjs';
+import { ENTITY_MANIFEST_FILE, PAGE_TYPES, buildEntityManifest, buildModel, outFileFor, renderPage, samplePages } from './lib/pages.mjs';
 import { copyLists } from './lib/lists.mjs';
 import { buildAdsTxt, buildRobots, buildSitemaps } from './lib/sitemap.mjs';
 
@@ -112,12 +112,14 @@ export function generate(opts) {
   }
   if (failures > 10) warn(`[gen-pages] … en nog ${failures - 10} mislukte pagina's`);
 
-  // sitemap, robots, ads.txt
+  // sitemap, robots, entity manifest, ads.txt
   const lastmod = model.buildIso.slice(0, 10);
   const sitemaps = buildSitemaps(sitemapEntries, { siteUrl: model.site.url, lastmod });
   for (const f of sitemaps) writeFile(join(outDir, f.name), f.xml);
   const disallow = existsSync(join(outDir, 'data')) ? ['/data/'] : [];
   writeFile(join(outDir, 'robots.txt'), buildRobots({ siteUrl: model.site.url, disallow }));
+  // Which entity pages exist, for the map's place mode and its links (web/src/data/entity-pages.ts).
+  writeFile(join(outDir, ENTITY_MANIFEST_FILE), JSON.stringify(buildEntityManifest(model)));
   let adsTxt = false;
   if (model.site.ads?.enabled) {
     const txt = buildAdsTxt(model.site.ads.adsenseClient);
@@ -145,7 +147,7 @@ export function generate(opts) {
   if (!opts.quiet) {
     console.log(
       `[gen-pages] + lijsten ${written.list}, statisch ${written.static}; sitemap ${sitemaps.length > 1 ? `${sitemaps.length - 1} delen + index` : '1 bestand'} (${sitemapEntries.length} URL's); ` +
-        `robots.txt${adsTxt ? ', ads.txt' : ''}; lijsten gekopieerd: ${copiedDist.length ? copiedDist.join(', ') : 'geen (sample)'}; ` +
+        `robots.txt, ${ENTITY_MANIFEST_FILE}${adsTxt ? ', ads.txt' : ''}; lijsten gekopieerd: ${copiedDist.length ? copiedDist.join(', ') : 'geen (sample)'}; ` +
         `shells: ${shellDir === sourceTemplates ? 'bron' : 'dist'}; ${failures} fouten; ${ms} ms → ${outDir}`,
     );
   }
