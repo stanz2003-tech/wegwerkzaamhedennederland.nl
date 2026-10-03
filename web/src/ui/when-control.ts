@@ -1,7 +1,8 @@
 /**
  * "Wanneer?" — the row that decides the moment every verdict is computed for: the chips
- * Nu · Vandaag · Morgen · Dit weekend and an always-visible `datetime-local` input
- * (Europe/Amsterdam). A chosen date deselects the chips; a chip clears the date.
+ * Nu · Vandaag · Morgen · Dit weekend and an always-visible date input with day-part chips
+ * (ui/date-pick.ts, Europe/Amsterdam). A date alone asks about the whole day; only "Precies
+ * tijdstip" makes a moment. A chosen date deselects the chips; a chip clears the date.
  *
  * Under the chips the chosen window is spelled out ("Weekend: vr 2 okt 20:00 – ma 5 okt 06:00"):
  * what "Dit weekend" covers used to live in a `title` tooltip only, which touch and keyboard
@@ -9,9 +10,8 @@
  */
 import { horizonDateLabel } from '../data/answer';
 import { TIME_WINDOWS, WHEN_WINDOWS, timeWindowBounds, timeWindowRange, type TimeWindowId } from '../data/time';
-import { formatLocalDateTime, parseLocalDateTime } from '../data/url-state';
+import { mountDatePick, pickHintKind, whenHint, type DatePick } from './date-pick';
 import { esc, fmtDay, fmtDayTime } from './format';
-import { ICONS } from './icons';
 
 /**
  * The window a chip stands for, in words; '' for "Nu". Uses the same clamped range the answer
@@ -40,6 +40,8 @@ export interface WhenControl {
   setSelected(id: TimeWindowId): void;
   /** Shows an exact moment as the active choice (null = back to the chips). */
   setMoment(ms: number | null): void;
+  /** Shows a date, a date with a day part, or a moment as the active choice (null = the chips). */
+  setPick(pick: DatePick | null): void;
   /** Re-reads the clock for the range line (the day can roll over while the page is open). */
   refresh(): void;
   /**
@@ -51,13 +53,14 @@ export interface WhenControl {
 
 export interface WhenCallbacks {
   onChange(id: TimeWindowId): void;
-  onMoment(ms: number | null): void;
+  /** A date (+ part) or an exact moment was picked, or cleared (null). */
+  onPick(pick: DatePick | null): void;
 }
 
-export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowId; moment: number | null }, cb: WhenCallbacks): WhenControl {
+export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowId; pick: DatePick | null }, cb: WhenCallbacks): WhenControl {
   root.classList.add('when');
   let current = initial.time;
-  let moment = initial.moment;
+  let pick = initial.pick;
 
   const chips = WHEN_WINDOWS.map((id) => TIME_WINDOWS.find((w) => w.id === id))
     .filter((w): w is (typeof TIME_WINDOWS)[number] => w !== undefined)
@@ -66,11 +69,7 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
 
   root.innerHTML = `<span class="when__label" id="when-label">Wanneer?</span>
     <div class="chips chips--time when__chips" role="radiogroup" aria-labelledby="when-label" data-when-chips>${chips}</div>
-    <div class="when__date" data-when-date>
-      <label class="when__date-label" for="when-input">${ICONS.calendarClock}<span>Kies datum en tijd</span></label>
-      <input id="when-input" class="when__input" type="datetime-local" step="300" aria-describedby="when-range when-hint when-horizon" />
-      <button type="button" class="when__clear" data-when-clear aria-label="Datum wissen" hidden>${ICONS.x}</button>
-    </div>
+    <div class="when__pick" data-when-pick></div>
     <p class="when__hint" id="when-hint" hidden></p>
     <div class="when__notes">
       <p class="when__range" id="when-range" hidden></p>
@@ -78,43 +77,48 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     </div>`;
 
   const chipsEl = root.querySelector<HTMLElement>('[data-when-chips]');
-  const input = root.querySelector<HTMLInputElement>('#when-input');
-  const clear = root.querySelector<HTMLButtonElement>('[data-when-clear]');
+  const pickEl = root.querySelector<HTMLElement>('[data-when-pick]');
   const hint = root.querySelector<HTMLElement>('#when-hint');
   const horizonEl = root.querySelector<HTMLElement>('#when-horizon');
   const rangeEl = root.querySelector<HTMLElement>('#when-range');
-  if (!chipsEl || !input || !clear || !hint || !horizonEl || !rangeEl) throw new Error('when markup ontbreekt');
+  if (!chipsEl || !pickEl || !hint || !horizonEl || !rangeEl) throw new Error('when markup ontbreekt');
+
+  const datePick = mountDatePick(pickEl, {
+    block: 'when',
+    id: 'when',
+    describedBy: 'when-range when-hint when-horizon',
+    onPick: (next) => {
+      pick = next;
+      render();
+      cb.onPick(next);
+    },
+  });
+  datePick.set(pick);
 
   const render = (): void => {
     chipsEl.querySelectorAll<HTMLButtonElement>('[data-time]').forEach((btn) => {
-      const on = moment === null && btn.dataset.time === current;
+      const on = pick === null && btn.dataset.time === current;
       btn.setAttribute('aria-checked', on ? 'true' : 'false');
       btn.classList.toggle('is-on', on);
-      btn.tabIndex = on || (moment !== null && btn.dataset.time === WHEN_WINDOWS[0]) ? 0 : -1;
+      btn.tabIndex = on || (pick !== null && btn.dataset.time === WHEN_WINDOWS[0]) ? 0 : -1;
     });
-    const has = moment !== null;
+    const has = pick !== null;
     root.classList.toggle('has-moment', has);
     root.classList.toggle('is-now', !has && current === 'nu');
-    if (has && moment !== null) {
-      const v = formatLocalDateTime(moment);
-      if (input.value !== v) input.value = v;
-    } else if (document.activeElement !== input) {
-      input.value = '';
-    }
-    clear.hidden = !has;
-    hint.hidden = !has;
-    hint.textContent = has ? 'Je ziet wat op dat moment geldt. Werk dat alleen op bepaalde tijden geldt, wordt zo gemeld.' : '';
+    const text = has ? whenHint(pickHintKind(pick)) : '';
+    hint.hidden = text === '';
+    hint.textContent = text;
     const range = has ? '' : whenRangeLabel(current, Date.now());
     rangeEl.textContent = range;
     rangeEl.hidden = range === '';
   };
 
   const select = (id: TimeWindowId, focus: boolean): void => {
-    const changed = id !== current || moment !== null;
+    const changed = id !== current || pick !== null;
     current = id;
-    if (moment !== null) {
-      moment = null;
-      cb.onMoment(null);
+    if (pick !== null) {
+      pick = null;
+      datePick.set(null);
     }
     render();
     if (focus) chipsEl.querySelector<HTMLButtonElement>(`[data-time="${id}"]`)?.focus();
@@ -140,36 +144,6 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     if (id) select(id, true);
   });
 
-  const applyInput = (): void => {
-    const ms = parseLocalDateTime(input.value);
-    if (ms === null) {
-      if (input.value === '' && moment !== null) {
-        moment = null;
-        render();
-        cb.onMoment(null);
-      }
-      return;
-    }
-    if (ms === moment) return;
-    moment = ms;
-    render();
-    cb.onMoment(ms);
-  };
-  input.addEventListener('change', applyInput);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      applyInput();
-    }
-  });
-  clear.addEventListener('click', () => {
-    moment = null;
-    input.value = '';
-    render();
-    cb.onMoment(null);
-    input.focus();
-  });
-
   render();
   return {
     root,
@@ -178,7 +152,13 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
       render();
     },
     setMoment(ms) {
-      moment = ms;
+      pick = ms === null ? null : { kind: 'moment', at: ms };
+      datePick.set(pick);
+      render();
+    },
+    setPick(next) {
+      pick = next;
+      datePick.set(next);
       render();
     },
     refresh: render,

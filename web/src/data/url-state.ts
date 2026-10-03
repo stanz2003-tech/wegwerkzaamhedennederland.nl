@@ -3,12 +3,15 @@
  *
  * `t` carries either a time window (`nu|vandaag|weekend|7d|30d`) or an exact moment as a
  * `datetime-local` value in Europe/Amsterdam (`t=2026-09-20T14:00`, the "Op datum…" chip).
+ * `dag` (+ optional `deel`) asks about a whole calendar day or a part of it as a window
+ * (`?dag=2026-10-06&deel=ochtend`): a date without a time gets the heaviest verdict of that day,
+ * not the verdict of one guessed hour. `t` with a moment wins over `dag`.
  * `v` is the vehicle mode the verdicts are computed for (default `auto`, then not written).
  * Parsing/serialising are pure; reading/writing the address bar are thin wrappers.
  */
 import type { Category } from './types';
 import { CATEGORIES } from './types';
-import { DEFAULT_TIME_WINDOW, isTimeWindowId, zonedParts, zonedToMs, type TimeWindowId } from './time';
+import { DEFAULT_TIME_WINDOW, isDateKey, isDayPart, isTimeWindowId, zonedParts, zonedToMs, type DayPart, type TimeWindowId } from './time';
 import { DEFAULT_VEHICLE_MODE, isVehicleMode, type VehicleMode } from './verdict';
 
 export interface UrlState {
@@ -17,6 +20,10 @@ export interface UrlState {
   time: TimeWindowId;
   /** Exact moment (epoch ms) chosen with "Op datum…"; overrides `time` when set. */
   moment: number | null;
+  /** A calendar day (`YYYY-MM-DD`, Europe/Amsterdam) asked about as a window; null without `?dag=`. */
+  day: string | null;
+  /** Narrows `day` to a day part; null = the whole day. */
+  part: DayPart | null;
   zoom: number | null;
   center: [number, number] | null;
   id: string | null;
@@ -30,6 +37,8 @@ export const DEFAULT_URL_STATE: UrlState = {
   cats: null,
   time: DEFAULT_TIME_WINDOW,
   moment: null,
+  day: null,
+  part: null,
   zoom: null,
   center: null,
   id: null,
@@ -101,10 +110,16 @@ export function parseUrlState(search: string): UrlState {
   const t = params.get('t');
   const id = params.get('id');
   const v = params.get('v');
+  const moment = parseLocalDateTime(t);
+  const dag = params.get('dag');
+  const day = moment === null && isDateKey(dag) ? dag : null;
+  const deel = params.get('deel');
   return {
     cats: parseCats(params.get('cat')),
     time: t && isTimeWindowId(t) ? t : DEFAULT_TIME_WINDOW,
-    moment: parseLocalDateTime(t),
+    moment,
+    day,
+    part: day !== null && isDayPart(deel) ? deel : null,
     zoom,
     center,
     id: id && id.length <= 200 ? id : null,
@@ -120,8 +135,7 @@ export function serializeUrlState(state: UrlState): string {
   if (state.cats && state.cats.length > 0 && state.cats.length < CATEGORIES.length) {
     params.set('cat', [...state.cats].sort((a, b) => CATEGORIES.indexOf(a) - CATEGORIES.indexOf(b)).join(','));
   }
-  if (state.moment !== null && Number.isFinite(state.moment)) params.set('t', formatLocalDateTime(state.moment));
-  else if (state.time !== DEFAULT_TIME_WINDOW) params.set('t', state.time);
+  setWhenParams(params, state);
   if (state.zoom !== null && Number.isFinite(state.zoom)) params.set('z', state.zoom.toFixed(1));
   if (state.center) params.set('c', `${state.center[0].toFixed(3)},${state.center[1].toFixed(3)}`);
   if (state.id) params.set('id', state.id);
@@ -130,6 +144,25 @@ export function serializeUrlState(state: UrlState): string {
   if (state.road) params.set('weg', state.road.toLowerCase());
   // Keep commas and colons readable in the address bar.
   return params.toString().replace(/%2C/g, ',').replace(/%3A/g, ':');
+}
+
+/** The part of the state that says WHEN: a moment, a day (+ part) or a time window. */
+export type WhenParams = Pick<UrlState, 'moment' | 'day' | 'part'> & { time?: TimeWindowId };
+
+/**
+ * Writes `t` / `dag` / `deel` into `params` and removes the ones that do not apply. Shared by the
+ * map URL, the entity pages (`syncPageUrl`) and the links from a page to the map, so all of them
+ * write a chosen day the same way.
+ */
+export function setWhenParams(params: URLSearchParams, s: WhenParams): void {
+  params.delete('t');
+  params.delete('dag');
+  params.delete('deel');
+  if (s.moment !== null && Number.isFinite(s.moment)) params.set('t', formatLocalDateTime(s.moment));
+  else if (s.day !== null) {
+    params.set('dag', s.day);
+    if (s.part) params.set('deel', s.part);
+  } else if (s.time !== undefined && s.time !== DEFAULT_TIME_WINDOW) params.set('t', s.time);
 }
 
 export function readUrlState(): UrlState {

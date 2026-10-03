@@ -9,6 +9,7 @@ import { VERDICT_META, type VehicleMode, type VerdictLevel } from '../data/verdi
 import { roadBadge } from './badge';
 import { esc } from './format';
 import { ICONS } from './icons';
+import { questionText } from './when-words';
 
 export interface AnswerCardModel {
   /** Road number for road mode / road pages; omit for a gemeente or woonplaats page. */
@@ -18,6 +19,14 @@ export interface AnswerCardModel {
   subject?: string;
   /** "nu" / "vandaag" / "za 20 sep 14:00" */
   whenLabel: string;
+  /**
+   * The moment as part of the question, in the display font: "zaterdag 3 oktober om 08:00",
+   * "dit weekend (vr 20:00 – ma 06:00)", "nu" (ui/when-words.ts). Without it the card keeps the
+   * old kicker "Kan ik over de A27?" with the moment in the small grey line under it.
+   */
+  questionWhen?: string;
+  /** Show "Terug naar nu" (`data-answer-now`; the caller wires it) — set when the moment is not now. */
+  backToNow?: boolean;
   mode: VehicleMode;
   answer: Answer;
   /** Total items of the entity in the current data (all moments), for the "niets gemeld" wording. */
@@ -54,6 +63,7 @@ function whenText(m: AnswerCardModel): string {
 }
 
 function modeLine(m: AnswerCardModel): string {
+  if (m.questionWhen !== undefined) return m.dataAsOf && m.questionWhen === 'nu' ? `${MODE_LABEL[m.mode]} · gegevens van ${m.dataAsOf}` : MODE_LABEL[m.mode];
   return `${MODE_LABEL[m.mode]} · ${whenText(m)}`;
 }
 
@@ -84,20 +94,20 @@ export function renderAnswerCard(m: AnswerCardModel): string {
   const headline = cardHeadline(m);
   const specifics = m.answer.specifics.map((s) => `<li>${esc(s)}</li>`).join('');
   const hidden = m.answer.hidden.length;
-  const question = m.road
-    ? `Kan ik ${m.mode === 'fiets' ? 'langs' : 'over'} de ${esc(m.road)}?`
-    : `Kan ik door ${esc(m.subject ?? 'dit gebied')}?`;
+  const question = esc(questionText(m, m.mode, m.questionWhen ?? ''));
+  const kicker = m.questionWhen !== undefined ? 'answer__kicker answer__kicker--when' : 'answer__kicker';
   return `<section class="answer answer--${level}" style="--vpill-color: var(${meta.color})" aria-labelledby="answer-q answer-title">
       <div class="answer__top">
         ${m.road ? roadBadge(m.road, m.roadType ?? null, { size: 'xl' }) : ''}
         <div class="answer__q">
-          <p class="answer__kicker" id="answer-q">${question} <span class="answer__mode">${esc(modeLine(m))}</span></p>
+          <p class="${kicker}" id="answer-q">${question} <span class="answer__mode">${esc(modeLine(m))}</span></p>
         </div>
         ${m.exit === false ? '' : `<button type="button" class="btn btn--secondary answer__exit" data-road-exit aria-label="Alle wegen tonen" title="Alle wegen tonen">${ICONS.x}<span class="answer__exit-text">Alle wegen</span></button>`}
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}
       ${horizonLine(m.answer)}
+      ${m.backToNow ? `<button type="button" class="btn btn--secondary answer__now" data-answer-now>${ICONS.clock}<span>Terug naar nu</span></button>` : ''}
       ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
     </section>`;
 }

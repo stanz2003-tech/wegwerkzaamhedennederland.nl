@@ -9,13 +9,14 @@ import { indexItemFromFeature, loadEntityFile } from '../data/entity-file';
 import type { ForecastItem } from '../data/forecast';
 import type { IndexItem } from '../data/index';
 import type { EntityItem, ItemDetail, ItemFeature, RoadType } from '../data/types';
-import { readStoredMode, storeMode, type UrlState } from '../data/url-state';
+import { readStoredMode, setWhenParams, storeMode, type UrlState } from '../data/url-state';
 import { isRelevantFor, verdictFor, type VehicleMode } from '../data/verdict';
 import type { EntityMap, EntityView } from '../map/entity-map';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
 import { renderEntityList, sortByVerdict, summaryText, type EntitySection } from '../ui/entity-list';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
 import { fmtDay, formatCount } from '../ui/format';
+import { localDateKey } from '../data/time';
 import { setEmptyVisible, setText } from '../ui/page-boot';
 
 export interface EntitySource {
@@ -74,31 +75,36 @@ export interface EntityPageOptions {
   dataAsOf?: string;
 }
 
-/** Writes `?v=` / `?t=` back to the address bar so the page state can be shared. */
+/** The "Wanneer?" choice of the block as URL parameters: `t` for a moment, `dag` (+ `deel`) for a day. */
+export function whenParamsOf(state: Pick<ForecastState, 'selection'>): { moment: number | null; day: string | null; part: UrlState['part'] } {
+  const s = state.selection;
+  if (s.kind === 'moment') return { moment: s.at, day: null, part: null };
+  if (s.kind === 'day') return { moment: null, day: localDateKey(s.cell.from), part: null };
+  if (s.kind === 'window') return { moment: null, day: s.date, part: s.part };
+  return { moment: null, day: null, part: null };
+}
+
+/**
+ * The context a link from this page to the map carries: vehicle and moment or day
+ * (`v=vracht&dag=2026-10-06`), so the map answers the question the page just showed (zoek-10).
+ */
+export function mapQueryOf(state: Pick<ForecastState, 'selection' | 'mode'>): string {
+  const params = new URLSearchParams();
+  if (state.mode !== 'auto') params.set('v', state.mode);
+  setWhenParams(params, whenParamsOf(state));
+  return params.toString().replace(/%3A/g, ':');
+}
+
+/** Writes `?v=` / `?t=` / `?dag=` back to the address bar so the page state can be shared. */
 function syncPageUrl(state: ForecastState): void {
   const params = new URLSearchParams(window.location.search);
   if (state.mode === 'auto') params.delete('v');
   else params.set('v', state.mode);
-  if (state.selection.kind === 'moment') params.set('t', formatLocal(state.selection.at));
-  else params.delete('t');
+  setWhenParams(params, whenParamsOf(state));
   const qs = params.toString().replace(/%3A/g, ':');
   const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (next !== current) window.history.replaceState(null, '', next);
-}
-
-function formatLocal(ms: number): string {
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Amsterdam',
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).formatToParts(new Date(ms));
-  const g = (t: string): string => p.find((x) => x.type === t)?.value ?? '00';
-  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
 }
 
 /**
@@ -149,6 +155,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       details,
       revealClosures: true,
       ...(opts.linkQuery ? { linkQuery: opts.linkQuery } : {}),
+      mapQuery: mapQueryOf(state),
     };
     if (state.items === null) {
       const relevant = (list: IndexItem[]): IndexItem[] => list.filter((it) => isRelevantFor(it, state.mode));
@@ -200,6 +207,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       roadType: opts.roadType ?? null,
       mode: state.mode,
       moment: opts.url.moment,
+      day: opts.url.day ? { date: opts.url.day, part: opts.url.part } : null,
       ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
       onChange: onState,
     });

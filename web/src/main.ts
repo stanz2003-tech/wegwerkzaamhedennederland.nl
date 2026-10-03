@@ -28,7 +28,7 @@ import { bboxIntersects, bboxOf, countByCategory, dedupeById, matchesQuery, midp
 import { liveAppliesAt } from './data/forecast';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
 import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
-import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, toMs } from './data/time';
+import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, overlapsWindow, toMs } from './data/time';
 import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
 import { itemDeepLink, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type UrlState } from './data/url-state';
 import { VERDICT_SEVERITY, modeNoun, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
@@ -46,7 +46,8 @@ import { modelFromProps } from './ui/list-item';
 import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
 import { mountPanelLayout } from './ui/panel-layout';
-import { renderPanelSummary, renderRoadAnswer, type PanelAnswerEls } from './ui/panel-answer';
+import { dayWindowOf, renderPanelSummary, renderRoadAnswer, type PanelAnswerEls } from './ui/panel-answer';
+import { pickOfUrl } from './ui/date-pick';
 import { mountSearch } from './ui/search';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
@@ -138,6 +139,7 @@ function catSet(): Set<Category> | null {
 
 function needsGepland(now = Date.now()): boolean {
   if (url.moment !== null) return url.moment > now;
+  if (url.day !== null) return (dayWindowOf(url, now)?.to ?? now) > now;
   return url.time !== 'nu';
 }
 
@@ -154,8 +156,15 @@ function momentAt(now: number): number {
   return url.moment ?? now;
 }
 
+/**
+ * A picked date (`?dag=`) is a window: what touches it counts, judged as selectInWindow does for
+ * an item without detail (overlap, plus the live-snapshot rule) — so the list holds exactly the
+ * items the answer card weighed.
+ */
 function inTime(p: ItemFeature['properties'], now: number): boolean {
   if (url.moment !== null) return isActiveAt(p, url.moment) && liveAppliesAt(p, url.moment, now);
+  const day = dayWindowOf(url, now);
+  if (day) return overlapsWindow(p, day.from, day.to) && liveAppliesAt(p, day.from, now);
   return matchesTimeWindow(p, url.time, now);
 }
 
@@ -185,9 +194,14 @@ interface Judged {
   level: VerdictLevel;
 }
 
-/** Verdict level per feature for the current mode and moment (no detail loaded here). */
-function judge(features: readonly ItemFeature[], mode: VehicleMode, at: number): Judged[] {
-  return features.map((f) => ({ f, level: verdictFor(f.properties, mode, { now: at }).level }));
+/**
+ * Verdict level per feature for the current mode and moment (no detail loaded here). For a picked
+ * date the window form is used, the one the answer card's selectInWindow uses, so the pills under
+ * the card never read lighter than the card. (The Vandaag/Morgen/Weekend chips still judge the
+ * pills at `at` = now while the card judges the window; reported, not changed here.)
+ */
+function judge(features: readonly ItemFeature[], mode: VehicleMode, at: number, window?: { from: number; to: number } | null): Judged[] {
+  return features.map((f) => ({ f, level: verdictFor(f.properties, mode, window ? { window } : { now: at }).level }));
 }
 
 /** The feature the map draws: the item plus its verdict level (`v`) for the paint expressions. */
@@ -203,6 +217,7 @@ let lastAnswerText = '';
 function render(): void {
   const now = Date.now();
   const at = momentAt(now);
+  const dayWin = dayWindowOf(url, now);
   const items = allItems();
   const cats = catSet();
 
@@ -213,12 +228,12 @@ function render(): void {
   if (url.query) base = base.filter((f) => matchesQuery(f.properties, url.query));
 
   // 4. vehicle relevance (the verdict decides), 5. categories.
-  const judged = judge(base, url.mode, at);
+  const judged = judge(base, url.mode, at, dayWin);
   const relevant = hideNvt ? judged.filter((j) => j.level !== 'nvt') : judged;
   chips.setCounts(countByCategory(relevant.map((j) => j.f)));
   const forMap = cats ? relevant.filter((j) => cats.has(j.f.properties.cat)) : relevant;
 
-  const mapKey = `${at}|${url.time}|${url.cats?.join(',') ?? '*'}|${url.query}|${url.mode}|${hideNvt}|${url.road ?? ''}|${forMap.length}|${items.length}`;
+  const mapKey = `${at}|${url.time}|${url.day ?? ''}|${url.part ?? ''}|${url.cats?.join(',') ?? '*'}|${url.query}|${url.mode}|${hideNvt}|${url.road ?? ''}|${forMap.length}|${items.length}`;
   if (mapKey !== lastMapKey) {
     lastMapKey = mapKey;
     map?.setItems(forMap.map(withVerdict));
@@ -243,7 +258,7 @@ function render(): void {
     ordered.sort((a, b) => (levelOf.get(a.properties.id) ?? 9) - (levelOf.get(b.properties.id) ?? 9));
   }
   const models = ordered.slice(0, LIST_MAX).map((f) => modelFromProps(f.properties));
-  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at, total: ordered.length, ...(url.query ? { emptyQuery: url.query } : {}) });
+  list.setItems(models, now, selected?.properties.id ?? null, { mode: url.mode, at, ...(dayWin ? { window: dayWin } : {}), total: ordered.length, ...(url.query ? { emptyQuery: url.query } : {}) });
 
   // The sentence above the list counts what is in view including the items the relevance
   // switch hides, so it can say how many were hidden and for whom.
@@ -253,7 +268,7 @@ function render(): void {
   const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt);
   layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
   const dataAsOf = staleDataLabel(liveStatus, now);
-  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
+  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad(), onNow: () => backToNow() });
   lastAnswerText = roadText ?? summary.text;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
@@ -350,6 +365,7 @@ function paintDetail(open = false): void {
   listEl.hidden = true;
   layout.setDetail(true);
   const now = Date.now();
+  const dayWin = dayWindowOf(url, now);
   renderDetail(
     detailEl,
     {
@@ -360,6 +376,7 @@ function paintDetail(open = false): void {
       error: detailError,
       mode: url.mode,
       at: momentAt(now),
+      ...(dayWin ? { window: dayWin } : {}),
       roadMode: url.road,
     },
     now,
@@ -454,11 +471,11 @@ const list = mountList(listEl, {
   onSelect: (id) => selectItem(id),
   onHover: (id) => map?.setHover(id),
   onReset: () => {
-    url = { ...url, cats: null, time: DEFAULT_TIME_WINDOW, moment: null, query: '', road: null };
+    url = { ...url, cats: null, time: DEFAULT_TIME_WINDOW, moment: null, day: null, part: null, query: '', road: null };
     hideNvt = true;
     chips.setSelected(null);
     when.setSelected(DEFAULT_TIME_WINDOW);
-    when.setMoment(null);
+    when.setPick(null);
     relevance.set(true);
     search.setQuery('');
     render();
@@ -485,20 +502,36 @@ const chips = mountCategoryChips(el<HTMLElement>('[data-cats]'), (cats) => {
   announceAnswer();
 });
 
+/** "Terug naar nu" in the answer card: the question goes back to this moment. */
+function backToNow(): void {
+  url = { ...url, time: DEFAULT_TIME_WINDOW, moment: null, day: null, part: null };
+  when.setSelected(DEFAULT_TIME_WINDOW);
+  when.setPick(null);
+  render();
+  if (selected) paintDetail();
+  syncUrl();
+  announceAnswer();
+}
+
 const when = mountWhenControl(
   el<HTMLElement>('[data-when]'),
-  { time: url.time, moment: url.moment },
+  { time: url.time, pick: pickOfUrl(url) },
   {
     onChange: (id) => {
-      url = { ...url, time: id, moment: null };
+      url = { ...url, time: id, moment: null, day: null, part: null };
       if (needsGepland()) void ensureGepland();
       render();
       if (selected) paintDetail();
       syncUrl();
       announceAnswer();
     },
-    onMoment: (ms) => {
-      url = { ...url, moment: ms };
+    onPick: (pick) => {
+      url = {
+        ...url,
+        moment: pick?.kind === 'moment' ? pick.at : null,
+        day: pick?.kind === 'day' ? pick.date : null,
+        part: pick?.kind === 'day' ? pick.part : null,
+      };
       if (needsGepland()) void ensureGepland();
       render();
       if (selected) paintDetail();
@@ -617,9 +650,9 @@ function ensureItemVisible(feature: ItemFeature): void {
   if (!inTime(p, now)) {
     // Show the moment the item starts, so the reader sees it in the state it will be in.
     const start = toMs(p.start);
-    url = { ...url, moment: Number.isFinite(start) && start > now ? start : null, time: DEFAULT_TIME_WINDOW };
-    when.setMoment(url.moment);
+    url = { ...url, moment: Number.isFinite(start) && start > now ? start : null, day: null, part: null, time: DEFAULT_TIME_WINDOW };
     when.setSelected(url.time);
+    when.setPick(pickOfUrl(url));
   }
   const cats = catSet();
   if (cats && !cats.has(p.cat)) {
@@ -781,7 +814,7 @@ window.addEventListener('popstate', () => {
   const next = readUrlState();
   url = { ...next, zoom: url.zoom, center: url.center };
   when.setSelected(url.time);
-  when.setMoment(url.moment);
+  when.setPick(pickOfUrl(url));
   chips.setSelected(catSet());
   modeSelect.set(url.mode);
   search.setQuery(url.road ?? url.query);

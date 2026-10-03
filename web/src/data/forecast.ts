@@ -10,7 +10,7 @@
  */
 import { parsePeriods, type Period } from './periods';
 import { parseTimeline, periodsFromTimeline } from './timeline';
-import { MS, isActiveAt, overlapsWindow, startOfDay, type TimeSpan } from './time';
+import { DAY_PARTS, MS, dayWindow, isActiveAt, localDateKey, overlapsWindow, startOfDay, type DayPart, type TimeSpan } from './time';
 import type { Category, ItemDetail, ItemFeature } from './types';
 import { VERDICT_SEVERITY, countLevels, verdictFor, worseLevel, type VehicleMode, type Verdict, type VerdictLevel } from './verdict';
 
@@ -20,6 +20,8 @@ export interface ForecastItem {
 }
 
 export const STRIP_DAYS = 7;
+/** The strip on road and place pages: two weeks, so "volgende week dinsdag" is in it (owner decision 4). */
+export const PAGE_STRIP_DAYS = 14;
 
 /** Categories that are a snapshot of the traffic situation right now (live.geojson). */
 export const LIVE_CATEGORIES: ReadonlySet<Category> = new Set<Category>(['file', 'incident', 'brug']);
@@ -206,4 +208,135 @@ export function relativeDayLabel(cell: DayCell, now: number, fallback: string): 
   if (cell.from === startOfDay(now)) return 'vandaag';
   if (cell.from === startOfDay(now, 1)) return 'morgen';
   return fallback;
+}
+
+/* ---------------------------------- day parts --------------------------------- */
+/*
+ * What makes the cells of the strip differ from each other. Every helper below only calls
+ * selectInWindow: no new verdict rule, no level of its own. The cell headline stays `cell.worst`
+ * over ALL items; these helpers decide what is drawn beside it.
+ */
+
+export interface DayPartCell {
+  part: DayPart;
+  /** Nominal bounds of the part ("06:00–12:00"), for labels. */
+  from: number;
+  to: number;
+  /** False for a part of today that is already over: it is not judged and drawn as past. */
+  ahead: boolean;
+  /** Heaviest verdict inside the part (from `now` on for today), without the excluded items. */
+  worst: VerdictLevel | null;
+}
+
+interface PartWindow {
+  part: DayPart;
+  from: number;
+  to: number;
+  /** The judged window, from `now` on; null for a part that is over. */
+  judged: { from: number; to: number } | null;
+}
+
+/** The four part windows of a strip cell (DST-safe: from the calendar date, not from +6 h steps). */
+function partWindows(cell: Pick<DayCell, 'from'>, now: number): PartWindow[] {
+  const date = localDateKey(cell.from);
+  return DAY_PARTS.map((p) => {
+    const w = dayWindow(date, p.id) ?? { from: cell.from, to: cell.from };
+    return { part: p.id, from: w.from, to: w.to, judged: w.to < now ? null : { from: Math.max(w.from, now), to: w.to } };
+  });
+}
+
+/**
+ * Night (00–06), morning, afternoon and evening of a strip cell, each with the heaviest verdict of
+ * the items in it — `selectInWindow` over the part, so the same rules as the cell itself. Items in
+ * `excludeIds` (the closures that are there every day, see `constantIds`) are left out, so the bar
+ * shows what differs between days; the cell keeps them in its headline and in its top edge.
+ */
+export function dayParts(
+  items: readonly ForecastItem[],
+  mode: VehicleMode,
+  cell: Pick<DayCell, 'from'>,
+  now: number,
+  excludeIds: ReadonlySet<string> = new Set(),
+): DayPartCell[] {
+  const kept = excludeIds.size > 0 ? items.filter((it) => !excludeIds.has(it.f.properties.id)) : items;
+  return partWindows(cell, now).map((w) => ({
+    part: w.part,
+    from: w.from,
+    to: w.to,
+    ahead: w.judged !== null,
+    worst: w.judged ? selectInWindow(kept, mode, w.judged.from, w.judged.to, now).worst : null,
+  }));
+}
+
+export interface ConstantItem {
+  id: string;
+  /** The level it has in every part of every day of the strip. */
+  level: VerdictLevel;
+}
+
+/** Levels worth lifting out of the comparison; a constant "geen hinder" is no news either way. */
+const CONSTANT_LEVELS: ReadonlySet<VerdictLevel> = new Set<VerdictLevel>(['dicht', 'rijbaan', 'hinder', 'onbekend']);
+
+/** The one level `item` has in every window, or null as soon as two windows differ or one is empty. */
+function sameLevelIn(item: ForecastItem, mode: VehicleMode, windows: readonly { from: number; to: number }[], now: number): VerdictLevel | null {
+  let level: VerdictLevel | null = null;
+  for (const w of windows) {
+    const l = selectInWindow([item], mode, w.from, w.to, now).worst;
+    if (l === null || (level !== null && l !== level)) return null;
+    level = l;
+  }
+  return level;
+}
+
+/**
+ * The items that are the same on every day of the strip: in every cell's `ids`, with the same
+ * level in every cell AND in every part of every cell that is still ahead. The part condition is
+ * stricter than "same level per day": it is what makes "Elke dag, de hele dag" true, and what
+ * makes leaving them out of the part bars safe — wherever a bar is drawn, the constant item
+ * applies there at exactly its level, and the cell's top edge shows that level.
+ * Heaviest first. Empty for a strip of fewer than two days.
+ */
+export function constantIds(cells: readonly DayCell[], items: readonly ForecastItem[], mode: VehicleMode, now: number): ConstantItem[] {
+  const first = cells[0];
+  if (!first || cells.length < 2) return [];
+  const byId = new Map(items.map((it) => [it.f.properties.id, it]));
+  const dayWindows = cells.map((c) => ({ from: Math.max(c.from, now), to: c.to }));
+  const partWins = cells.flatMap((c) => partWindows(c, now).flatMap((w) => (w.judged ? [w.judged] : [])));
+  const out: ConstantItem[] = [];
+  for (const id of first.ids) {
+    const item = byId.get(id);
+    if (!item || !cells.every((c) => c.ids.includes(id))) continue;
+    // Per day first (cheap), then per part.
+    const level = sameLevelIn(item, mode, dayWindows, now);
+    if (level === null || !CONSTANT_LEVELS.has(level)) continue;
+    if (sameLevelIn(item, mode, partWins, now) === level) out.push({ id, level });
+  }
+  return out.sort((a, b) => VERDICT_SEVERITY.indexOf(a.level) - VERDICT_SEVERITY.indexOf(b.level));
+}
+
+/**
+ * The hours of the heaviest part level of a cell: "hele dag", "18:00–06:00" (evening and night,
+ * read round the clock), "06:00–18:00", or two stretches joined with "en". Only part bounds — the
+ * exact "22:00–05:00" would need the item's own segments, and a guess there could understate.
+ * Null when no part has a verdict.
+ */
+export function heaviestSpan(parts: readonly DayPartCell[]): string | null {
+  let worst: VerdictLevel | null = null;
+  for (const p of parts) if (p.ahead && p.worst !== null) worst = worseLevel(worst, p.worst);
+  if (worst === null) return null;
+  const on = parts.map((p) => p.ahead && p.worst === worst);
+  if (on.every(Boolean)) return 'hele dag';
+  const hour = (h: number): string => `${String(h).padStart(2, '0')}:00`;
+  const n = on.length;
+  const runs: string[] = [];
+  // A run starts at a part that is on while the one before it (round the clock) is off.
+  for (let i = 0; i < n; i++) {
+    if (!on[i] || on[(i - 1 + n) % n]) continue;
+    let j = i;
+    while (on[(j + 1) % n]) j += 1;
+    const start = DAY_PARTS[i];
+    const end = DAY_PARTS[j % n];
+    if (start && end) runs.push(`${hour(start.fromHour)}–${hour(end.toHour)}`);
+  }
+  return runs.join(' en ');
 }

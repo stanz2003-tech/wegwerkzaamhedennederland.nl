@@ -137,3 +137,48 @@ describe('itemDeepLink', () => {
     assert.equal(itemDeepLink('x', ''), '/?id=x');
   });
 });
+
+describe('?dag= and &deel= (vooruit-9, vooruit-10)', () => {
+  const { setWhenParams } = urlState;
+
+  it('reads a day and a day part', () => {
+    const s = parseUrlState('?dag=2026-10-06&deel=ochtend&v=vracht');
+    assert.equal(s.day, '2026-10-06');
+    assert.equal(s.part, 'ochtend');
+    assert.equal(s.moment, null);
+    assert.equal(s.mode, 'vracht');
+  });
+
+  it('round-trips ?dag alone and ?dag&deel', () => {
+    for (const qs of ['dag=2026-10-06', 'dag=2026-10-06&deel=nacht', 'dag=2026-10-25&deel=avond&v=fiets&weg=a27']) {
+      const once = parseUrlState(`?${qs}`);
+      const serialized = serializeUrlState(once);
+      assert.equal(serialized, qs);
+      assert.deepEqual(parseUrlState(`?${serialized}`), once, qs);
+    }
+  });
+
+  it('drops a malformed or impossible date, and a part without a day', () => {
+    assert.equal(parseUrlState('?dag=2026-02-31').day, null);
+    assert.equal(parseUrlState('?dag=morgen').day, null);
+    assert.equal(parseUrlState('?deel=ochtend').part, null);
+    assert.equal(parseUrlState('?dag=2026-10-06&deel=lunch').part, null);
+  });
+
+  it('an exact moment in ?t= wins over ?dag= (old shared links keep working)', () => {
+    const s = parseUrlState('?t=2026-10-03T08:00&dag=2026-10-06&deel=ochtend');
+    assert.equal(s.day, null);
+    assert.equal(s.part, null);
+    assert.equal(serializeUrlState(s), 't=2026-10-03T08:00');
+  });
+
+  it('setWhenParams replaces t / dag / deel and keeps everything else', () => {
+    const params = new URLSearchParams('v=vracht&t=2026-10-03T08:00&x=1');
+    setWhenParams(params, { moment: null, day: '2026-10-06', part: null });
+    assert.equal(params.toString(), 'v=vracht&x=1&dag=2026-10-06');
+    setWhenParams(params, { moment: null, day: null, part: null, time: 'weekend' });
+    assert.equal(params.toString(), 'v=vracht&x=1&t=weekend');
+    setWhenParams(params, { moment: null, day: null, part: null });
+    assert.equal(params.toString(), 'v=vracht&x=1');
+  });
+});

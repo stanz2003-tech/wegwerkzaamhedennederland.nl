@@ -1,3 +1,5 @@
+@import './when.css';
+
 /* panel-controls.css — the controls inside the map panel: the vehicle mode, the "Wanneer?" row
    and the "Filters · …" disclosure with the category chips. The panel's layout and scroll model
    live in panel.css (split off to keep both files readable). Tokens only. */
@@ -177,6 +179,7 @@
   white-space: nowrap;
 }
 
+/* 16 px: at 13 px iOS Safari zoomed the whole page in on focus (vooruit-9). */
 .when__input {
   min-height: var(--touch);
   min-width: 0;
@@ -185,7 +188,7 @@
   color: var(--text);
   font: inherit;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 
 .when__input:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; border-radius: var(--r-1); }

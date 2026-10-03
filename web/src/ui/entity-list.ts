@@ -71,6 +71,11 @@ export interface EntityListOptions {
   batch?: number;
   /** Extra query parameters appended to the deep link, e.g. `cat=file`. */
   linkQuery?: string;
+  /**
+   * The page's vehicle and moment or day (`v=vracht&dag=2026-10-06`), appended to every deep link
+   * so the map opens on the question the page showed (zoek-10).
+   */
+  mapQuery?: string;
   /** Vehicle mode the verdict pills are computed for (default: auto). */
   mode?: VehicleMode;
   /** The moment the verdicts are asked for (period check); defaults to `now`. */
@@ -87,8 +92,8 @@ export interface EntityListOptions {
   revealClosures?: boolean;
 }
 
-function itemHref(id: string, query: string | undefined): string {
-  const q = query ? `&${query}` : '';
+function itemHref(id: string, query: string | undefined, mapQuery?: string): string {
+  const q = [mapQuery, query].filter((s): s is string => !!s).map((s) => `&${s}`).join('');
   return `/?id=${encodeURIComponent(id)}${q}`;
 }
 
@@ -141,7 +146,7 @@ function renderBatch(container: HTMLElement, items: readonly IndexItem[], from: 
   const html = slice
     .map((it, i) =>
       renderListItem(modelFromIndexItem(it), now, {
-        href: itemHref(it.id, opts.linkQuery),
+        href: itemHref(it.id, opts.linkQuery, opts.mapQuery),
         index: from === 0 ? i : 99,
         ...rowOptions(it, opts),
       }),

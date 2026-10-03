@@ -41,6 +41,8 @@ export interface ListRenderOptions {
   mode?: VehicleMode;
   /** The moment the verdicts are computed for (defaults to `now`). */
   at?: number;
+  /** A picked date (`?dag=`): the verdicts are computed for that window and win over `at`. */
+  window?: { from: number; to: number };
   /**
    * The free-text filter behind this list, when there is one. An empty result then gets its own
    * state: "no match for what you typed" is not "nothing going on in this area", and the old
@@ -105,6 +107,7 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
           index: shown === 0 ? i : 99,
           mode: renderOpts.mode ?? 'auto',
           ...(renderOpts.at !== undefined ? { at: renderOpts.at } : {}),
+          ...(renderOpts.window ? { window: renderOpts.window } : {}),
         }),
       )
       .join('');
