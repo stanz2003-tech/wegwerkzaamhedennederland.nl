@@ -60,6 +60,11 @@ export interface ListRenderOptions {
    */
   didYouMean?: DidYouMean;
   /**
+   * Road or place mode: "op de A27" / "in Almkerk". The empty list then names its subject instead
+   * of "in dit gebied · Zoom uit": the list is the whole road or place, so zooming changes nothing.
+   */
+  emptyIn?: string;
+  /**
    * How many items matched before the caller capped the models it passes (main.ts: 800). When
    * larger than the items given, a visible line under the list says that the rest is missing.
    */
@@ -163,8 +168,8 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     if (items.length === 0) {
       root.innerHTML = `<div class="empty">
           <div class="empty__sign" aria-hidden="true">${ICONS.trafficCone}</div>
-          <p class="empty__title">Geen meldingen in dit gebied</p>
-          <p class="empty__text">Zoom uit, kies een andere periode of zet de categorieën weer aan.</p>
+          <p class="empty__title">Geen meldingen ${esc(renderOpts.emptyIn ?? 'in dit gebied')}</p>
+          <p class="empty__text">${renderOpts.emptyIn ? 'Kies een andere periode of zet de categorieën weer aan.' : 'Zoom uit, kies een andere periode of zet de categorieën weer aan.'}</p>
           <button type="button" class="btn btn--secondary" data-reset>${ICONS.refreshCw}<span>Filters wissen</span></button>
         </div>`;
       return;

@@ -58,7 +58,7 @@ import { dayWindowOf, type PanelAnswerEls } from './ui/panel-answer';
 import { pickOfUrl } from './ui/date-pick';
 import { mountSearch } from './ui/search';
 import { QUIETLY, createPlaceController, type LeaveOptions } from './ui/place-controller';
-import { placeMatcher, resolvePlace } from './ui/place-mode';
+import { placeMatcher, placeSubject, resolvePlace } from './ui/place-mode';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
 import { renderStaleBanner } from './ui/stale-banner';
@@ -233,6 +233,7 @@ function render(): void {
     at,
     ...(dayWin ? { window: dayWin } : {}),
     total: ordered.length,
+    ...(place || url.road ? { emptyIn: place ? `in ${placeSubject(place)}` : `op de ${url.road}` } : {}),
     ...(url.query ? { emptyQuery: url.query, ...(ordered.length === 0 ? places.didYouMeanOpt(url.query) : {}) } : {}),
   });
 
