@@ -10,6 +10,7 @@
 import '../styles/base.css';
 import '../styles/chrome.css';
 import '../styles/components.css';
+import '../styles/answer-card.css';
 import '../styles/entity-list.css';
 import '../styles/pages.css';
 import '../styles/answer-bar.css';

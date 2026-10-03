@@ -13,10 +13,12 @@
  * window beyond "Nu" or a future moment is chosen; `live.geojson` + `meta.json` refresh every
  * 90 s while the document is visible. URL state is written back debounced (replaceState); a
  * road, a place (ui/place-controller.ts) or an opened item gets its own history entry, so the
- * phone's back gesture undoes that step instead of leaving the site.
+ * phone's back gesture undoes that step instead of leaving the site. The pure filtering lives in
+ * ui/map-selection.ts, the answers in ui/map-answers.ts, the detail in ui/detail-controller.ts.
  */
 import './styles/base.css';
 import './styles/components.css';
+import './styles/answer-card.css';
 import './styles/place-search.css';
 import './styles/chrome.css';
 // map.css + the MapLibre stylesheet come in via src/map/map.ts.
@@ -25,48 +27,38 @@ import './styles/panel-controls.css';
 import './styles/app.css';
 
 import site from '../site.config.json';
-import { clearDetailCache, loadDetail } from './data/detail';
-import { matchesRoad, orderAlongRoad } from './data/entity';
-import { bboxIntersects, bboxOf, countByCategory, dedupeById, matchesQuery, midpointOf, sortItems, type BBox, type SortId } from './data/filter';
-import { liveAppliesAt } from './data/forecast';
+import { clearDetailCache } from './data/detail';
+import { matchesRoad } from './data/entity';
+import { bboxIntersects, bboxOf, countByCategory, dedupeById, type BBox, type SortId } from './data/filter';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
 import { entityPagesNow } from './data/entity-pages';
 import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
-import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, overlapsWindow, toMs } from './data/time';
-import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
-import {
-  detailStepBackAllowed,
-  itemDeepLink,
-  normalizeRoadParam,
-  readStoredMode,
-  readUrlState,
-  storeMode,
-  writeUrlState,
-  type HistoryMarker,
-  type UrlState,
-} from './data/url-state';
-import { VERDICT_SEVERITY, verdictFor, type VehicleMode, type VerdictLevel } from './data/verdict';
+import { DEFAULT_TIME_WINDOW, toMs } from './data/time';
+import type { Category, ItemFeature, Meta } from './data/types';
+import { normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type HistoryMarker, type UrlState } from './data/url-state';
+import { verdictFor } from './data/verdict';
 import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
 import { announce } from './ui/announce';
 import { mountAnalytics } from './ui/analytics';
 import { mountCategoryChips } from './ui/chips';
 import { mountSortSelect, mountSwitch } from './ui/controls';
-import { renderDetail } from './ui/detail';
+import { createDetailController } from './ui/detail-controller';
 import { mountLegend } from './ui/legend';
 import { mountList } from './ui/list';
-import { clearMapNotice, copyLink, renderUpdatedLine, showMapNotice, wireUitlegLinks } from './ui/map-page';
+import { clearMapNotice, renderUpdatedLine, showMapNotice, wireUitlegLinks } from './ui/map-page';
 import { modelFromFeature } from './ui/list-item';
-import { NATIONAL_ZOOM, MAX_CLOSED_ROADS, closedMotorways, renderClosedRoads } from './ui/closed-roads';
 import { relevanceLabel } from './ui/copy';
 import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
 import { mountPanelLayout } from './ui/panel-layout';
-import { dayWindowOf, renderPanelSummary, renderRoadAnswer, whenLabelOf, type PanelAnswerEls } from './ui/panel-answer';
+import { renderMapAnswers } from './ui/map-answers';
+import { inTime as inTimeFor, judge, needsGepland as needsGeplandFor, orderForList, selectForQuestion, withVerdict } from './ui/map-selection';
+import { dayWindowOf, type PanelAnswerEls } from './ui/panel-answer';
 import { pickOfUrl } from './ui/date-pick';
 import { mountSearch } from './ui/search';
 import { QUIETLY, createPlaceController, type LeaveOptions } from './ui/place-controller';
-import { clearPlaceAnswer, hasPlacePage, placeMatcher, placePageHref, placePrefix, renderPlaceAnswer, resolvePlace } from './ui/place-mode';
+import { placeMatcher, resolvePlace } from './ui/place-mode';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
 import { renderStaleBanner } from './ui/stale-banner';
@@ -108,9 +100,6 @@ let geplandLoad: Promise<void> | null = null;
 let geplandLoaded = false;
 let meta: Meta | null = null;
 let byId = new Map<string, ItemFeature>();
-let selected: ItemFeature | null = null;
-let detailData: ItemDetail | null = null;
-let detailError = false;
 let lastRefresh = 0;
 let dataOk = false;
 let map: AppMap | null = null;
@@ -157,9 +146,7 @@ function catSet(): Set<Category> | null {
 }
 
 function needsGepland(now = Date.now()): boolean {
-  if (url.moment !== null) return url.moment > now;
-  if (url.day !== null) return (dayWindowOf(url, now)?.to ?? now) > now;
-  return url.time !== 'nu';
+  return needsGeplandFor(url, now);
 }
 
 function allItems(): ItemFeature[] {
@@ -175,16 +162,8 @@ function momentAt(now: number): number {
   return url.moment ?? now;
 }
 
-/**
- * A picked date (`?dag=`) is a window: what touches it counts, judged as selectInWindow does for
- * an item without detail (overlap, plus the live-snapshot rule) — so the list holds exactly the
- * items the answer card weighed.
- */
 function inTime(p: ItemFeature['properties'], now: number): boolean {
-  if (url.moment !== null) return isActiveAt(p, url.moment) && liveAppliesAt(p, url.moment, now);
-  const day = dayWindowOf(url, now);
-  if (day) return overlapsWindow(p, day.from, day.to) && liveAppliesAt(p, day.from, now);
-  return matchesTimeWindow(p, url.time, now);
+  return inTimeFor(p, url, now);
 }
 
 const STEP: HistoryMarker = { wegwerk: true };
@@ -214,26 +193,6 @@ function updatePadding(): void {
 
 /* ------------------------------------------------------------------ rendering */
 
-interface Judged {
-  f: ItemFeature;
-  level: VerdictLevel;
-}
-
-/**
- * Verdict level per feature for the current mode and moment (no detail loaded here). For a picked
- * date the window form is used, the one the answer card's selectInWindow uses, so the pills under
- * the card never read lighter than the card. (The Vandaag/Morgen/Weekend chips still judge the
- * pills at `at` = now while the card judges the window; reported, not changed here.)
- */
-function judge(features: readonly ItemFeature[], mode: VehicleMode, at: number, window?: { from: number; to: number } | null): Judged[] {
-  return features.map((f) => ({ f, level: verdictFor(f.properties, mode, window ? { window } : { now: at }).level }));
-}
-
-/** The feature the map draws: the item plus its verdict level (`v`) for the paint expressions. */
-function withVerdict(j: Judged): ItemFeature {
-  return { ...j.f, properties: { ...j.f.properties, v: j.level } as ItemFeature['properties'] };
-}
-
 /** Signature of the dataset handed to the map, so panning does not re-upload the GeoJSON. */
 let lastMapKey = '';
 /** What the last render put on screen, in the form a screen reader should hear it. */
@@ -246,17 +205,10 @@ function render(): void {
   const items = allItems();
   const cats = catSet();
 
-  // 1. time (moment or window), 2. road or place mode, 3. free text.
+  // 1. time, 2. road or place mode, 3. free text, 4. vehicle relevance, 5. categories.
   const place = places.active();
   const inPlace = place ? placeMatcher(place, entityPagesNow()) : null;
-  let base = items.filter((f) => inTime(f.properties, now));
-  const roadAll = url.road ? items.filter((f) => matchesRoad(f.properties.road, url.road ?? '')) : items;
-  const placeAll = inPlace ? items.filter((f) => inPlace(f.properties)) : [];
-  if (url.road) base = base.filter((f) => matchesRoad(f.properties.road, url.road ?? ''));
-  if (inPlace) base = base.filter((f) => inPlace(f.properties));
-  if (url.query) base = base.filter((f) => matchesQuery(f.properties, url.query));
-
-  // 4. vehicle relevance (the verdict decides), 5. categories.
+  const { base, roadAll, placeAll } = selectForQuestion(items, url, inPlace, now);
   const judged = judge(base, url.mode, at, dayWin);
   const relevant = hideNvt ? judged.filter((j) => j.level !== 'nvt') : judged;
   chips.setCounts(countByCategory(relevant.map((j) => j.f)));
@@ -266,7 +218,7 @@ function render(): void {
   if (mapKey !== lastMapKey) {
     lastMapKey = mapKey;
     map?.setItems(forMap.map(withVerdict));
-    map?.setSelected(selected?.properties.id ?? null);
+    map?.setSelected(detail.selected()?.properties.id ?? null);
   }
 
   // Outside road mode the list follows the viewport; in road mode it is the whole road, and with
@@ -274,29 +226,9 @@ function render(): void {
   // "In beeld: geen meldingen" while Almkerk has a closure (zoek-3).
   const bounds = url.road || url.query || place ? null : mapBounds();
   const inView = bounds ? forMap.filter((j) => bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds)) : forMap;
-  let ordered = sortItems(
-    inView.map((j) => j.f),
-    sort,
-    map?.getCenter() ?? null,
-    now,
-  );
-  // "Ernstigste eerst" answers the one question first: every "weg dicht" above every
-  // "doorrijden mogelijk", whatever the DATEX severity says; within a level the impact score
-  // decides — or, in road mode, the position along the road (overzicht-4).
-  if (sort === 'impact') {
-    const levelOf = new Map(inView.map((j) => [j.f.properties.id, VERDICT_SEVERITY.indexOf(j.level)]));
-    ordered.sort((a, b) => (levelOf.get(a.properties.id) ?? 9) - (levelOf.get(b.properties.id) ?? 9));
-    if (url.road) {
-      const judgedLevel = new Map(inView.map((j) => [j.f.properties.id, j.level]));
-      const points = ordered.map((f) => {
-        const mid = midpointOf(f.geometry) ?? [0, 0];
-        return { id: f.properties.id, lon: mid[0], lat: mid[1], f };
-      });
-      ordered = orderAlongRoad(points, (x) => judgedLevel.get(x.id) ?? 'nvt').map((x) => x.f);
-    }
-  }
+  const ordered = orderForList(inView, sort, map?.getCenter() ?? null, now, url.road);
   const models = ordered.slice(0, LIST_MAX).map(modelFromFeature);
-  list.setItems(models, now, selected?.properties.id ?? null, {
+  list.setItems(models, now, detail.selected()?.properties.id ?? null, {
     mode: url.mode,
     at,
     ...(dayWin ? { window: dayWin } : {}),
@@ -309,30 +241,27 @@ function render(): void {
   const inViewAll = (cats ? judged.filter((j) => cats.has(j.f.properties.cat)) : judged).filter(
     (j) => !bounds || bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds),
   );
-  const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt, place ? placePrefix(place) : undefined);
-  layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
-  // At national zoom, outside road, place and text mode: name the motorways with a closure.
-  const national = !url.road && !url.query && !place && (map?.getZoom() ?? url.zoom ?? NL_ZOOM) < NATIONAL_ZOOM;
-  const closedRoads = national ? closedMotorways(summary.answer.items, Number.POSITIVE_INFINITY) : [];
-  const closedText = renderClosedRoads(closedRoadsEl, closedRoads.slice(0, MAX_CLOSED_ROADS), whenLabelOf(url), closedRoads.length > MAX_CLOSED_ROADS);
-  const dataAsOf = staleDataLabel(liveStatus, now);
-  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, {
-    ...(dataAsOf ? { dataAsOf } : {}),
-    hasRoadPage: (slug) => entityPagesNow()?.hasRoadPage(slug) ?? false,
-    onExit: () => exitRoad(),
+  const answers = renderMapAnswers({
+    els: answerEls,
+    closedRoadsEl,
+    url,
+    place,
+    inViewAll: inViewAll.map((j) => j.f),
+    roadAll,
+    placeAll,
+    cats,
+    total: ordered.length,
+    hideNvt,
+    zoom: map?.getZoom() ?? url.zoom ?? NL_ZOOM,
+    dataAsOf: staleDataLabel(liveStatus, now),
+    pages: entityPagesNow(),
+    now,
+    onExitRoad: () => exitRoad(),
+    onExitPlace: () => places.exit(),
     onNow: () => backToNow(),
   });
-  let placeText: string | null = null;
-  if (place) {
-    const pageHref = hasPlacePage(place, entityPagesNow()) ? placePageHref(place, url) : null;
-    placeText = renderPlaceAnswer(answerEls, url, place, cats ? placeAll.filter((f) => cats.has(f.properties.cat)) : placeAll, now, {
-      ...(dataAsOf ? { dataAsOf } : {}),
-      pageHref,
-      onExit: () => places.exit(),
-      onNow: () => backToNow(),
-    });
-  } else clearPlaceAnswer(answerEls);
-  lastAnswerText = roadText ?? placeText ?? closedText ?? summary.text;
+  layout.setFilters({ cats, hideNvt, hidden: answers.hidden });
+  lastAnswerText = answers.text;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
@@ -395,7 +324,7 @@ function enterRoad(road: string, fit = true, push = true): void {
   url = { ...url, road: key, place: null, query: '' };
   pendingQueryFit = false;
   search.setQuery(key);
-  if (selected) selectItem(null, false);
+  if (detail.selected()) selectItem(null, false);
   pendingRoadFit = fit;
   render();
   syncUrl(push ? STEP : false);
@@ -431,128 +360,36 @@ const places = createPlaceController({
   map: () => map,
   setQuery: (q) => search.setQuery(q),
   pickInSearch: (hit) => search.pickPlace(hit),
-  deselect: () => selected && selectItem(null, false),
+  deselect: () => detail.selected() && selectItem(null, false),
   leaveRoad: exitRoad,
   showAnswer,
   afterLeave,
-  repaintDetail: () => selected && paintDetail(),
+  repaintDetail: () => detail.selected() && paintDetail(),
   peek: () => panel.snap('peek'),
 });
 
 /* ------------------------------------------------------------------ detail view */
 
-function showList(): void {
-  detailEl.hidden = true;
-  listEl.hidden = false;
-  layout.setDetail(false);
-}
-
-/** The detour polyline of the open detail, when the wegbeheerder published one. */
-function currentDetour(): [number, number][] | null {
-  const g = detailData?.detourGeom;
-  return g && g.length >= 2 ? g : null;
-}
-
-/**
- * `open`: the detail was just opened, so "Terug" gets the focus. A repaint (mode, moment, the
- * loaded shard) keeps the focus where it is — the date field must stay editable in detail view —
- * unless it sat inside the re-rendered detail.
- */
-function paintDetail(open = false): void {
-  if (!selected) return;
-  const refocus = open || detailEl.contains(document.activeElement);
-  detailEl.hidden = false;
-  listEl.hidden = true;
-  layout.setDetail(true);
-  const now = Date.now();
-  const dayWin = dayWindowOf(url, now);
-  renderDetail(
-    detailEl,
-    {
-      props: selected.properties,
-      center: midpointOf(selected.geometry),
-      detail: detailData,
-      loading: detailData === null && !detailError,
-      error: detailError,
-      mode: url.mode,
-      at: momentAt(now),
-      ...(dayWin ? { window: dayWin, whenLabel: whenLabelOf(url) } : {}),
-      roadMode: url.road,
-    },
-    now,
-    {
-      onBack: () => closeDetail(),
-      onShare: () => void share(),
-      onRetry: () => void loadDetailFor(selected),
-      onRoad: (road) => enterRoad(road),
-    },
-  );
-  if (refocus) layout.focusBack();
-  map?.setDetour(currentDetour());
-}
-
-async function share(): Promise<void> {
-  if (selected) await copyLink(itemDeepLink(selected.properties.id));
-}
-
-async function loadDetailFor(feature: ItemFeature | null, open = false): Promise<void> {
-  if (!feature) return;
-  const id = feature.properties.id;
-  detailData = null;
-  detailError = false;
-  paintDetail(open);
-  try {
-    const d = await loadDetail(id);
-    if (selected?.properties.id !== id) return;
-    detailData = d;
-    detailError = d === null;
-  } catch {
-    if (selected?.properties.id !== id) return;
-    detailError = true;
-  }
-  paintDetail();
-}
-
-/**
- * "Terug" in the detail: when this page view pushed the entry of the open item, step back in the
- * history (the back gesture and the button then agree); after a deep link or a reload there is
- * no such entry, and the detail just closes — "Terug" never leaves the site.
- */
-function closeDetail(): void {
-  if (selected && detailStepBackAllowed()) {
-    window.history.back();
-    return;
-  }
-  selectItem(null);
-}
-
-/**
- * Selects an item (or clears the selection) and updates map, URL and panel. `push` (default:
- * opening an item while none was open) gives the item its own history entry; switching from one
- * item to the next replaces it, so the back button does not walk through every row.
- */
-function selectItem(id: string | null, fly = true, push?: boolean): void {
-  const previous = selected?.properties.id ?? null;
-  const feature = id ? (byId.get(id) ?? null) : null;
-  selected = feature;
-  url = { ...url, id: feature ? feature.properties.id : null };
-  map?.setSelected(feature ? feature.properties.id : null);
-  list.setSelected(feature ? feature.properties.id : null);
-  if (!feature) {
-    showList();
-    detailData = null;
-    detailError = false;
-    map?.setDetour(null);
-    syncUrl();
-    list.focusItem(previous);
-    return;
-  }
-  panel.ensureAtLeast('half');
-  updatePadding();
-  if (fly) map?.fitToFeature(feature);
-  void loadDetailFor(feature, true);
-  syncUrl((push ?? previous === null) ? { wegwerk: true, detail: true } : false);
-}
+const detail = createDetailController({
+  url: () => url,
+  setUrl: (next) => (url = next),
+  item: (id) => byId.get(id) ?? null,
+  map: () => map,
+  syncUrl,
+  enterRoad: (road) => enterRoad(road),
+  setDetail: (open) => layout.setDetail(open),
+  focusBack: () => layout.focusBack(),
+  listSelected: (id) => list.setSelected(id),
+  focusRow: (id) => list.focusItem(id),
+  makeRoom: () => {
+    panel.ensureAtLeast('half');
+    updatePadding();
+  },
+  detailEl,
+  listEl,
+});
+const selectItem = detail.select;
+const paintDetail = detail.paint;
 
 /* ------------------------------------------------------------------ UI mounts */
 
@@ -571,17 +408,26 @@ const layout = mountPanelLayout(
     detail: detailEl,
   },
   panel,
-  { onBack: () => closeDetail(), onShare: () => void share() },
+  { onBack: () => detail.close(), onShare: () => void detail.share() },
 );
+
+/**
+ * After the user changed the question (vehicle, moment, day): load what it needs, repaint list,
+ * map and detail, write the URL and speak the new answer.
+ */
+function questionChanged(): void {
+  if (needsGepland()) void ensureGepland();
+  render();
+  if (detail.selected()) paintDetail();
+  syncUrl();
+  announceAnswer();
+}
 
 const modeSelect = mountModeSelect(el<HTMLElement>('[data-mode]'), url.mode, (mode) => {
   url = { ...url, mode };
   storeMode(mode);
   relevance.setLabel(relevanceLabel(mode));
-  render();
-  if (selected) paintDetail();
-  syncUrl();
-  announceAnswer();
+  questionChanged();
 });
 
 const list = mountList(listEl, {
@@ -624,10 +470,7 @@ function backToNow(): void {
   url = { ...url, time: DEFAULT_TIME_WINDOW, moment: null, day: null, part: null };
   when.setSelected(DEFAULT_TIME_WINDOW);
   when.setPick(null);
-  render();
-  if (selected) paintDetail();
-  syncUrl();
-  announceAnswer();
+  questionChanged();
 }
 
 const when = mountWhenControl(
@@ -636,11 +479,7 @@ const when = mountWhenControl(
   {
     onChange: (id) => {
       url = { ...url, time: id, moment: null, day: null, part: null };
-      if (needsGepland()) void ensureGepland();
-      render();
-      if (selected) paintDetail();
-      syncUrl();
-      announceAnswer();
+      questionChanged();
     },
     onPick: (pick) => {
       url = {
@@ -649,11 +488,7 @@ const when = mountWhenControl(
         day: pick?.kind === 'day' ? pick.date : null,
         part: pick?.kind === 'day' ? pick.part : null,
       };
-      if (needsGepland()) void ensureGepland();
-      render();
-      if (selected) paintDetail();
-      syncUrl();
-      announceAnswer();
+      questionChanged();
     },
   },
 );
@@ -682,17 +517,12 @@ const sortSelect = mountSortSelect(el<HTMLElement>('[data-sort]'), sort, (id) =>
 mountLegend(el<HTMLElement>('[data-legend]'));
 
 const search = mountSearch(el<HTMLElement>('[data-search]'), {
-  localItems: () => {
-    if (!localItems) {
-      localItems = loadIndexAll()
-        .then((f) => rowsToItems(f.rows))
-        .catch(() => {
-          localItems = null;
-          return [] as readonly IndexItem[];
-        });
-    }
-    return localItems;
-  },
+  localItems: () => (localItems ??= loadIndexAll()
+    .then((f) => rowsToItems(f.rows))
+    .catch(() => {
+      localItems = null;
+      return [] as readonly IndexItem[];
+    })),
   onPickItem: (hit) => {
     if (byId.has(hit.id)) {
       selectItem(hit.id);
@@ -721,7 +551,11 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
   // search box sits at the top and the suggestions above the keyboard (mobiel-4).
   onFocus: () => (panel.isMobile() ? panel.snap('full') : panel.ensureAtLeast('half')),
   // The suggestions show the verdict the list row shows: same vehicle, same moment.
-  context: () => ({ mode: url.mode, at: momentAt(Date.now()) }),
+  context: () => {
+    const now = Date.now();
+    const day = dayWindowOf(url, now);
+    return { mode: url.mode, at: momentAt(now), ...(day ? { window: day } : {}) };
+  },
 });
 
 search.setQuery(url.road ?? url.query);
@@ -764,7 +598,7 @@ async function resolveDeepLink(id: string, push = false): Promise<void> {
     return;
   }
   ensureItemVisible(feature);
-  selectItem(id, true, push && !selected);
+  selectItem(id, true, push && !detail.selected());
 }
 
 /** Relaxes the filters so a deep-linked item is actually on the map. */
@@ -840,7 +674,8 @@ async function refresh(): Promise<void> {
     when.refresh();
     renderUpdatedLine(next.meta);
     render();
-    if (selected && !byId.has(selected.properties.id)) selectItem(null);
+    const open = detail.selected();
+    if (open && !byId.has(open.properties.id)) selectItem(null);
   } catch {
     // One failed refresh is not stale data: judge the age of what we have, so the warning appears
     // once it is really older than STALE_AFTER_MINUTES (owner decision: 30 minutes).
@@ -913,19 +748,20 @@ async function boot(): Promise<void> {
     if (url.road) pendingRoadFit = true;
     if (url.place) places.wantFit();
     render();
-    if (selected) {
+    const open = detail.selected();
+    if (open) {
       // A deep link can have its detail loaded before the map existed: re-apply the detour.
-      map.fitToFeature(selected);
-      map.setDetour(currentDetour());
+      map.fitToFeature(open);
+      map.setDetour(detail.detour());
     }
   }
 }
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (selected) {
+  if (detail.selected()) {
     e.preventDefault();
-    closeDetail();
+    detail.close();
     return;
   }
   if (panel.isMobile() && panel.getSnap() !== 'peek') {
@@ -954,8 +790,8 @@ window.addEventListener('popstate', () => {
   if (place !== null && !samePlace) places.wantFit();
   render();
   if (next.id) {
-    if (next.id !== selected?.properties.id) void resolveDeepLink(next.id);
-  } else if (selected) selectItem(null);
+    if (next.id !== detail.selected()?.properties.id) void resolveDeepLink(next.id);
+  } else if (detail.selected()) selectItem(null);
   else syncUrl();
   if (panel.isMobile()) panel.snap('half');
 });
