@@ -11,7 +11,7 @@ import { detailStepBackAllowed, itemDeepLink, type HistoryMarker, type UrlState 
 import type { AppMap } from '../map/map';
 import { renderDetail } from './detail';
 import { copyLink } from './map-page';
-import { dayWindowOf, whenLabelOf } from './panel-answer';
+import { questionWindowOf, whenLabelOf } from './panel-answer';
 
 export interface DetailHost {
   url(): UrlState;
@@ -77,7 +77,8 @@ export function createDetailController(host: DetailHost): DetailController {
     host.setDetail(true);
     const now = Date.now();
     const url = host.url();
-    const dayWin = dayWindowOf(url, now);
+    // A picked date or a Vandaag/Morgen/Weekend chip: the detail answers for that window.
+    const win = questionWindowOf(url, now);
     renderDetail(
       host.detailEl,
       {
@@ -88,7 +89,7 @@ export function createDetailController(host: DetailHost): DetailController {
         error: failed,
         mode: url.mode,
         at: url.moment ?? now,
-        ...(dayWin ? { window: dayWin, whenLabel: whenLabelOf(url) } : {}),
+        ...(win ? { window: win, whenLabel: whenLabelOf(url) } : {}),
         roadMode: url.road,
       },
       now,

@@ -43,14 +43,24 @@ export function dayWindowOf(q: Pick<PanelQuestion, 'moment' | 'day' | 'part'>, n
   return w ? windowFromNow(w, now) : null;
 }
 
+/**
+ * The window the question asks about: a picked date, or the Vandaag/Morgen/Weekend chip (from
+ * `now` on); null for "nu" and for an exact moment. The detail view judges an opened item over
+ * this window, as the answer card does: judged at `now` instead, a nightly closure opened under
+ * "Morgen" during the day read "Geen hinder · buiten werktijden" under a card saying "Dicht".
+ */
+export function questionWindowOf(q: Pick<PanelQuestion, 'time' | 'moment' | 'day' | 'part'>, now: number): { from: number; to: number } | null {
+  if (q.moment !== null) return null;
+  const day = dayWindowOf(q, now);
+  if (day) return day;
+  return q.time === 'nu' ? null : timeWindowRange(q.time, now);
+}
+
 /** The "Wanneer?" choice as the answer module sees it. */
 export function whenOf(q: PanelQuestion, now: number): When {
   if (q.moment !== null) return { kind: 'moment', at: q.moment };
-  const day = dayWindowOf(q, now);
-  if (day) return { kind: 'window', ...day };
-  if (q.time === 'nu') return { kind: 'moment', at: now };
-  const { from, to } = timeWindowRange(q.time, now);
-  return { kind: 'window', from, to };
+  const win = questionWindowOf(q, now);
+  return win ? { kind: 'window', ...win } : { kind: 'moment', at: now };
 }
 
 /** "nu" / "vandaag" / "za 20 sep 14:00" */
