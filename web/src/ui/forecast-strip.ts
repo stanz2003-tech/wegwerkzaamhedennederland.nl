@@ -42,11 +42,13 @@ export function mountForecastStrip(root: HTMLElement, days: number, labelledBy: 
     for (let i = w * WEEK_LENGTH; i < Math.min(days, (w + 1) * WEEK_LENGTH); i++) buttons.push(dayButton(i));
     weeks.push(`<p class="forecast__week" aria-hidden="true">${w === 0 ? 'Deze week' : 'Volgende week'}</p><div class="forecast__row">${buttons.join('')}</div>`);
   }
-  root.innerHTML = `<ul class="forecast__constants" data-fc-constants hidden></ul>
-    <div class="forecast__pick" role="radiogroup" aria-labelledby="${esc(labelledBy)}" data-fc-group>
+  // The strip first, the "Elke dag, de hele dag" lines after it: on a phone those lines pushed the
+  // strip — the answer to "which day can I go" — below the fold on busy roads like the A27.
+  root.innerHTML = `<div class="forecast__pick" role="radiogroup" aria-labelledby="${esc(labelledBy)}" data-fc-group>
       <button type="button" class="datepick__chip forecast__now" role="radio" aria-checked="true" tabindex="0" data-fc-now>Nu</button>
       <div class="forecast__scroller" data-fc-scroller>${weeks.join('')}</div>
-    </div>`;
+    </div>
+    <ul class="forecast__constants" data-fc-constants hidden></ul>`;
   const constantsEl = root.querySelector<HTMLElement>('[data-fc-constants]');
   const group = root.querySelector<HTMLElement>('[data-fc-group]');
   const scroller = root.querySelector<HTMLElement>('[data-fc-scroller]');
