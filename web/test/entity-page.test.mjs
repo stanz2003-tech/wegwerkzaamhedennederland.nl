@@ -207,24 +207,28 @@ describe('the answer stands directly under the title (mobiel-7, vooruit-7, overz
 });
 
 describe('mode and moment travel between map and entity pages (zoek-10, zoek-6)', () => {
-  const { mapContextQuery, timeParam, roadPageHref, entityMapHref, cameraParams, selectionFromUrl, withQuery } = mapLink;
+  const { mapContextQuery, roadPageHref, entityMapHref, cameraParams, dayFromUrl, withQuery } = mapLink;
   // Saturday 3 October 2026, 10:00 in Amsterdam.
   const SAT = Date.parse('2026-10-03T08:00:00Z');
   const cells = forecast.dayStrip([], 'auto', SAT);
   const at = urlState.parseLocalDateTime('2026-10-03T08:00');
 
-  it('an entity-page selection becomes the ?v= / ?t= the map parses', () => {
-    assert.equal(mapContextQuery('auto', { kind: 'all' }, SAT), '');
-    const q = mapContextQuery('vracht', { kind: 'moment', at }, SAT);
+  it('an entity-page selection becomes the ?v= / ?t= / ?dag= the map parses', () => {
+    assert.equal(mapContextQuery('auto', { kind: 'all' }), '');
+    const q = mapContextQuery('vracht', { kind: 'moment', at });
     assert.equal(q, 'v=vracht&t=2026-10-03T08:00');
     const parsed = urlState.parseUrlState(`?${q}`);
     assert.equal(parsed.mode, 'vracht');
     assert.equal(parsed.moment, at);
-    assert.equal(mapContextQuery('fiets', { kind: 'day', cell: cells[0], index: 0 }, SAT), 'v=fiets&t=vandaag');
-    assert.equal(mapContextQuery('auto', { kind: 'day', cell: cells[1], index: 1 }, SAT), 't=morgen');
-    assert.equal(urlState.parseUrlState('?t=morgen').time, 'morgen');
-    // A later strip day has no map window yet: only the mode travels, never a different moment.
-    assert.equal(mapContextQuery('vracht', { kind: 'day', cell: cells[3], index: 3 }, SAT), 'v=vracht');
+    // Every strip day travels as its date, so the map asks about that same whole day.
+    assert.equal(mapContextQuery('fiets', { kind: 'day', cell: cells[0], index: 0 }), 'v=fiets&dag=2026-10-03');
+    assert.equal(mapContextQuery('auto', { kind: 'day', cell: cells[1], index: 1 }), 'dag=2026-10-04');
+    assert.equal(mapContextQuery('vracht', { kind: 'day', cell: cells[3], index: 3 }), 'v=vracht&dag=2026-10-06');
+    const day = urlState.parseUrlState(`?${mapContextQuery('vracht', { kind: 'day', cell: cells[3], index: 3 })}`);
+    assert.equal(day.day, '2026-10-06');
+    assert.equal(day.mode, 'vracht');
+    // A day part narrows the window and travels too.
+    assert.equal(mapContextQuery('auto', { kind: 'window', date: '2026-10-20', part: 'ochtend', from: 0, to: 1 }), 'dag=2026-10-20&deel=ochtend');
   });
 
   it('every list row links to the map with the page question', () => {
@@ -247,20 +251,22 @@ describe('mode and moment travel between map and entity pages (zoek-10, zoek-6)'
   });
 
   it('the map links to the road page with mode and moment, and the page opens on them', () => {
-    assert.equal(roadPageHref('A27', { mode: 'vracht', time: 'nu', moment: at }), '/weg/a27/?v=vracht&t=2026-10-03T08:00');
-    assert.equal(roadPageHref('A27', { mode: 'auto', time: 'nu', moment: null }), '/weg/a27/');
-    assert.equal(roadPageHref('N322', { mode: 'auto', time: 'morgen', moment: null }), '/weg/n322/?t=morgen');
+    const q = { mode: 'auto', time: 'nu', moment: null, day: null, part: null };
+    assert.equal(roadPageHref('A27', { ...q, mode: 'vracht', moment: at }), '/weg/a27/?v=vracht&t=2026-10-03T08:00');
+    assert.equal(roadPageHref('A27', q), '/weg/a27/');
+    assert.equal(roadPageHref('N322', { ...q, time: 'morgen' }), '/weg/n322/?t=morgen');
+    assert.equal(roadPageHref('A27', { ...q, day: '2026-10-06', part: 'avond' }), '/weg/a27/?dag=2026-10-06&deel=avond');
     // "Dit weekend" is not one strip day: left out rather than approximated.
-    assert.equal(roadPageHref('A2', { mode: 'fiets', time: 'weekend', moment: null }), '/weg/a2/?v=fiets');
+    assert.equal(roadPageHref('A2', { ...q, mode: 'fiets', time: 'weekend' }), '/weg/a2/?v=fiets');
 
-    for (const t of ['vandaag', 'morgen']) {
-      const sel = selectionFromUrl(urlState.parseUrlState(`?t=${t}`), [], 'auto', SAT);
-      assert.equal(sel.kind, 'day');
-      assert.equal(sel.index, t === 'vandaag' ? 0 : 1);
-      assert.equal(timeParam(sel, SAT), t, 'round trip');
+    // The page opens on the strip day of the map's ?t=vandaag / ?t=morgen, and on ?dag= itself.
+    for (const [t, i] of [['vandaag', 0], ['morgen', 1]]) {
+      const day = dayFromUrl(urlState.parseUrlState(`?t=${t}`), SAT);
+      assert.deepEqual(day, { date: time.localDateKey(cells[i].from), part: null }, t);
     }
-    assert.deepEqual(selectionFromUrl(urlState.parseUrlState('?t=2026-10-03T08:00'), [], 'auto', SAT), { kind: 'moment', at });
-    assert.deepEqual(selectionFromUrl(urlState.parseUrlState('?t=weekend'), [], 'auto', SAT), { kind: 'all' });
+    assert.deepEqual(dayFromUrl(urlState.parseUrlState('?dag=2026-10-06&deel=nacht'), SAT), { date: '2026-10-06', part: 'nacht' });
+    assert.equal(dayFromUrl(urlState.parseUrlState('?t=2026-10-03T08:00'), SAT), null);
+    assert.equal(dayFromUrl(urlState.parseUrlState('?t=weekend'), SAT), null);
   });
 
   it('the road answer on the map links to the road page only when that page exists', () => {

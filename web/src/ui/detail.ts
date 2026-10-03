@@ -46,6 +46,8 @@ export interface DetailState {
   mode: VehicleMode;
   /** The moment the verdict is asked for (the "Wanneer?" choice); defaults to now. */
   at?: number;
+  /** A picked date (`?dag=`): the heaviest phase inside it, as the list pill and the card use. */
+  window?: { from: number; to: number };
   /** The road the app is already showing on its own (`?weg=`); "Alleen de A27 bekijken" is then moot. */
   roadMode?: string | null;
 }
@@ -179,7 +181,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   const meta = CATEGORY_META[p.cat];
   const at = state.at ?? now;
   const status = statusLine(p, now);
-  const verdict = itemVerdict({ f: { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: p }, d }, state.mode, at);
+  const verdict = itemVerdict({ f: { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: p }, d }, state.mode, state.window ? undefined : at, state.window);
   const rows = impactRows(p, d);
   const route = routeUrl(state.center);
   const detourCoords = d?.detourGeom && d.detourGeom.length >= 2 ? d.detourGeom : null;

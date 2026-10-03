@@ -446,8 +446,15 @@
   }
 
   .panel.is-detail .panel__row,
-  .panel.is-detail .when {
+  .panel.is-detail .when,
+  .panel.is-detail .when__pick {
     display: contents;
+  }
+
+  /* Detail view keeps only the date beside the mode; the day parts return with the list. */
+  .panel.is-detail .datepick__parts,
+  .panel.is-detail .datepick__time {
+    display: none;
   }
 
   .panel.is-detail .panel__row > [data-search],

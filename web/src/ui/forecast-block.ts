@@ -1,28 +1,32 @@
 /**
- * "Kan ik op <datum> over de A2?" — the block under the hero of a road / gemeente / woonplaats
- * page: the vehicle mode, the answer headline for the chosen moment, a 7-day strip (worst
- * verdict per day with counts; a click filters the list to that day) and an "Andere datum…"
- * `datetime-local` input (Europe/Amsterdam) that answers exactly, using `periods` when present.
+ * "Kan ik woensdag 30 september over de A2?" — the block under the hero of a road / gemeente /
+ * woonplaats page: the vehicle mode, the answer card for the chosen moment, "Wanneer?" with a
+ * 14-day strip (ui/forecast-strip.ts; a day filters the list to that day) and the date control
+ * (ui/date-pick.ts): a date alone or a day part is a window, only "Precies tijdstip" a moment.
  *
  * The block owns its state (mode, selection) and tells the page what to list via `onChange`.
  * After a change by the user it also speaks the new answer (ui/announce.ts); a data refresh
  * through `setItems` re-renders silently.
  */
 import { answerFor, horizonDateLabel, type AnswerSubject } from '../data/answer';
-import { dayStrip, relativeDayLabel, selectAtMoment, selectInWindow, type DayCell, type ForecastItem, type When } from '../data/forecast';
-import { MS } from '../data/time';
-import { formatLocalDateTime, parseLocalDateTime } from '../data/url-state';
-import { VERDICT_META, countsLine, type VehicleMode } from '../data/verdict';
+import { PAGE_STRIP_DAYS, relativeDayLabel, selectAtMoment, selectInWindow, type DayCell, type ForecastItem, type When } from '../data/forecast';
+import { horizonMs } from '../data/horizon';
+import { dayWindow, localDateKey, windowFromNow, type DayPart } from '../data/time';
+import type { VehicleMode } from '../data/verdict';
 import { announce } from './announce';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
-import { esc, fmtDay, fmtDayTime, fmtWeekdayShort } from './format';
-import { ICONS } from './icons';
+import { mountDatePick, pickHintKind, whenHint, type DatePick } from './date-pick';
+import { mountForecastStrip, type StripChoice } from './forecast-strip';
+import { fmtDay, fmtDayTime } from './format';
 import { mountModeSelect } from './mode-select';
-import { horizonMs } from '../data/horizon';
+import { buildStripModel, type StripModel } from './strip-model';
+import { dayQuestionWords, momentLong, relativeDayLong } from './when-words';
 
 export type ForecastSelection =
   | { kind: 'all' }
   | { kind: 'day'; cell: DayCell; index: number }
+  /** A date outside the strip, or a part of a day: a window, answered with its heaviest verdict. */
+  | { kind: 'window'; date: string; part: DayPart | null; from: number; to: number }
   | { kind: 'moment'; at: number };
 
 export interface ForecastState {
@@ -31,9 +35,10 @@ export interface ForecastState {
   /** The moment the list's verdicts should be computed for. */
   at: number;
   /**
-   * For a day picked in the strip: the day itself. A day is a window, not a moment — computing the
-   * list for 00:00 (the hour at which day work by definition does not apply) made the strip say
-   * "Doorrijden mogelijk · 4 hinder" above four rows reading "Geen hinder · buiten werktijden".
+   * For a day picked in the strip or a date (+ part): the window itself. A day is a window, not a
+   * moment — computing the list for 00:00 (the hour at which day work by definition does not
+   * apply) made the strip say "Doorrijden mogelijk · 4 hinder" above four rows reading "Geen
+   * hinder · buiten werktijden".
    */
   window?: { from: number; to: number };
   /** Items the list should show for the selection (null = the page's default grouping). */
@@ -49,8 +54,8 @@ export interface ForecastBlockOptions {
   mode: VehicleMode;
   /** Initial exact moment (from `?t=`), if any. */
   moment?: number | null;
-  /** Initial selection (a strip day from `?t=vandaag`); wins over `moment`. */
-  selection?: ForecastSelection;
+  /** Initial day (from `?dag=` / `&deel=`), if any; `moment` wins. */
+  day?: { date: string; part: DayPart | null } | null;
   /** "20:17" while the data is stale (see AnswerCardModel.dataAsOf); omit when it is current. */
   dataAsOf?: string;
   now?: () => number;
@@ -63,53 +68,95 @@ export interface ForecastBlock {
   getState(): ForecastState;
 }
 
+/** The window a selection asks about, from `now` on; undefined for "nu" and a moment. */
+function windowOf(selection: ForecastSelection, now: number): { from: number; to: number } | undefined {
+  if (selection.kind === 'day') return windowFromNow(selection.cell, now);
+  if (selection.kind === 'window') return windowFromNow(selection, now);
+  return undefined;
+}
+
 function whenOf(selection: ForecastSelection, now: number): When {
   if (selection.kind === 'moment') return { kind: 'moment', at: selection.at };
-  if (selection.kind === 'day') return { kind: 'window', from: Math.max(selection.cell.from, now), to: selection.cell.to };
-  return { kind: 'moment', at: now };
+  const w = windowOf(selection, now);
+  return w ? { kind: 'window', ...w } : { kind: 'moment', at: now };
 }
 
 function whenLabelOf(selection: ForecastSelection, now: number): string {
   if (selection.kind === 'moment') return fmtDayTime(selection.at);
   if (selection.kind === 'day') return relativeDayLabel(selection.cell, now, fmtDay(selection.cell.from));
+  if (selection.kind === 'window') return selection.part ? `${fmtDay(selection.from)}, ${selection.part}` : fmtDay(selection.from);
   return 'nu';
+}
+
+/** The moment as part of the question: "nu", "vandaag", "woensdag 30 september in de ochtend (06:00–12:00)". */
+function questionWhenOf(selection: ForecastSelection, now: number): string {
+  if (selection.kind === 'moment') return momentLong(selection.at);
+  if (selection.kind === 'day') return relativeDayLong(selection.cell.from, now);
+  if (selection.kind === 'window') return dayQuestionWords(selection.date, selection.part, now);
+  return 'nu';
+}
+
+/** The date control's view of a selection: a strip day shows its date, so a part can narrow it. */
+function pickOf(selection: ForecastSelection): DatePick | null {
+  if (selection.kind === 'moment') return { kind: 'moment', at: selection.at };
+  if (selection.kind === 'day') return { kind: 'day', date: localDateKey(selection.cell.from), part: null };
+  if (selection.kind === 'window') return { kind: 'day', date: selection.date, part: selection.part };
+  return null;
+}
+
+/**
+ * A date (+ part) as a selection: the strip cell when it is a whole day inside the strip, else a
+ * window from dayWindow — so a date 20 days out still gets an answer, not "nu".
+ */
+export function selectionForDay(date: string, part: DayPart | null, cells: readonly DayCell[]): ForecastSelection {
+  if (part === null) {
+    const index = cells.findIndex((c) => localDateKey(c.from) === date);
+    const cell = cells[index];
+    if (cell) return { kind: 'day', cell, index };
+  }
+  const w = dayWindow(date, part);
+  return w ? { kind: 'window', date, part, ...w } : { kind: 'all' };
 }
 
 export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions): ForecastBlock {
   const nowFn = opts.now ?? ((): number => Date.now());
   let items = opts.items;
   let mode = opts.mode;
-  let selection: ForecastSelection = opts.selection ?? (opts.moment ? { kind: 'moment', at: opts.moment } : { kind: 'all' });
+  let model: StripModel = buildStripModel(items, mode, nowFn(), opts.subject, PAGE_STRIP_DAYS);
+  let selection: ForecastSelection = opts.moment
+    ? { kind: 'moment', at: opts.moment }
+    : opts.day
+      ? selectionForDay(opts.day.date, opts.day.part, model.cells.map((c) => c.cell))
+      : { kind: 'all' };
 
   root.classList.add('forecast');
   root.innerHTML = `<div class="forecast__mode" data-fc-mode></div>
     <div class="forecast__answer" data-fc-answer></div>
-    <div class="forecast__strip" role="radiogroup" aria-label="Komende zeven dagen" data-fc-strip></div>
-    <div class="forecast__date" data-fc-date>
-      <label class="forecast__date-label" for="fc-input">${ICONS.calendarClock}<span>Andere datum…</span></label>
-      <input id="fc-input" class="forecast__input" type="datetime-local" step="300" />
-      <button type="button" class="forecast__clear" data-fc-clear aria-label="Datum wissen" hidden>${ICONS.x}</button>
-    </div>
-    <p class="when__horizon forecast__horizon" id="fc-horizon" hidden></p>`;
+    <div class="forecast__when">
+      <p class="when__label forecast__label" id="fc-when-label">Wanneer?</p>
+      <div class="forecast__strip" data-fc-strip></div>
+      <div class="forecast__datepick" data-fc-date></div>
+      <p class="when__hint forecast__hint" id="fc-hint" hidden></p>
+      <p class="when__horizon forecast__horizon" id="fc-horizon" hidden></p>
+    </div>`;
   const modeEl = root.querySelector<HTMLElement>('[data-fc-mode]');
   const answerEl = root.querySelector<HTMLElement>('[data-fc-answer]');
   const stripEl = root.querySelector<HTMLElement>('[data-fc-strip]');
-  const input = root.querySelector<HTMLInputElement>('#fc-input');
-  const clear = root.querySelector<HTMLButtonElement>('[data-fc-clear]');
+  const dateEl = root.querySelector<HTMLElement>('[data-fc-date]');
+  const hintEl = root.querySelector<HTMLElement>('#fc-hint');
   const horizonEl = root.querySelector<HTMLElement>('#fc-horizon');
-  if (!modeEl || !answerEl || !stripEl || !input || !clear || !horizonEl) throw new Error('forecast markup ontbreekt');
-  input.setAttribute('aria-describedby', 'fc-horizon');
+  if (!modeEl || !answerEl || !stripEl || !dateEl || !hintEl || !horizonEl) throw new Error('forecast markup ontbreekt');
 
   const state = (): ForecastState => {
     const now = nowFn();
-    const at = selection.kind === 'moment' ? selection.at : selection.kind === 'day' ? Math.max(selection.cell.from, now) : now;
+    const window = windowOf(selection, now);
+    const at = selection.kind === 'moment' ? selection.at : window ? window.from : now;
     let listed: ForecastItem[] | null = null;
     // The same call dayStrip makes for the cell, so list and strip always hold the same items —
     // but worst first. In input order the day's closures sat under 22 "Doorrijden mogelijk" rows,
     // most of them behind "Toon meer" (vooruit-1).
-    if (selection.kind === 'day') listed = selectInWindow(items, mode, Math.max(selection.cell.from, now), selection.cell.to, now).items.map((x) => x.item);
+    if (window) listed = selectInWindow(items, mode, window.from, window.to, now).items.map((x) => x.item);
     if (selection.kind === 'moment') listed = selectAtMoment(items, mode, selection.at, now).items.map((x) => x.item);
-    const window = selection.kind === 'day' ? { from: Math.max(selection.cell.from, now), to: selection.cell.to } : undefined;
     return { mode, selection, at, ...(window ? { window } : {}), items: listed, whenLabel: whenLabelOf(selection, now) };
   };
 
@@ -124,6 +171,8 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
       roadType: opts.roadType ?? null,
       subject: opts.subject.kind === 'gemeente' ? `de gemeente ${opts.subject.name}` : opts.subject.name,
       whenLabel: whenLabelOf(selection, now),
+      questionWhen: questionWhenOf(selection, now),
+      backToNow: selection.kind !== 'all',
       mode,
       answer,
       total: items.length,
@@ -133,52 +182,40 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
     answerEl.innerHTML = renderAnswerCard(card);
   };
 
-  const renderStrip = (): void => {
-    const now = nowFn();
-    const cells = dayStrip(items, mode, now);
-    stripEl.innerHTML = cells
-      .map((cell, i) => {
-        const level = cell.worst;
-        const meta = level ? VERDICT_META[level] : null;
-        const on = selection.kind === 'day' && selection.index === i;
-        const label = relativeDayLabel(cell, now, `${fmtWeekdayShort(cell.from)} ${new Date(cell.from + 12 * MS.hour).getUTCDate()}`);
-        const line = level ? countsLine(cell.counts) : 'niets gemeld';
-        const title = level ? `${label}: ${meta?.label ?? ''} · ${line}` : `${label}: niets gemeld`;
-        return `<button type="button" class="forecast__day forecast__day--${level ?? 'leeg'}${on ? ' is-on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-fc-day="${i}" title="${esc(title)}" style="--vpill-color: var(${meta?.color ?? '--border'})">
-          <span class="forecast__day-name">${esc(label)}</span>
-          <span class="forecast__day-bar" aria-hidden="true"></span>
-          <span class="forecast__day-verdict">${esc(meta?.label ?? 'niets gemeld')}</span>
-          <span class="forecast__day-counts">${esc(line)}</span>
-        </button>`;
-      })
-      .join('');
-  };
-
-  const renderDate = (): void => {
-    const has = selection.kind === 'moment';
-    root.classList.toggle('has-moment', has);
-    clear.hidden = !has;
-    if (has && selection.kind === 'moment') {
-      const v = formatLocalDateTime(selection.at);
-      if (input.value !== v) input.value = v;
-    } else if (document.activeElement !== input) {
-      input.value = '';
+  /** The strip radio that is on: "Nu", a day, the day of a part, or none for a date outside it. */
+  const checkedChoice = (): StripChoice | undefined => {
+    if (selection.kind === 'all') return null;
+    if (selection.kind === 'day') return selection.index;
+    if (selection.kind === 'window') {
+      const date = selection.date;
+      const i = model.cells.findIndex((c) => localDateKey(c.cell.from) === date);
+      return i >= 0 ? i : undefined;
     }
+    return undefined;
   };
 
-  // Always visible when known: how far ahead the planning reaches, before anyone picks a date
-  // past it (vooruit-5). No min/max on the input — looking further stays possible.
-  const renderHorizon = (): void => {
-    const until = horizonMs();
-    horizonEl.hidden = until === undefined;
-    horizonEl.textContent = until === undefined ? '' : `Planning bekend tot ${horizonDateLabel(until)}`;
+  const rebuild = (): void => {
+    model = buildStripModel(items, mode, nowFn(), opts.subject, PAGE_STRIP_DAYS);
+    if (selection.kind === 'day') {
+      const c = model.cells[selection.index];
+      selection = c ? { kind: 'day', cell: c.cell, index: selection.index } : { kind: 'all' };
+    }
   };
 
   const renderAll = (): void => {
     renderAnswer();
-    renderStrip();
-    renderDate();
-    renderHorizon();
+    strip.update(model, checkedChoice());
+    datePick.set(pickOf(selection));
+    const kind = selection.kind === 'all' ? 'nu' : selection.kind === 'day' ? 'day' : pickHintKind(pickOf(selection));
+    const hint = whenHint(kind);
+    hintEl.hidden = hint === '';
+    hintEl.textContent = hint;
+    root.classList.toggle('has-moment', selection.kind !== 'all');
+    // Always visible when known: how far ahead the planning reaches, before anyone picks a date
+    // past it (vooruit-5). No min/max on the input — looking further stays possible.
+    const until = horizonMs();
+    horizonEl.hidden = until === undefined;
+    horizonEl.textContent = until === undefined ? '' : `Planning bekend tot ${horizonDateLabel(until)}`;
   };
 
   // Only the user's own changes come through here (mode, a day, a date, clearing it).
@@ -190,44 +227,38 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
 
   mountModeSelect(modeEl, mode, (m) => {
     mode = m;
+    rebuild();
     emit();
   });
 
-  stripEl.addEventListener('click', (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-fc-day]');
-    if (!btn) return;
-    const index = Number(btn.dataset.fcDay);
-    const cell = dayStrip(items, mode, nowFn())[index];
-    if (!cell) return;
-    selection = selection.kind === 'day' && selection.index === index ? { kind: 'all' } : { kind: 'day', cell, index };
+  // A radio cannot be switched off by clicking it again: "Nu" is the way back (toeg-3).
+  const strip = mountForecastStrip(stripEl, PAGE_STRIP_DAYS, 'fc-when-label', (choice) => {
+    const c = choice === null ? undefined : model.cells[choice];
+    const next: ForecastSelection = c && choice !== null ? { kind: 'day', cell: c.cell, index: choice } : { kind: 'all' };
+    const same = next.kind === 'all' ? selection.kind === 'all' : selection.kind === 'day' && next.kind === 'day' && selection.index === next.index;
+    if (same) return;
+    selection = next;
     emit();
   });
 
-  const applyInput = (): void => {
-    const ms = parseLocalDateTime(input.value);
-    if (ms === null) {
-      if (input.value === '' && selection.kind === 'moment') {
-        selection = { kind: 'all' };
-        emit();
-      }
-      return;
-    }
-    if (selection.kind === 'moment' && selection.at === ms) return;
-    selection = { kind: 'moment', at: ms };
-    emit();
-  };
-  input.addEventListener('change', applyInput);
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      applyInput();
-    }
+  const datePick = mountDatePick(dateEl, {
+    block: 'forecast',
+    id: 'fc',
+    describedBy: 'fc-hint fc-horizon',
+    onPick: (pick) => {
+      if (pick === null) selection = { kind: 'all' };
+      else if (pick.kind === 'moment') selection = { kind: 'moment', at: pick.at };
+      else selection = selectionForDay(pick.date, pick.part, model.cells.map((c) => c.cell));
+      emit();
+    },
   });
-  clear.addEventListener('click', () => {
+
+  // "Terug naar nu" lives in the card, which is re-rendered: listen on the stable container.
+  answerEl.addEventListener('click', (e) => {
+    if (!(e.target as HTMLElement).closest('[data-answer-now]')) return;
     selection = { kind: 'all' };
-    input.value = '';
     emit();
-    input.focus();
+    strip.focusChecked();
   });
 
   renderAll();
@@ -235,10 +266,7 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
     root,
     setItems(next) {
       items = next;
-      if (selection.kind === 'day') {
-        const cell = dayStrip(items, mode, nowFn())[selection.index];
-        selection = cell ? { kind: 'day', cell, index: selection.index } : { kind: 'all' };
-      }
+      rebuild();
       renderAll();
     },
     getState: state,

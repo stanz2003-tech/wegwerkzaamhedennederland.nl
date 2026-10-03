@@ -1,0 +1,136 @@
+/* when.css — "Wanneer?" pieces shared by the map panel and the road/place pages:
+   the date control (ui/date-pick.ts), and the question + "Terug naar nu" of the answer card
+   (ui/answer-card.ts). @imported by panel-controls.css (map) and entity-list.css (pages).
+   Inputs are 16 px so iOS Safari does not zoom in on focus (vooruit-9). Tokens only. */
+
+/* ------------------------------------------------------------------ date control */
+.datepick {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.datepick__input {
+  min-height: var(--touch);
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+}
+
+.datepick__input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+  border-radius: var(--r-1);
+}
+
+/* Day parts: one row that scrolls sideways when it does not fit, never wraps into three. */
+.datepick__parts {
+  display: flex;
+  gap: var(--s-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+
+/* On a phone the row runs off the edge: fade it, so it reads as "scroll for more". */
+@media (max-width: 768px) {
+  .datepick__parts { mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
+}
+
+.datepick__parts[hidden],
+.datepick__time[hidden] {
+  display: none;
+}
+
+.datepick__chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
+}
+
+.datepick__chip:hover:not(.is-on) {
+  border-color: var(--text-3);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.datepick__chip.is-on {
+  background: var(--chip-on-bg);
+  border-color: var(--chip-on-bg);
+  color: var(--chip-on-text);
+  font-weight: 600;
+}
+
+.datepick__chip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.datepick__time {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch);
+  padding: 0 var(--s-2) 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  max-width: 16rem;
+}
+
+.datepick__time-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-2);
+}
+
+/* ------------------------------------------------------------------ the question in the card */
+/* "Kan ik zaterdag 3 oktober om 08:00 over de A27?" — the moment is part of the question, in the
+   display font, so a screenshot says which day it is about (vooruit-10). */
+.answer__kicker--when {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--text-base);
+  line-height: 1.25;
+  color: var(--text);
+  text-wrap: balance;
+}
+
+@media (min-width: 769px) {
+  .answer__kicker--when { font-size: var(--text-lg); }
+}
+
+/* The map panel is a narrow column: 16 px keeps the question to two or three lines. */
+.panel .answer__kicker--when { font-size: var(--text-base); }
+
+.answer__kicker--when .answer__mode {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: var(--text-xs);
+  color: var(--text-2);
+}
+
+.answer__now {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch);
+}
+
+.answer__now svg { width: 16px; height: 16px; }

@@ -17,7 +17,7 @@ import { applyAlias, didYouMeanHits, suggestPlaces, type PlaceHit } from '../dat
 import { slugify, type ItemFeature, type ItemProperties } from '../data/types';
 import { DEFAULT_URL_STATE, serializeUrlState, type PlaceRef } from '../data/url-state';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
-import { asForecast, whenLabelOf, whenOf, type PanelAnswerEls, type PanelQuestion } from './panel-answer';
+import { asForecast, isNotNow, questionWhenOf, whenLabelOf, whenOf, type PanelAnswerEls, type PanelQuestion } from './panel-answer';
 
 /** "Almkerk" / "de gemeente Altena": the subject of "Kan ik door …?". */
 export function placeSubject(place: Pick<PlaceRef, 'kind' | 'name'>): string {
@@ -54,9 +54,9 @@ export function placeMatcher(place: PlaceRef, pages: EntityPages | null): (p: Pi
   };
 }
 
-/** The place page with the same vehicle and moment: `/plaats/almkerk/?v=fiets&t=7d`. */
-export function placePageHref(place: Pick<PlaceRef, 'kind' | 'slug'>, q: Pick<PanelQuestion, 'mode' | 'time' | 'moment'>): string {
-  const qs = serializeUrlState({ ...DEFAULT_URL_STATE, mode: q.mode, time: q.time, moment: q.moment });
+/** The place page with the same vehicle and moment or day: `/plaats/almkerk/?v=fiets&dag=2026-10-06`. */
+export function placePageHref(place: Pick<PlaceRef, 'kind' | 'slug'>, q: Pick<PanelQuestion, 'mode' | 'time' | 'moment' | 'day' | 'part'>): string {
+  const qs = serializeUrlState({ ...DEFAULT_URL_STATE, mode: q.mode, time: q.time, moment: q.moment, day: q.day, part: q.part });
   return `/${place.kind === 'gemeente' ? 'gemeente' : 'plaats'}/${place.slug}/${qs ? `?${qs}` : ''}`;
 }
 
@@ -109,6 +109,8 @@ export interface PlaceAnswerOptions {
   /** Only when the place page exists. */
   pageHref?: string | null;
   onExit(): void;
+  /** "Terug naar nu" in the card: the caller resets the question to now. */
+  onNow?(): void;
 }
 
 /**
@@ -121,6 +123,8 @@ export function renderPlaceAnswer(els: PanelAnswerEls, q: PanelQuestion, place: 
   const model: AnswerCardModel = {
     subject: placeSubject(place),
     whenLabel: whenLabelOf(q),
+    questionWhen: questionWhenOf(q, now),
+    backToNow: opts.onNow !== undefined && isNotNow(q),
     mode: q.mode,
     answer,
     total: items.length,
@@ -134,6 +138,7 @@ export function renderPlaceAnswer(els: PanelAnswerEls, q: PanelQuestion, place: 
   els.panel.classList.add('is-place');
   els.answer.innerHTML = renderAnswerCard(model);
   els.answer.querySelector('[data-answer-exit]')?.addEventListener('click', () => opts.onExit());
+  els.answer.querySelector('[data-answer-now]')?.addEventListener('click', () => opts.onNow?.());
   return answerAnnouncement(model);
 }
 

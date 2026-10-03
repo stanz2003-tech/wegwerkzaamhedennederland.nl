@@ -31,8 +31,9 @@ export interface EntityListOptions {
   /** Extra query parameters appended to the deep link, e.g. `cat=file`. */
   linkQuery?: string;
   /**
-   * The page's question for the map (`v=vracht&t=2026-10-03T08:00`, ui/map-link.ts), so a row
-   * opens the map on the verdict its pill shows instead of "nu" for auto (zoek-10).
+   * The page's vehicle and moment or day (`v=vracht&dag=2026-10-06`, `t=2026-10-03T08:00`; built by
+   * ui/map-link.ts), appended to every deep link so the map opens on the verdict the row's pill
+   * shows instead of "nu" for auto (zoek-10).
    */
   mapQuery?: string;
   /** Vehicle mode the verdict pills are computed for (default: auto). */

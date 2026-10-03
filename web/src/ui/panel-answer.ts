@@ -12,16 +12,17 @@
 import { answerFor, areaSentence, hiddenSentence } from '../data/answer';
 import type { ForecastItem, When } from '../data/forecast';
 import { horizonMs } from '../data/horizon';
-import { TIME_WINDOWS, timeWindowRange } from '../data/time';
+import { TIME_WINDOWS, dayWindow, timeWindowRange, windowFromNow } from '../data/time';
 import type { ItemFeature } from '../data/types';
 import type { UrlState } from '../data/url-state';
 import { slugify } from '../data/types';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
-import { fmtDayTime, plural } from './format';
+import { fmtDay, fmtDayTime, plural } from './format';
 import { roadPageHref } from './map-link';
+import { dayQuestionWords, momentLong, windowQuestionWords } from './when-words';
 
 /** The part of the URL state the panel answer reads. */
-export type PanelQuestion = Pick<UrlState, 'mode' | 'time' | 'moment' | 'road' | 'query'>;
+export type PanelQuestion = Pick<UrlState, 'mode' | 'time' | 'moment' | 'day' | 'part' | 'road' | 'query'>;
 
 export interface PanelAnswerEls {
   panel: HTMLElement;
@@ -30,9 +31,21 @@ export interface PanelAnswerEls {
   hiddenBtn: HTMLButtonElement;
 }
 
+/**
+ * The window of a picked date (`?dag=`, + `&deel=`), from `now` on as the strip judges today;
+ * null without one. The list, the map and the answer card all use this one window.
+ */
+export function dayWindowOf(q: Pick<PanelQuestion, 'moment' | 'day' | 'part'>, now: number): { from: number; to: number } | null {
+  if (q.moment !== null || q.day === null) return null;
+  const w = dayWindow(q.day, q.part);
+  return w ? windowFromNow(w, now) : null;
+}
+
 /** The "Wanneer?" choice as the answer module sees it. */
 export function whenOf(q: PanelQuestion, now: number): When {
   if (q.moment !== null) return { kind: 'moment', at: q.moment };
+  const day = dayWindowOf(q, now);
+  if (day) return { kind: 'window', ...day };
   if (q.time === 'nu') return { kind: 'moment', at: now };
   const { from, to } = timeWindowRange(q.time, now);
   return { kind: 'window', from, to };
@@ -41,7 +54,21 @@ export function whenOf(q: PanelQuestion, now: number): When {
 /** "nu" / "vandaag" / "za 20 sep 14:00" */
 export function whenLabelOf(q: PanelQuestion): string {
   if (q.moment !== null) return fmtDayTime(q.moment);
+  const day = q.day !== null ? dayWindow(q.day) : null;
+  if (day) return q.part ? `${fmtDay(day.from)}, ${q.part}` : fmtDay(day.from);
   return (TIME_WINDOWS.find((w) => w.id === q.time)?.label ?? 'nu').toLowerCase();
+}
+
+/** The moment as part of the card's question: "zaterdag 3 oktober om 08:00", "dit weekend (…)". */
+export function questionWhenOf(q: PanelQuestion, now: number): string {
+  if (q.moment !== null) return momentLong(q.moment);
+  if (q.day !== null) return dayQuestionWords(q.day, q.part, now) || 'nu';
+  return windowQuestionWords(q.time, now);
+}
+
+/** True when the question is about another moment than now: the card then offers "Terug naar nu". */
+export function isNotNow(q: Pick<PanelQuestion, 'moment' | 'day' | 'time'>): boolean {
+  return q.moment !== null || q.day !== null || q.time !== 'nu';
 }
 
 /** Map features carry no detail shard: judged conservatively, as the map does (`d: null`). */
@@ -55,6 +82,8 @@ export interface RoadAnswerOptions {
   /** Whether /weg/<slug>/ exists (data/entity-pages.ts); without it the card has no page link. */
   hasRoadPage?: (slug: string) => boolean;
   onExit(): void;
+  /** "Terug naar nu" in the card: the caller resets the question to now. */
+  onNow?(): void;
 }
 
 /**
@@ -77,6 +106,8 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
     road,
     roadType: sample?.properties.roadType ?? null,
     whenLabel: whenLabelOf(q),
+    questionWhen: questionWhenOf(q, now),
+    backToNow: opts.onNow !== undefined && isNotNow(q),
     mode: q.mode,
     answer,
     total: roadItems.length,
@@ -87,6 +118,7 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
   };
   els.answer.innerHTML = renderAnswerCard(model);
   els.answer.querySelector('[data-answer-exit]')?.addEventListener('click', () => opts.onExit());
+  els.answer.querySelector('[data-answer-now]')?.addEventListener('click', () => opts.onNow?.());
   return answerAnnouncement(model);
 }
 

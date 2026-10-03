@@ -174,3 +174,170 @@ describe('a picked strip day lists the same items as its cell, worst first (voor
     });
   }
 });
+
+/* ------------------------------------------------------------------ 14 days, day parts */
+
+const { constantIds, dayParts, heaviestSpan, PAGE_STRIP_DAYS } = forecast;
+const RANK = (level) => (level === null ? Infinity : verdict.VERDICT_SEVERITY.indexOf(level));
+
+/** Every night from 2026-09-01 for 40 nights, 21:00–05:00 CEST. */
+const everyNight = Array.from({ length: 40 }, (_, i) => {
+  const start = Date.parse('2026-09-01T19:00:00Z') + i * MS.day;
+  return [new Date(start).toISOString(), new Date(start + 8 * MS.hour).toISOString()];
+});
+
+/** The A27 situation of vooruit-2: one closure without an end makes every day "Rijbaan dicht". */
+const gorinchemItems = () => [
+  item('gor', { imp: 'rijbaan', start: '2026-08-01T00:00:00Z', end: null, woonplaats: 'Gorinchem', road: 'A27' }),
+  item('long', { imp: 'hinder', start: '2026-08-01T00:00:00Z', end: '2026-12-01T00:00:00Z', woonplaats: 'Hank', road: 'A27' }),
+  item('houten', { imp: 'dicht', per: true, woonplaats: 'Houten', road: 'A27' }, { id: 'houten', src: 'x', upd: '2026-09-01T00:00:00Z', periods: nightly }),
+  item('nights', { imp: 'dicht', per: true, end: '2026-11-01T00:00:00Z', woonplaats: 'Lexmond', road: 'A27' }, { id: 'nights', src: 'x', upd: '2026-09-01T00:00:00Z', periods: everyNight }),
+  item('fri', { imp: 'hinder', start: '2026-09-11T06:00:00Z', end: '2026-09-11T20:00:00Z', woonplaats: 'Vianen', road: 'A27' }),
+  item('cycle', { imp: 'dicht', veh: ['bicycle'], start: '2026-08-01T00:00:00Z', end: null, woonplaats: 'Gorinchem', road: 'A27' }),
+];
+
+describe('the 14-day strip (vooruit-8)', () => {
+  it('has 14 cells from today, two weeks of calendar days', () => {
+    const cells = dayStrip(gorinchemItems(), 'auto', NOW, PAGE_STRIP_DAYS);
+    assert.equal(PAGE_STRIP_DAYS, 14);
+    assert.equal(cells.length, 14);
+    assert.equal(cells[13].from, startOfDay(NOW, 13));
+    assert.equal(STRIP_DAYS, 7, 'other callers keep their 7');
+  });
+});
+
+describe('constantIds: the measures that are the same every day, all day (vooruit-2)', () => {
+  it('lifts out the open-ended closure and the long hinder, heaviest first', () => {
+    const items = gorinchemItems();
+    const cells = dayStrip(items, 'auto', NOW, PAGE_STRIP_DAYS);
+    assert.deepEqual(constantIds(cells, items, 'auto', NOW), [
+      { id: 'gor', level: 'rijbaan' },
+      { id: 'long', level: 'hinder' },
+    ]);
+  });
+
+  it('a nightly closure on every day is NOT constant: it is not there all day', () => {
+    const items = gorinchemItems();
+    const cells = dayStrip(items, 'auto', NOW, PAGE_STRIP_DAYS);
+    assert.ok(cells.every((c) => c.ids.includes('nights')), 'it touches every day');
+    assert.ok(!constantIds(cells, items, 'auto', NOW).some((c) => c.id === 'nights'));
+  });
+
+  it('a measure that ends inside the strip is not constant; one cell is no strip', () => {
+    const items = [item('short', { imp: 'rijbaan', start: '2026-08-01T00:00:00Z', end: '2026-09-15T00:00:00Z' })];
+    const cells = dayStrip(items, 'auto', NOW, PAGE_STRIP_DAYS);
+    assert.deepEqual(constantIds(cells, items, 'auto', NOW), []);
+    assert.deepEqual(constantIds(cells.slice(0, 1), items, 'auto', NOW), []);
+  });
+
+  it('for cyclists the cycle-path closure is the constant one', () => {
+    const items = gorinchemItems();
+    const cells = dayStrip(items, 'fiets', NOW, PAGE_STRIP_DAYS);
+    assert.ok(constantIds(cells, items, 'fiets', NOW).some((c) => c.id === 'cycle' && c.level === 'dicht'));
+  });
+});
+
+describe('dayParts and heaviestSpan', () => {
+  const items = gorinchemItems();
+  const cells = dayStrip(items, 'auto', NOW, PAGE_STRIP_DAYS);
+  const constants = new Set(constantIds(cells, items, 'auto', NOW).map((c) => c.id));
+
+  it('today: parts that are over are not judged; the evening carries the nightly closure', () => {
+    const parts = dayParts(items, 'auto', cells[0], NOW, constants);
+    assert.deepEqual(parts.map((p) => p.ahead), [false, false, true, true]);
+    assert.equal(parts[0].worst, null);
+    assert.equal(parts[3].worst, 'dicht');
+  });
+
+  it('without the constants the parts differ between days', () => {
+    const fri = dayParts(items, 'auto', cells[2], NOW, constants).map((p) => p.worst);
+    assert.deepEqual(fri, ['dicht', 'hinder', 'hinder', 'dicht']);
+    const later = dayParts(items, 'auto', cells[10], NOW, constants).map((p) => p.worst);
+    assert.deepEqual(later, ['dicht', null, null, 'dicht']);
+  });
+
+  it('heaviestSpan names the part hours, round the clock', () => {
+    const p = (worsts, ahead = [true, true, true, true]) => worsts.map((worst, i) => ({ part: 'x', from: 0, to: 0, ahead: ahead[i], worst }));
+    assert.equal(heaviestSpan(p(['dicht', null, null, 'dicht'])), '18:00–06:00');
+    assert.equal(heaviestSpan(p(['hinder', 'rijbaan', 'rijbaan', 'hinder'])), '06:00–18:00');
+    assert.equal(heaviestSpan(p(['rijbaan', 'rijbaan', 'rijbaan', 'rijbaan'])), 'hele dag');
+    assert.equal(heaviestSpan(p(['dicht', null, 'dicht', null])), '00:00–06:00 en 12:00–18:00');
+    assert.equal(heaviestSpan(p([null, 'dicht', 'dicht', 'dicht'], [false, true, true, true])), '06:00–24:00');
+    assert.equal(heaviestSpan(p([null, null, null, null])), null);
+  });
+});
+
+describe('no day or day part is ever lighter than an item in it', () => {
+  // Independent recomputation straight from itemVerdict: the heaviest level of the items that
+  // touch the window (the inclusion rule of selectInWindow), against what the strip draws.
+  const heaviestIn = (items, mode, from, to, now) => {
+    let worst = null;
+    for (const x of selectInWindow(items, mode, from, to, now).items) {
+      const level = forecast.itemVerdict(x.item, mode, undefined, { from, to }).level;
+      if (RANK(level) < RANK(worst)) worst = level;
+    }
+    return worst;
+  };
+  const ROADS = fixtureFiles().filter((f) => f.startsWith('roads/') || f.startsWith('gemeenten/'));
+  const FIXTURE_NOW = Date.parse(readJson('meta.json').generated);
+  const SETS = [
+    { name: 'gorinchem', items: gorinchemItems(), now: NOW },
+    ...ROADS.map((file) => ({ name: file, items: readJson(file).items, now: FIXTURE_NOW })),
+  ];
+
+  for (const mode of ['auto', 'vracht', 'fiets']) {
+    it(`${mode}: cell headline, parts and the constant edge`, () => {
+      let parts = 0;
+      for (const { name, items, now } of SETS) {
+        const cells = dayStrip(items, mode, now, PAGE_STRIP_DAYS);
+        const constants = constantIds(cells, items, mode, now);
+        const excluded = new Set(constants.map((c) => c.id));
+        const edge = constants[0]?.level ?? null;
+        for (const cell of cells) {
+          const label = `${name} ${mode} ${new Date(cell.from).toISOString()}`;
+          assert.equal(cell.worst, heaviestIn(items, mode, Math.max(cell.from, now), cell.to, now), `${label}: the cell headline is its heaviest item`);
+          const all = dayParts(items, mode, cell, now);
+          const shown = dayParts(items, mode, cell, now, excluded);
+          all.forEach((part, i) => {
+            if (!part.ahead) return;
+            const from = Math.max(part.from, now);
+            const truth = heaviestIn(items, mode, from, part.to, now);
+            assert.equal(part.worst, truth, `${label} ${part.part}: the part is its heaviest item`);
+            assert.ok(RANK(cell.worst) <= RANK(part.worst), `${label} ${part.part}: the cell is never lighter than a part`);
+            // Exclusion may only remove: the bar without the constants is never heavier...
+            assert.ok(RANK(shown[i].worst) >= RANK(part.worst), `${label} ${part.part}: exclusion only removes`);
+            // ...and bar plus top edge together are never lighter than what is really there.
+            const drawn = RANK(shown[i].worst) <= RANK(edge) ? shown[i].worst : edge;
+            assert.ok(RANK(drawn) <= RANK(truth), `${label} ${part.part}: bar + edge ${drawn} lighter than ${truth}`);
+            parts += 1;
+          });
+        }
+      }
+      assert.ok(parts > 0);
+    });
+  }
+});
+
+describe('a picked date on the map: list pills are judged like the answer card (judge)', () => {
+  // main.ts judges map features (no detail, d: null) with verdictFor(p, mode, { window }) for a
+  // ?dag= window; the card uses selectInWindow on the same features. Same level for every item.
+  const data = ['werk-actueel.geojson', 'werk-gepland.geojson', 'live.geojson'].flatMap((f) => readJson(f).features);
+  const features = data.map((f) => ({ f, d: null }));
+  const FIXTURE_NOW = Date.parse(readJson('meta.json').generated);
+
+  for (const mode of ['auto', 'vracht', 'fiets']) {
+    it(`${mode}: no pill is lighter than the card verdict for that item, on every strip day`, () => {
+      let checked = 0;
+      for (let i = 0; i < PAGE_STRIP_DAYS; i++) {
+        const w = time.windowFromNow(time.dayWindow(time.localDateKey(startOfDay(FIXTURE_NOW, i))), FIXTURE_NOW);
+        const sel = selectInWindow(features, mode, w.from, w.to, FIXTURE_NOW);
+        for (const x of [...sel.items, ...sel.hidden]) {
+          const pill = verdict.verdictFor(x.item.f.properties, mode, { window: w }).level;
+          assert.ok(RANK(pill) <= RANK(x.verdict.level), `${x.item.f.properties.id}: pill ${pill} vs card ${x.verdict.level}`);
+          checked += 1;
+        }
+      }
+      assert.ok(checked > 0);
+    });
+  }
+});

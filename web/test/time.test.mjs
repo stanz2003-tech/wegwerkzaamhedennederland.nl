@@ -198,3 +198,60 @@ describe('window ids and data age', () => {
     assert.ok(Number.isNaN(ageMinutes('onbekend', WED)));
   });
 });
+
+describe('dayWindow / localDateKey / windowFromNow (vooruit-9)', () => {
+  const { dayWindow, localDateKey, windowFromNow, isDateKey, isDayPart, DAY_PARTS } = time;
+
+  it('a whole day runs from local midnight to the last millisecond before the next one', () => {
+    const w = dayWindow('2026-09-09');
+    assert.equal(iso(w.from), '2026-09-08T22:00:00.000Z');
+    assert.equal(iso(w.to + 1), '2026-09-09T22:00:00.000Z');
+    assert.equal(w.from, startOfDay(WED));
+  });
+
+  it('day parts cover the day without gaps or overlap', () => {
+    const day = dayWindow('2026-09-09');
+    const parts = DAY_PARTS.map((p) => dayWindow('2026-09-09', p.id));
+    assert.equal(parts[0].from, day.from);
+    assert.equal(parts[3].to, day.to);
+    for (let i = 1; i < parts.length; i++) assert.equal(parts[i].from, parts[i - 1].to + 1);
+    assert.equal(iso(dayWindow('2026-09-09', 'ochtend').from), '2026-09-09T04:00:00.000Z');
+    assert.equal(iso(dayWindow('2026-09-09', 'ochtend').to + 1), '2026-09-09T10:00:00.000Z');
+  });
+
+  it('is DST-safe: 25 October 2026 has 25 hours and a 7-hour night', () => {
+    const w = dayWindow('2026-10-25');
+    assert.equal(iso(w.from), '2026-10-24T22:00:00.000Z');
+    assert.equal(iso(w.to + 1), '2026-10-25T23:00:00.000Z');
+    assert.equal(w.to + 1 - w.from, 25 * MS.hour);
+    const nacht = dayWindow('2026-10-25', 'nacht');
+    assert.equal(nacht.to + 1 - nacht.from, 7 * MS.hour);
+    assert.equal(iso(dayWindow('2026-10-25', 'avond').from), '2026-10-25T17:00:00.000Z');
+    // And the spring day has 23.
+    const spring = dayWindow('2026-03-29');
+    assert.equal(spring.to + 1 - spring.from, 23 * MS.hour);
+  });
+
+  it('rejects malformed and impossible dates', () => {
+    assert.equal(dayWindow('2026-02-30'), null);
+    assert.equal(dayWindow('9-9-2026'), null);
+    assert.equal(isDateKey('2026-09-09'), true);
+    assert.equal(isDateKey('2026-13-01'), false);
+    assert.equal(isDayPart('middag'), true);
+    assert.equal(isDayPart('lunch'), false);
+  });
+
+  it('localDateKey is the Amsterdam calendar date', () => {
+    assert.equal(localDateKey(WED), '2026-09-09');
+    assert.equal(localDateKey(Date.parse('2026-09-09T22:30:00Z')), '2026-09-10');
+  });
+
+  it('windowFromNow clamps today and keeps future windows whole', () => {
+    const today = dayWindow('2026-09-09');
+    assert.deepEqual(windowFromNow(today, WED), { from: WED, to: today.to });
+    const later = dayWindow('2026-09-12');
+    assert.deepEqual(windowFromNow(later, WED), later);
+    const past = dayWindow('2026-09-01');
+    assert.deepEqual(windowFromNow(past, WED), { from: past.to, to: past.to });
+  });
+});

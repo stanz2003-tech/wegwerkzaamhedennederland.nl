@@ -143,6 +143,73 @@ export function startOfDay(ms: number, dayOffset = 0): number {
   return zonedToMs(p.year, p.month, p.day + dayOffset);
 }
 
+/* ------------------------------------------------------------------------ */
+/* Calendar days and day parts ("?dag=2026-10-06&deel=ochtend")              */
+/* ------------------------------------------------------------------------ */
+
+export type DayPart = 'nacht' | 'ochtend' | 'middag' | 'avond';
+
+/** The four parts of a day, as offered next to the date input and drawn in every strip cell. */
+export const DAY_PARTS: readonly { id: DayPart; label: string; fromHour: number; toHour: number }[] = [
+  { id: 'nacht', label: 'Nacht', fromHour: 0, toHour: 6 },
+  { id: 'ochtend', label: 'Ochtend', fromHour: 6, toHour: 12 },
+  { id: 'middag', label: 'Middag', fromHour: 12, toHour: 18 },
+  { id: 'avond', label: 'Avond', fromHour: 18, toHour: 24 },
+];
+
+export function isDayPart(value: string | null | undefined): value is DayPart {
+  return DAY_PARTS.some((p) => p.id === value);
+}
+
+const DATE_KEY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** `YYYY-MM-DD` → its numbers, or null when malformed or not a real calendar date (31 Feb). */
+function dateKeyParts(date: string): { year: number; month: number; day: number } | null {
+  const m = DATE_KEY.exec(date);
+  if (!m) return null;
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const check = new Date(Date.UTC(year, month - 1, day));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day) return null;
+  return { year, month, day };
+}
+
+/** True for a real calendar date written as `YYYY-MM-DD` (the value of an `<input type="date">`). */
+export function isDateKey(value: string | null | undefined): value is string {
+  return typeof value === 'string' && dateKeyParts(value) !== null;
+}
+
+/** The Europe/Amsterdam calendar date of an instant as `YYYY-MM-DD`. */
+export function localDateKey(ms: number): string {
+  const p = zonedParts(ms);
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${p.year}-${two(p.month)}-${two(p.day)}`;
+}
+
+/**
+ * The window a date (and optionally a day part) stands for, in Europe/Amsterdam: [00:00, 24:00)
+ * of that day, or [06:00, 12:00) for "ochtend". `to` is the last millisecond, as in the strip
+ * cells. Built with zonedToMs, so the DST days hold 23 or 25 hours. Null for a malformed date.
+ */
+export function dayWindow(date: string, part: DayPart | null = null): { from: number; to: number } | null {
+  const d = dateKeyParts(date);
+  if (!d) return null;
+  const p = part ? DAY_PARTS.find((x) => x.id === part) : undefined;
+  const fromHour = p?.fromHour ?? 0;
+  const toHour = p?.toHour ?? 24;
+  const from = zonedToMs(d.year, d.month, d.day, fromHour);
+  const to = toHour === 24 ? zonedToMs(d.year, d.month, d.day + 1) - 1 : zonedToMs(d.year, d.month, d.day, toHour) - 1;
+  return { from, to };
+}
+
+/**
+ * The part of a window still ahead: today's cell and today's chosen date are judged from `now`
+ * on, as the strip does — a night closure that ended at 05:00 must not colour the afternoon.
+ * A window wholly in the past collapses onto its last millisecond.
+ */
+export function windowFromNow(w: { from: number; to: number }, now: number): { from: number; to: number } {
+  return { from: Math.max(w.from, Math.min(now, w.to)), to: w.to };
+}
+
 /** "HH:MM" wall-clock key in Europe/Amsterdam (used to detect recurring patterns). */
 export function wallClockKey(ms: number): string {
   const p = zonedParts(ms);

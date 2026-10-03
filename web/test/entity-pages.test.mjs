@@ -91,6 +91,8 @@ describe('place mode (zoek-2)', () => {
     assert.equal(placePageHref(almkerk, q), '/plaats/almkerk/?t=7d&v=fiets');
     assert.equal(placePageHref({ kind: 'gemeente', slug: 'altena' }, DEFAULT_URL_STATE), '/gemeente/altena/');
     assert.match(placePageHref(almkerk, { ...q, moment: Date.UTC(2026, 9, 5, 12) }), /^\/plaats\/almkerk\/\?t=2026-10-05T14:00&v=fiets$/);
+    // A picked date (+ part) opens the place page on that day (P6's ?dag= / &deel=).
+    assert.equal(placePageHref(almkerk, { ...q, time: 'nu', day: '2026-10-06', part: 'ochtend' }), '/plaats/almkerk/?dag=2026-10-06&deel=ochtend&v=fiets');
   });
 
   it('only links when the manifest has the page', () => {

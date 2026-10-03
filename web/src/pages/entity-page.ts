@@ -9,7 +9,7 @@ import { indexItemFromFeature, loadEntityFile } from '../data/entity-file';
 import type { ForecastItem } from '../data/forecast';
 import type { IndexItem } from '../data/index';
 import type { EntityItem, ItemDetail, ItemFeature, RoadType } from '../data/types';
-import { readStoredMode, storeMode, type UrlState } from '../data/url-state';
+import { readStoredMode, setWhenParams, storeMode, type UrlState } from '../data/url-state';
 import { isRelevantFor, verdictFor, type VehicleMode } from '../data/verdict';
 import type { EntityMap, EntityView } from '../map/entity-map';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
@@ -18,7 +18,7 @@ import { roadBadge } from '../ui/badge';
 import { renderEntityList, sortByVerdict, type EntitySection } from '../ui/entity-list';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
 import { fmtDay } from '../ui/format';
-import { cameraParams, entityMapHref, mapContextQuery, selectionFromUrl, timeParam, type MapTarget } from '../ui/map-link';
+import { cameraParams, dayFromUrl, entityMapHref, mapContextQuery, whenParamsOf, type MapTarget } from '../ui/map-link';
 import { setEmptyVisible } from '../ui/page-boot';
 
 export interface EntitySource {
@@ -79,16 +79,14 @@ export interface EntityPageOptions {
 }
 
 /**
- * Writes `?v=` / `?t=` back to the address bar so the page state can be shared: an exact moment,
- * or `vandaag` / `morgen` for those strip days — the same values the map reads (ui/map-link.ts).
+ * Writes `?v=` / `?t=` / `?dag=` back to the address bar so the page state can be shared, with
+ * the same writer the map and the links to it use (ui/map-link.ts).
  */
-function syncPageUrl(state: ForecastState, now: number): void {
+function syncPageUrl(state: ForecastState): void {
   const params = new URLSearchParams(window.location.search);
   if (state.mode === 'auto') params.delete('v');
   else params.set('v', state.mode);
-  const t = timeParam(state.selection, now);
-  if (t) params.set('t', t);
-  else params.delete('t');
+  setWhenParams(params, whenParamsOf(state.selection));
   const qs = params.toString().replace(/%3A/g, ':');
   const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
@@ -139,7 +137,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       ...(state.window ? { window: state.window } : {}),
       details,
       revealClosures: true,
-      mapQuery: mapContextQuery(state.mode, state.selection, Date.now()),
+      mapQuery: mapContextQuery(state.mode, state.selection),
       ...(opts.linkQuery ? { linkQuery: opts.linkQuery } : {}),
     };
     if (state.items === null) {
@@ -174,7 +172,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
   const mapLink = document.getElementById('entity-map-link');
   const camera = cameraParams(mapLink?.getAttribute('href'));
   const syncMapLink = (state: ForecastState): void => {
-    if (mapLink && opts.mapTarget) mapLink.setAttribute('href', entityMapHref(opts.mapTarget, mapContextQuery(state.mode, state.selection, Date.now()), opts.mapTarget.kind === 'road' ? '' : camera));
+    if (mapLink && opts.mapTarget) mapLink.setAttribute('href', entityMapHref(opts.mapTarget, mapContextQuery(state.mode, state.selection), opts.mapTarget.kind === 'road' ? '' : camera));
   };
 
   const bar = opts.forecastEl ? mountAnswerBar(opts.forecastEl, opts.subject.kind === 'road' ? roadBadge(opts.subject.name, opts.roadType ?? null, { size: 'sm' }) : '') : null;
@@ -188,7 +186,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
     storeMode(next.mode);
     renderList(next);
     map?.setItems(judged(source.items, next.mode, next.at, next.window));
-    syncPageUrl(next, Date.now());
+    syncPageUrl(next);
     syncMapLink(next);
     syncBar(next);
   };
@@ -196,7 +194,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
   const mode = initialMode(opts.url);
   state = {
     mode,
-    selection: selectionFromUrl(opts.url, source.items, mode, now),
+    selection: opts.url.moment ? { kind: 'moment', at: opts.url.moment } : { kind: 'all' },
     at: opts.url.moment ?? now,
     items: null,
     whenLabel: 'nu',
@@ -209,7 +207,8 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       roadType: opts.roadType ?? null,
       mode: state.mode,
       moment: opts.url.moment,
-      selection: state.selection,
+      // `?dag=` (+ `&deel=`), or the strip day of the map's `?t=vandaag` / `?t=morgen`.
+      day: dayFromUrl(opts.url, now),
       ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
       onChange: onState,
     });
@@ -220,7 +219,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
   syncBar(state);
 
   map = await mountPageMap(judged(source.items, state.mode, state.at, state.window), opts.view, {
-    contextQuery: () => mapContextQuery(state.mode, state.selection, Date.now()),
+    contextQuery: () => mapContextQuery(state.mode, state.selection),
   });
   if (map && !source.fromEntityFile) {
     // The index only knows a point per measure; the real line geometry arrives afterwards.

@@ -86,3 +86,6 @@ export const whenControl = await load('ui/when-control.ts');
 export const entityPages = await load('data/entity-pages.ts');
 export const placeMode = await load('ui/place-mode.ts');
 export const listFilter = await load('pages/list-filter.ts');
+export const whenWords = await load('ui/when-words.ts');
+export const stripModel = await load('ui/strip-model.ts');
+export const datePick = await load('ui/date-pick.ts');
