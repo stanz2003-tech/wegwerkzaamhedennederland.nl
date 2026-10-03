@@ -137,3 +137,115 @@ describe('itemDeepLink', () => {
     assert.equal(itemDeepLink('x', ''), '/?id=x');
   });
 });
+
+describe('place mode in the URL (?plaats= / ?gemeente=)', () => {
+  const { parsePlaceParam } = urlState;
+
+  it('round-trips ?plaats= and ?gemeente= as a slug without a name', () => {
+    const plaats = parseUrlState('?plaats=almkerk');
+    assert.deepEqual(plaats.place, { kind: 'woonplaats', slug: 'almkerk', name: '' });
+    assert.equal(serializeUrlState(plaats), 'plaats=almkerk');
+    const gemeente = parseUrlState('?gemeente=altena&v=fiets');
+    assert.deepEqual(gemeente.place, { kind: 'gemeente', slug: 'altena', name: '' });
+    assert.equal(serializeUrlState(gemeente), 'v=fiets&gemeente=altena');
+    // A named place serialises to the same slug.
+    assert.equal(serializeUrlState({ ...DEFAULT_URL_STATE, place: { kind: 'woonplaats', slug: 's-hertogenbosch', name: "'s-Hertogenbosch" } }), 'plaats=s-hertogenbosch');
+  });
+
+  it('road and place are mutually exclusive: road mode wins both ways', () => {
+    assert.equal(parseUrlState('?weg=a27&plaats=almkerk').place, null);
+    assert.equal(parseUrlState('?weg=a27&plaats=almkerk').road, 'A27');
+    const both = { ...DEFAULT_URL_STATE, road: 'A27', place: { kind: 'woonplaats', slug: 'almkerk', name: 'Almkerk' } };
+    assert.equal(serializeUrlState(both), 'weg=a27');
+  });
+
+  it('drops a slug that gen-pages could not have written', () => {
+    for (const bad of ['alm kerk', '-almkerk', 'almkerk-', 'a/b', '../x', 'x'.repeat(81)]) {
+      assert.equal(parsePlaceParam(new URLSearchParams({ plaats: bad })), null, bad);
+    }
+    assert.deepEqual(parsePlaceParam(new URLSearchParams({ plaats: 'ALMKERK' })), { kind: 'woonplaats', slug: 'almkerk', name: '' });
+  });
+
+  it('a plaats parameter wins over a gemeente parameter', () => {
+    assert.equal(parseUrlState('?plaats=almkerk&gemeente=altena').place.kind, 'woonplaats');
+  });
+});
+
+describe('writeUrlState and the back button (mobiel-5)', () => {
+  const { writeUrlState, detailStepBackAllowed } = urlState;
+
+  /** A minimal window with a history stack, enough for writeUrlState. */
+  function fakeWindow(search = '') {
+    const stack = [{ state: null, url: `/${search}` }];
+    let i = 0;
+    const location = { pathname: '/', hash: '' };
+    Object.defineProperty(location, 'search', { get: () => (stack[i].url.split('?')[1] ? `?${stack[i].url.split('?')[1]}` : '') });
+    return {
+      stack,
+      location,
+      history: {
+        get state() {
+          return stack[i].state;
+        },
+        get length() {
+          return stack.length;
+        },
+        pushState(state, _t, url) {
+          stack.splice(i + 1);
+          stack.push({ state, url });
+          i += 1;
+        },
+        replaceState(state, _t, url) {
+          stack[i] = { state, url };
+        },
+        back() {
+          i = Math.max(0, i - 1);
+        },
+      },
+    };
+  }
+
+  const wait = () => new Promise((r) => setTimeout(r, 5));
+
+  it('pushes a step at once, keeps the marker on later replaces, and writes a pending replace first', async () => {
+    const w = fakeWindow();
+    globalThis.window = w;
+    try {
+      assert.equal(detailStepBackAllowed(), false, 'nothing pushed yet in this test window');
+      const road = { ...DEFAULT_URL_STATE, road: 'A27' };
+      // A pending camera replace, then the step: the old entry must keep that camera.
+      writeUrlState({ ...DEFAULT_URL_STATE, zoom: 9 }, 50);
+      assert.equal(writeUrlState(road, { push: true }), true);
+      assert.deepEqual(w.stack.map((e) => e.url), ['/?z=9.0', '/?weg=a27']);
+      assert.deepEqual(w.history.state, { wegwerk: true });
+      // Opening an item: its own entry, marked as a detail.
+      writeUrlState({ ...road, id: 'x1' }, { push: true, marker: { wegwerk: true, detail: true } });
+      assert.equal(detailStepBackAllowed(), true);
+      // A camera move afterwards replaces the entry and keeps the marker.
+      writeUrlState({ ...road, id: 'x1', zoom: 12 }, 0);
+      await wait();
+      assert.equal(w.stack.length, 3);
+      assert.equal(w.stack[2].url, '/?z=12.0&id=x1&weg=a27');
+      assert.equal(detailStepBackAllowed(), true);
+      // Back: the road entry is no detail, so "Terug" would not step back from there.
+      w.history.back();
+      assert.equal(detailStepBackAllowed(), false);
+    } finally {
+      delete globalThis.window;
+    }
+  });
+
+  it('does not push when the address would not change, and a number still means delayMs', async () => {
+    const w = fakeWindow('?weg=a27');
+    globalThis.window = w;
+    try {
+      assert.equal(writeUrlState({ ...DEFAULT_URL_STATE, road: 'A27' }, { push: true }), false);
+      assert.equal(w.stack.length, 1);
+      writeUrlState({ ...DEFAULT_URL_STATE, road: 'A2' }, 0);
+      await wait();
+      assert.deepEqual(w.stack.map((e) => e.url), ['/?weg=a2']);
+    } finally {
+      delete globalThis.window;
+    }
+  });
+});

@@ -212,3 +212,100 @@ describe('WKT helpers and zoom levels', () => {
     assert.equal(zoomForPlaceType('iets anders'), 12);
   });
 });
+
+describe('suggestion order (zoek-4, zoek-5, zoek-8)', () => {
+  const { orderOptions, placeHitFromDoc, applyAlias, didYouMeanHits, roadFromName, noResultText } = searchIndex;
+  const place = (doc) => placeHitFromDoc({ id: doc.weergavenaam, ...doc });
+  const ALMKERK = place({ type: 'woonplaats', weergavenaam: 'Almkerk, Altena, Noord-Brabant', woonplaatsnaam: 'Almkerk', gemeentenaam: 'Altena' });
+  const STREET = place({ type: 'weg', weergavenaam: 'Almkerksestraat, Almkerk', gemeentenaam: 'Altena' });
+  const almRows = [
+    row({ id: 'p1', title: 'Provincialeweg Noord, Almkerk', gemeente: 'Altena', woonplaats: 'Almkerk' }),
+    row({ id: 'p2', title: 'Provincialeweg Noord, Almkerk', gemeente: 'Altena', woonplaats: 'Almkerk', active: 0, start: '2026-09-28T05:00:00Z' }),
+    row({ id: 'p3', title: 'Provincialeweg Noord, Almkerk', gemeente: 'Altena', woonplaats: 'Almkerk', active: 0, start: '2026-10-05T05:00:00Z' }),
+    row({ id: 'p4', title: 'N322 · Almkerk', road: 'N322', gemeente: 'Altena', woonplaats: 'Almkerk' }),
+  ].map(indexItemFromRow);
+  const kinds = (o) => o.options.map((x) => (x.kind === 'place' ? `place:${x.label}` : x.kind === 'item' ? `item:${x.id}` : x.kind));
+
+  it('reads the place name and gemeente from a PDOK doc, with a fallback on the weergavenaam', () => {
+    assert.equal(ALMKERK.label, 'Almkerk');
+    assert.equal(ALMKERK.gemeente, 'Altena');
+    assert.equal(place({ type: 'gemeente', weergavenaam: 'Gemeente Gorinchem' }).label, 'Gorinchem');
+    assert.equal(STREET.label, 'Almkerksestraat, Almkerk');
+  });
+
+  it('puts the exact woonplaats before the items, preselects it, and keeps the filter row last', () => {
+    const local = searchLocal(almRows, 'almkerk', 5);
+    const o = orderOptions({ query: 'Almkerk', road: null, places: [ALMKERK], local, streets: [STREET] });
+    assert.equal(kinds(o)[0], 'place:Almkerk');
+    assert.equal(o.active, 0);
+    assert.equal(o.options.filter((x) => x.kind === 'item').length, 3, 'at most three items');
+    assert.equal(o.options.at(-1).kind, 'query');
+    // Headings are rows, never options: arrow keys and aria-activedescendant skip them.
+    assert.deepEqual(o.rows.filter((r) => r.kind === 'heading').map((r) => r.label), ['Meldingen', 'Straten']);
+    assert.equal(o.rows.filter((r) => r.kind === 'option').length, o.options.length);
+  });
+
+  it('never merges items that share a label', () => {
+    const local = searchLocal(almRows, 'provincialeweg', 5);
+    const o = orderOptions({ query: 'provincialeweg', road: null, places: [], local, streets: [] });
+    assert.deepEqual(o.options.filter((x) => x.kind === 'item').map((x) => x.id).sort(), ['p1', 'p2', 'p3']);
+    // Every hit carries its row, for the verdict pill and the when-text that tell them apart.
+    assert.ok(o.options.filter((x) => x.kind === 'item').every((x) => x.item && x.item.id === x.id));
+  });
+
+  it('a road number: the road option first and preselected, no "A27, Almere / Baarn …" duplicates', () => {
+    const streets = ['A27, Almere', 'A27, Altena', 'A27, Baarn', 'Rijksweg A2, Utrecht', 'A2, Vinkeveen'].map((n) => place({ type: 'weg', weergavenaam: n }));
+    const o = orderOptions({ query: 'A27', road: 'A27', places: [], local: searchLocal(ITEMS, 'a27', 5), streets });
+    assert.equal(kinds(o)[0], 'road');
+    assert.equal(o.active, 0);
+    const streetNames = o.options.filter((x) => x.kind === 'place').map((x) => x.name);
+    assert.ok(!streetNames.some((n) => roadFromName(n) === 'A27'), streetNames.join(' | '));
+    // Other roads stay, but once per road number.
+    assert.deepEqual(streetNames, ['Rijksweg A2, Utrecht']);
+  });
+
+  it('a place that only contains the query comes after the items; the town before its gemeente', () => {
+    const gem = place({ type: 'gemeente', weergavenaam: 'Gemeente Utrecht', gemeentenaam: 'Utrecht', provincienaam: 'Utrecht' });
+    const prov = place({ type: 'provincie', weergavenaam: 'Provincie Utrecht', provincienaam: 'Utrecht' });
+    const town = place({ type: 'woonplaats', weergavenaam: 'Utrecht, Utrecht, Utrecht', woonplaatsnaam: 'Utrecht', gemeentenaam: 'Utrecht' });
+    const heuvelrug = place({ type: 'gemeente', weergavenaam: 'Gemeente Utrechtse Heuvelrug', gemeentenaam: 'Utrechtse Heuvelrug' });
+    const nieuw = place({ type: 'woonplaats', weergavenaam: 'Nieuw-Utrecht, X, Y', woonplaatsnaam: 'Nieuw-Utrecht' });
+    const o = orderOptions({ query: 'Utrecht', road: null, places: [prov, gem, heuvelrug, town, nieuw], local: searchLocal(ITEMS, 'utrecht', 5), streets: [] });
+    assert.deepEqual(kinds(o).slice(0, 4), ['place:Utrecht', 'place:Utrecht', 'place:Utrechtse Heuvelrug', 'place:Utrecht']);
+    assert.equal(o.options[0].type, 'woonplaats');
+    assert.equal(o.active, 0);
+    const iNieuw = kinds(o).indexOf('place:Nieuw-Utrecht');
+    assert.ok(iNieuw > kinds(o).lastIndexOf('item:b'), 'after the items');
+  });
+
+  it('no hit: "Bedoelde je Gorinchem?" first and preselected, without "Filter de lijst"', () => {
+    const fuzzy = [
+      place({ type: 'gemeente', weergavenaam: 'Gemeente Gorinchem', gemeentenaam: 'Gorinchem' }),
+      place({ type: 'woonplaats', weergavenaam: 'Gorinchem, Gorinchem, Zuid-Holland', woonplaatsnaam: 'Gorinchem', gemeentenaam: 'Gorinchem' }),
+      place({ type: 'woonplaats', weergavenaam: 'Dalem, Gorinchem, Zuid-Holland', woonplaatsnaam: 'Dalem', gemeentenaam: 'Gorinchem' }),
+    ];
+    const o = orderOptions({ query: 'Gorichem', road: null, places: [], local: [], streets: [], fuzzy });
+    assert.equal(o.options[0].didYouMean, true);
+    assert.equal(o.options[0].type, 'woonplaats', 'the town, not the gemeente PDOK ranked first');
+    assert.equal(o.options[0].label, 'Gorinchem');
+    assert.equal(o.active, 0);
+    assert.ok(!o.options.some((x) => x.kind === 'query'));
+    assert.equal(didYouMeanHits([]).length, 0);
+  });
+
+  it('nothing at all: an explanatory note and no options', () => {
+    const o = orderOptions({ query: 'zzqx', road: null, places: [], local: [], streets: [], fuzzy: [] });
+    assert.equal(o.options.length, 0);
+    assert.equal(o.active, -1);
+    assert.deepEqual(o.rows, [{ kind: 'note', text: noResultText('zzqx') }]);
+    assert.equal(noResultText('zzqx'), 'Geen weg of plaats gevonden voor “zzqx”. Probeer een wegnummer (A27, N322) of een plaatsnaam.');
+  });
+
+  it('maps the aliases before anything is asked, compared after normalizeText', () => {
+    assert.equal(applyAlias('den bosch'), "'s-Hertogenbosch");
+    assert.equal(applyAlias('Den  Bosch '), "'s-Hertogenbosch");
+    assert.equal(applyAlias('GORKUM'), 'Gorinchem');
+    assert.equal(applyAlias('Den Haag'), "'s-Gravenhage");
+    assert.equal(applyAlias('Den Helder'), 'Den Helder');
+  });
+});

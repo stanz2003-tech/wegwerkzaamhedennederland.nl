@@ -79,7 +79,7 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
     ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
   };
   els.answer.innerHTML = renderAnswerCard(model);
-  els.answer.querySelector('[data-road-exit]')?.addEventListener('click', () => opts.onExit());
+  els.answer.querySelector('[data-answer-exit]')?.addEventListener('click', () => opts.onExit());
   return answerAnnouncement(model);
 }
 
@@ -97,9 +97,11 @@ export function renderPanelSummary(
   now: number,
   counts: { total: number },
   hideNvt: boolean,
+  /** Place mode: the list is that place, not the viewport ("In Almkerk: …"). */
+  placePrefix?: string,
 ): { text: string; hidden: number } {
   const answer = answerFor(asForecast(inView), q.mode, whenOf(q, now), { kind: 'gebied', name: '' }, now, horizonMs());
-  const prefix = q.query ? `Met “${q.query}”` : 'In beeld';
+  const prefix = placePrefix ?? (q.query ? `Met “${q.query}”` : 'In beeld');
   const text = q.road ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}` : areaSentence(answer, q.mode, !hideNvt, prefix);
   els.summary.textContent = text;
   els.summary.removeAttribute('title');

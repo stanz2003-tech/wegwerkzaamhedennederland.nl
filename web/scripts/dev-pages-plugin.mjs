@@ -1,13 +1,15 @@
 /**
  * Vite dev plugin (owner C): renders the generated routes on request from the source templates,
- * so `npm run dev` serves /weg/a2/, /plaats/breda/, /over/ … without a build step.
+ * so `npm run dev` serves /weg/a2/, /plaats/breda/, /over/ … (and /entity-pages.json) without a build step.
  * Templates and content are re-read on every request (dev only). Inert during `vite build`.
  */
 
 import { dirname, join } from 'node:path';
 
 import { loadPartials, loadTemplates } from './lib/render.mjs';
-import { LIST_ROUTES, NOT_FOUND_SLUG, PAGE_TYPES, STATIC_ROUTES, buildModel, notFoundPage, renderPage } from './lib/pages.mjs';
+import {
+  ENTITY_MANIFEST_FILE, LIST_ROUTES, NOT_FOUND_SLUG, PAGE_TYPES, STATIC_ROUTES, buildEntityManifest, buildModel, notFoundPage, renderPage,
+} from './lib/pages.mjs';
 import { copyLists } from './lib/lists.mjs';
 
 const ENTITY_PREFIXES = new Map([
@@ -76,6 +78,13 @@ export function devPagesPlugin() {
           pathname = decodeURIComponent(url.pathname);
         } catch {
           return next();
+        }
+        if (pathname === `/${ENTITY_MANIFEST_FILE}`) {
+          // The build writes this file into dist; in dev it comes from the same model.
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(buildEntityManifest(buildModel({ webRoot, repoRoot, warn }))));
+          return;
         }
         const route = matchRoute(pathname);
         if (!route) return next();

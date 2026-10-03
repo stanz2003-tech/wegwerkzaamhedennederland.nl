@@ -1,5 +1,6 @@
 /**
- * URL state: `?cat=werk,afsluiting&t=7d&z=9.2&c=5.29,52.13&id=<id>&q=<search>&v=fiets`.
+ * URL state: `?cat=werk,afsluiting&t=7d&z=9.2&c=5.29,52.13&id=<id>&q=<search>&v=fiets`, plus
+ * one subject: `weg=a27`, or `plaats=almkerk` / `gemeente=altena`.
  *
  * `t` carries either a time window (`nu|vandaag|weekend|7d|30d`) or an exact moment as a
  * `datetime-local` value in Europe/Amsterdam (`t=2026-09-20T14:00`, the "Op datum…" chip).
@@ -24,6 +25,20 @@ export interface UrlState {
   mode: VehicleMode;
   /** Road mode (`?weg=a27`): only that road's items, with the answer card on top. */
   road: string | null;
+  /**
+   * Place mode (`?plaats=almkerk` / `?gemeente=altena`): only that place's items, with the answer
+   * card "Kan ik door Almkerk?". Never together with `road`. Parsing only knows the slug; the
+   * name comes from the entity-page manifest (data/entity-pages.ts), so `name` is '' until then.
+   */
+  place: PlaceRef | null;
+}
+
+export interface PlaceRef {
+  kind: 'woonplaats' | 'gemeente';
+  slug: string;
+  name: string;
+  /** The gemeente of a woonplaats, when known: it tells two places with one name apart. */
+  gemeente?: string | null;
 }
 
 export const DEFAULT_URL_STATE: UrlState = {
@@ -36,6 +51,7 @@ export const DEFAULT_URL_STATE: UrlState = {
   query: '',
   mode: DEFAULT_VEHICLE_MODE,
   road: null,
+  place: null,
 };
 
 const ROAD_RE = /^([ANSE])\s*0*(\d{1,3})$/i;
@@ -46,6 +62,18 @@ export function normalizeRoadParam(raw: string | null | undefined): string | nul
   const m = ROAD_RE.exec(raw.trim());
   if (!m) return null;
   return `${(m[1] ?? '').toUpperCase()}${Number(m[2])}`;
+}
+
+/** Slugs as gen-pages writes them (types.ts `slugify`): lower-case ASCII words joined by "-". */
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** `?plaats=` / `?gemeente=` → a place reference without a name yet (the manifest supplies it). */
+export function parsePlaceParam(params: URLSearchParams): PlaceRef | null {
+  const plaats = params.get('plaats')?.trim().toLowerCase() ?? '';
+  if (plaats && plaats.length <= 80 && SLUG_RE.test(plaats)) return { kind: 'woonplaats', slug: plaats, name: '' };
+  const gemeente = params.get('gemeente')?.trim().toLowerCase() ?? '';
+  if (gemeente && gemeente.length <= 80 && SLUG_RE.test(gemeente)) return { kind: 'gemeente', slug: gemeente, name: '' };
+  return null;
 }
 
 const CATEGORY_SET = new Set<string>(CATEGORIES);
@@ -101,6 +129,7 @@ export function parseUrlState(search: string): UrlState {
   const t = params.get('t');
   const id = params.get('id');
   const v = params.get('v');
+  const road = normalizeRoadParam(params.get('weg'));
   return {
     cats: parseCats(params.get('cat')),
     time: t && isTimeWindowId(t) ? t : DEFAULT_TIME_WINDOW,
@@ -110,7 +139,9 @@ export function parseUrlState(search: string): UrlState {
     id: id && id.length <= 200 ? id : null,
     query: (params.get('q') ?? '').slice(0, 100),
     mode: isVehicleMode(v) ? v : DEFAULT_VEHICLE_MODE,
-    road: normalizeRoadParam(params.get('weg')),
+    road,
+    // Road mode wins: one answer card, one subject.
+    place: road ? null : parsePlaceParam(params),
   };
 }
 
@@ -128,6 +159,7 @@ export function serializeUrlState(state: UrlState): string {
   if (state.query) params.set('q', state.query);
   if (state.mode !== DEFAULT_VEHICLE_MODE) params.set('v', state.mode);
   if (state.road) params.set('weg', state.road.toLowerCase());
+  else if (state.place) params.set(state.place.kind === 'gemeente' ? 'gemeente' : 'plaats', state.place.slug);
   // Keep commas and colons readable in the address bar.
   return params.toString().replace(/%2C/g, ',').replace(/%3A/g, ':');
 }
@@ -138,18 +170,87 @@ export function readUrlState(): UrlState {
 }
 
 let pending: ReturnType<typeof setTimeout> | null = null;
+let pendingState: UrlState | null = null;
+/** Entries this page view pushed; after a reload or a deep link it is 0. */
+let pushes = 0;
 
-/** Writes the state with history.replaceState, debounced so map moves do not spam the history. */
-export function writeUrlState(state: UrlState, delayMs = 300): void {
-  if (typeof window === 'undefined') return;
+/** Marks the history entries this app pushed, so "Terug" knows the previous entry is ours. */
+export interface HistoryMarker {
+  wegwerk: true;
+  /** The entry was pushed by opening an item (main.ts `selectItem`). */
+  detail?: boolean;
+}
+
+export function isHistoryMarker(v: unknown): v is HistoryMarker {
+  return !!v && typeof v === 'object' && (v as { wegwerk?: unknown }).wegwerk === true;
+}
+
+export interface WriteUrlOptions {
+  delayMs?: number;
+  /**
+   * A new history entry instead of replacing the current one, written at once: entering a road
+   * or place, opening an item. The phone's back gesture then undoes that step instead of
+   * leaving the site (mobiel-5). Camera, mode and time stay on the debounced replace.
+   */
+  push?: boolean;
+  /** Stored as the entry's `history.state` with a push (default `{ wegwerk: true }`). */
+  marker?: HistoryMarker;
+}
+
+function urlFor(state: UrlState): string {
+  const qs = serializeUrlState(state);
+  return `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
+}
+
+function currentUrl(): string {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+/** Replaces the current entry and keeps its marker: a camera move must not unmark a pushed entry. */
+function replaceNow(state: UrlState): void {
+  const next = urlFor(state);
+  if (next !== currentUrl()) window.history.replaceState(window.history.state, '', next);
+}
+
+/**
+ * Writes the state to the address bar. By default with history.replaceState, debounced so map
+ * moves do not spam the history; `{ push: true }` adds an entry at once. A pending replace is
+ * written first, so the entry we leave keeps its last camera. Returns whether an entry was
+ * pushed (not when the address would stay the same). A plain number is read as `delayMs`.
+ */
+export function writeUrlState(state: UrlState, opts: number | WriteUrlOptions = {}): boolean {
+  if (typeof window === 'undefined') return false;
+  const o: WriteUrlOptions = typeof opts === 'number' ? { delayMs: opts } : opts;
   if (pending) clearTimeout(pending);
+  pending = null;
+  if (o.push) {
+    if (pendingState) replaceNow(pendingState);
+    pendingState = null;
+    const next = urlFor(state);
+    if (next === currentUrl()) return false;
+    window.history.pushState(o.marker ?? { wegwerk: true }, '', next);
+    pushes += 1;
+    return true;
+  }
+  pendingState = state;
   pending = setTimeout(() => {
     pending = null;
-    const qs = serializeUrlState(state);
-    const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (next !== current) window.history.replaceState(null, '', next);
-  }, delayMs);
+    const s = pendingState;
+    pendingState = null;
+    if (s) replaceNow(s);
+  }, o.delayMs ?? 300);
+  return false;
+}
+
+/**
+ * Whether "Terug" in the detail may step back in the history: only when this page view pushed
+ * the entry of the open item. Its previous entry is then this site's list; after a reload or a
+ * deep link "Terug" must close the detail in place instead, never leave the site.
+ */
+export function detailStepBackAllowed(): boolean {
+  if (typeof window === 'undefined' || pushes === 0) return false;
+  const st: unknown = window.history.state;
+  return isHistoryMarker(st) && st.detail === true;
 }
 
 /** Absolute deep link for one item (used by "Deel"). */

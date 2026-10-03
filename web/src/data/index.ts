@@ -105,14 +105,25 @@ export function itemsOnRoad(items: readonly IndexItem[], road: string): IndexIte
   return items.filter((it) => sameRoad(it.road, road));
 }
 
+/**
+ * Whether an item's gemeente / woonplaats name is the target, compared after normalizeText. One
+ * predicate for index rows (the place pages) and map features (place mode on the map), so both
+ * pick exactly the same items for "Kan ik door Almkerk?".
+ */
+export function matchesGemeente(itemName: string | null | undefined, target: string): boolean {
+  return typeof itemName === 'string' && itemName !== '' && normalizeText(itemName) === normalizeText(target);
+}
+
+export function matchesWoonplaats(itemName: string | null | undefined, target: string): boolean {
+  return typeof itemName === 'string' && itemName !== '' && normalizeText(itemName) === normalizeText(target);
+}
+
 export function itemsInGemeente(items: readonly IndexItem[], gemeente: string): IndexItem[] {
-  const g = normalizeText(gemeente);
-  return items.filter((it) => it.gemeente !== null && normalizeText(it.gemeente) === g);
+  return items.filter((it) => matchesGemeente(it.gemeente, gemeente));
 }
 
 export function itemsInWoonplaats(items: readonly IndexItem[], woonplaats: string): IndexItem[] {
-  const w = normalizeText(woonplaats);
-  return items.filter((it) => it.woonplaats !== null && normalizeText(it.woonplaats) === w);
+  return items.filter((it) => matchesWoonplaats(it.woonplaats, woonplaats));
 }
 
 /** Active items first (impact desc), then upcoming by start ascending. */

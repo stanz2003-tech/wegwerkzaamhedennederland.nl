@@ -82,3 +82,6 @@ export const verdictPill = await load('ui/verdict-pill.ts');
 export const panelLayout = await load('ui/panel-layout.ts');
 export const chips = await load('ui/chips.ts');
 export const whenControl = await load('ui/when-control.ts');
+export const entityPages = await load('data/entity-pages.ts');
+export const placeMode = await load('ui/place-mode.ts');
+export const listFilter = await load('pages/list-filter.ts');
