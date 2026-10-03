@@ -148,7 +148,7 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
       <span class="search__icon" aria-hidden="true">${ICONS.search}</span>
       <input id="search-input" class="search__input" type="search" name="q" placeholder="Weg of plaats…" role="combobox" aria-expanded="false" aria-controls="search-listbox" aria-autocomplete="list" aria-haspopup="listbox" enterkeyhint="search" spellcheck="false">
       <button type="button" class="search__clear" aria-label="Zoekopdracht wissen" hidden>${ICONS.x}</button>
-      <ul id="search-listbox" class="search__list" role="listbox" aria-label="Suggesties" hidden></ul>
+      <ul id="search-listbox" class="search__list" role="listbox" aria-label="Suggesties" tabindex="-1" hidden></ul>
       <span class="sr-only" role="status" id="search-status"></span>
     </form>`;
   const form = root.querySelector<HTMLFormElement>('form');
@@ -387,9 +387,12 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
   });
 
   // Tab out of the box closes the list, so it never covers the control that got the focus (toeg-4).
+  // Also when the focus only moves to the clear button: the options are reached with the arrow
+  // keys, so a Tab means "done here". The list itself has tabindex -1: Chrome makes a scrolling
+  // box keyboard-focusable, which put the open list in the Tab order behind the clear button.
   root.addEventListener('focusout', (e) => {
     if (pressing) return;
-    if (!(e.relatedTarget instanceof Node) || !root.contains(e.relatedTarget)) close();
+    if (!(e.relatedTarget instanceof Node) || !list.contains(e.relatedTarget)) close();
   });
 
   document.addEventListener('click', (e) => {
