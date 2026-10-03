@@ -13,10 +13,13 @@ import { readStoredMode, storeMode, type UrlState } from '../data/url-state';
 import { isRelevantFor, verdictFor, type VehicleMode } from '../data/verdict';
 import type { EntityMap, EntityView } from '../map/entity-map';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
-import { renderEntityList, sortByVerdict, summaryText, type EntitySection } from '../ui/entity-list';
+import { mountAnswerBar } from '../ui/answer-bar';
+import { roadBadge } from '../ui/badge';
+import { renderEntityList, sortByVerdict, type EntitySection } from '../ui/entity-list';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
-import { fmtDay, formatCount } from '../ui/format';
-import { setEmptyVisible, setText } from '../ui/page-boot';
+import { fmtDay } from '../ui/format';
+import { cameraParams, entityMapHref, mapContextQuery, selectionFromUrl, timeParam, type MapTarget } from '../ui/map-link';
+import { setEmptyVisible } from '../ui/page-boot';
 
 export interface EntitySource {
   /** Items with geometry and detail (EntityFile) or index points and no detail (fallback). */
@@ -68,37 +71,28 @@ export interface EntityPageOptions {
   view: EntityView;
   listEl: HTMLElement | null;
   forecastEl: HTMLElement | null;
-  /** Hidden nvt items are still counted for the hero counters; the list shows what applies. */
   linkQuery?: string;
+  /** What "Op de grote kaart" opens: road mode, or place mode for a woonplaats / gemeente. */
+  mapTarget?: MapTarget;
   /** "20:17" while the data is stale: the answer for "nu" then names that moment. */
   dataAsOf?: string;
 }
 
-/** Writes `?v=` / `?t=` back to the address bar so the page state can be shared. */
-function syncPageUrl(state: ForecastState): void {
+/**
+ * Writes `?v=` / `?t=` back to the address bar so the page state can be shared: an exact moment,
+ * or `vandaag` / `morgen` for those strip days — the same values the map reads (ui/map-link.ts).
+ */
+function syncPageUrl(state: ForecastState, now: number): void {
   const params = new URLSearchParams(window.location.search);
   if (state.mode === 'auto') params.delete('v');
   else params.set('v', state.mode);
-  if (state.selection.kind === 'moment') params.set('t', formatLocal(state.selection.at));
+  const t = timeParam(state.selection, now);
+  if (t) params.set('t', t);
   else params.delete('t');
   const qs = params.toString().replace(/%3A/g, ':');
   const next = `${window.location.pathname}${qs ? `?${qs}` : ''}${window.location.hash}`;
   const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
   if (next !== current) window.history.replaceState(null, '', next);
-}
-
-function formatLocal(ms: number): string {
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Europe/Amsterdam',
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).formatToParts(new Date(ms));
-  const g = (t: string): string => p.find((x) => x.type === t)?.value ?? '00';
-  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
 }
 
 /**
@@ -122,7 +116,7 @@ function judged(items: readonly ForecastItem[], mode: VehicleMode, at: number, w
 }
 
 /**
- * Wires counters, summary, forecast block, list and map of an entity page around one source.
+ * Wires the forecast block, the list, the map and its links of an entity page around one source.
  * Returns once the initial render is done; the map keeps loading in the background.
  */
 export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
@@ -132,9 +126,6 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
   const { active, upcoming } = splitForEntity(rows, now);
   const details = detailsOf(source);
 
-  setText('entity-count-active', formatCount(active.length));
-  setText('entity-count-upcoming', formatCount(upcoming.length));
-  setText('entity-summary', summaryText(active, upcoming));
   setEmptyVisible('entity-empty', active.length === 0 && upcoming.length === 0);
 
   let map: EntityMap | null = null;
@@ -148,6 +139,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       ...(state.window ? { window: state.window } : {}),
       details,
       revealClosures: true,
+      mapQuery: mapContextQuery(state.mode, state.selection, Date.now()),
       ...(opts.linkQuery ? { linkQuery: opts.linkQuery } : {}),
     };
     if (state.items === null) {
@@ -178,16 +170,33 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
     }
   };
 
-  const onState = (state: ForecastState): void => {
-    storeMode(state.mode);
-    renderList(state);
-    map?.setItems(judged(source.items, state.mode, state.at, state.window));
-    syncPageUrl(state);
+  // "Op de grote kaart" next to the small map: the same question on the big map (zoek-10).
+  const mapLink = document.getElementById('entity-map-link');
+  const camera = cameraParams(mapLink?.getAttribute('href'));
+  const syncMapLink = (state: ForecastState): void => {
+    if (mapLink && opts.mapTarget) mapLink.setAttribute('href', entityMapHref(opts.mapTarget, mapContextQuery(state.mode, state.selection, Date.now()), opts.mapTarget.kind === 'road' ? '' : camera));
   };
 
-  let state: ForecastState = {
-    mode: initialMode(opts.url),
-    selection: opts.url.moment ? { kind: 'moment', at: opts.url.moment } : { kind: 'all' },
+  const bar = opts.forecastEl ? mountAnswerBar(opts.forecastEl, opts.subject.kind === 'road' ? roadBadge(opts.subject.name, opts.roadType ?? null, { size: 'sm' }) : '') : null;
+  const syncBar = (state: ForecastState): void => {
+    bar?.update(state.whenLabel === 'nu' && opts.dataAsOf ? `nu (gegevens van ${opts.dataAsOf})` : state.whenLabel);
+  };
+
+  let state: ForecastState;
+  const onState = (next: ForecastState): void => {
+    state = next;
+    storeMode(next.mode);
+    renderList(next);
+    map?.setItems(judged(source.items, next.mode, next.at, next.window));
+    syncPageUrl(next, Date.now());
+    syncMapLink(next);
+    syncBar(next);
+  };
+
+  const mode = initialMode(opts.url);
+  state = {
+    mode,
+    selection: selectionFromUrl(opts.url, source.items, mode, now),
     at: opts.url.moment ?? now,
     items: null,
     whenLabel: 'nu',
@@ -200,14 +209,19 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       roadType: opts.roadType ?? null,
       mode: state.mode,
       moment: opts.url.moment,
+      selection: state.selection,
       ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
       onChange: onState,
     });
     state = block.getState();
   }
   renderList(state);
+  syncMapLink(state);
+  syncBar(state);
 
-  map = await mountPageMap(judged(source.items, state.mode, state.at), opts.view);
+  map = await mountPageMap(judged(source.items, state.mode, state.at, state.window), opts.view, {
+    contextQuery: () => mapContextQuery(state.mode, state.selection, Date.now()),
+  });
   if (map && !source.fromEntityFile) {
     // The index only knows a point per measure; the real line geometry arrives afterwards.
     const live = source.items.map((it) => it.f).filter((f) => f.geometry.type !== 'Point');

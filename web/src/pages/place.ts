@@ -11,6 +11,7 @@ import '../styles/chrome.css';
 import '../styles/components.css';
 import '../styles/entity-list.css';
 import '../styles/pages.css';
+import '../styles/answer-bar.css';
 
 import { parseCoord } from '../data/entity';
 import { slugFromPath } from '../data/entity-file';
@@ -21,7 +22,7 @@ import type { EntityItem, IndexFile } from '../data/types';
 import { slugify } from '../data/types';
 import { readUrlState } from '../data/url-state';
 import { renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
-import { bodyAttr, bootPage, dataAsOfLabel, setText, stampUpdated } from '../ui/page-boot';
+import { bodyAttr, bootPage, dataAsOfLabel, stampUpdated } from '../ui/page-boot';
 import { loadEntitySource, runEntityPage, sourceFromIndex, type EntitySource } from './entity-page';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
@@ -82,7 +83,6 @@ async function main(): Promise<void> {
   const source = (await loadEntitySource('gemeente', gemeenteSlug, filter)) ?? (await fallbackSource(name));
   if (!source) {
     if (listEl) renderEntityNotice(listEl, DATA_NOTICE);
-    setText('entity-summary', 'Actuele meldingen zijn nu niet beschikbaar');
     return;
   }
 
@@ -98,6 +98,7 @@ async function main(): Promise<void> {
     view,
     listEl,
     forecastEl,
+    mapTarget: { kind, slug: slugFromPath(window.location.pathname, kind === 'gemeente' ? '/gemeente/' : '/plaats/') ?? slugify(name) },
     ...(dataAsOf ? { dataAsOf } : {}),
   });
 }

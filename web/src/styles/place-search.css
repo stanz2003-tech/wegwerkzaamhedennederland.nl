@@ -65,18 +65,9 @@
   font-weight: 700;
 }
 
-/* "Almkerk per dag bekijken →" under the specifics of the place-mode card. */
+/* "Almkerk per dag bekijken →" / "Per dag vooruitkijken op de A27 →" under the specifics. */
 .answer__page {
   margin: var(--s-3) 0 0;
-}
-
-.answer__page-link {
-  font-weight: 600;
-}
-
-.answer__page-link:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
 }
 
 /* Icon or badge left, text right — also for a place, whose text is pinned to row 1: an item with

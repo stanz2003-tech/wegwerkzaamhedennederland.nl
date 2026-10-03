@@ -71,6 +71,7 @@ export const uiSearch = await load('ui/search.ts');
 export const mapLayers = await load('map/layers.ts');
 export const roadState = await load('ui/road-state.ts');
 export const entityList = await load('ui/entity-list.ts');
+export const mapLink = await load('ui/map-link.ts');
 export const topbar = await load('ui/topbar.ts');
 export const staleBanner = await load('ui/stale-banner.ts');
 export const answerCard = await load('ui/answer-card.ts');

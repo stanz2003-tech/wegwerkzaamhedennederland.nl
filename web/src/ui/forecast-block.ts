@@ -49,6 +49,8 @@ export interface ForecastBlockOptions {
   mode: VehicleMode;
   /** Initial exact moment (from `?t=`), if any. */
   moment?: number | null;
+  /** Initial selection (a strip day from `?t=vandaag`); wins over `moment`. */
+  selection?: ForecastSelection;
   /** "20:17" while the data is stale (see AnswerCardModel.dataAsOf); omit when it is current. */
   dataAsOf?: string;
   now?: () => number;
@@ -77,7 +79,7 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
   const nowFn = opts.now ?? ((): number => Date.now());
   let items = opts.items;
   let mode = opts.mode;
-  let selection: ForecastSelection = opts.moment ? { kind: 'moment', at: opts.moment } : { kind: 'all' };
+  let selection: ForecastSelection = opts.selection ?? (opts.moment ? { kind: 'moment', at: opts.moment } : { kind: 'all' });
 
   root.classList.add('forecast');
   root.innerHTML = `<div class="forecast__mode" data-fc-mode></div>

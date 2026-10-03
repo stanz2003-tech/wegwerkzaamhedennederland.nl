@@ -112,8 +112,9 @@ export function createPlaceController(host: PlaceHost): PlaceController {
     if (host.url().query === q && host.dataOk()) host.render();
   });
 
-  // The manifest names a `?plaats=` slug and says which place pages exist (links stay hidden
-  // until it is here, and when it fails). An unknown slug is dropped from the URL.
+  // The manifest names a `?plaats=` slug and says which place and road pages exist (the
+  // "per dag" links on both answer cards stay hidden until it is here, and when it fails; the
+  // render below adds them). An unknown slug is dropped from the URL.
   void loadEntityPages().then((pages) => {
     const ref = host.url().place;
     if (ref) {

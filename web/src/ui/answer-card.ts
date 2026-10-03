@@ -30,16 +30,17 @@ export interface AnswerCardModel {
   /** What the exit does, as its accessible name: "Alle wegen tonen" (default). */
   exitAction?: string;
   /**
-   * A page that answers the same question per day ("Almkerk per dag bekijken →" to
-   * /plaats/almkerk/). Only set when that page exists (data/entity-pages.ts).
-   */
-  pageHref?: string;
-  pageLabel?: string;
-  /**
    * Set while the data is older than it should be ("20:17" / "wo 23 sep 21:31"): an answer for
    * "nu" then names the moment it really describes, so it cannot pass for the current situation.
    */
   dataAsOf?: string;
+  /**
+   * The page that answers the same question per day: "Per dag vooruitkijken op de A27 →" to
+   * /weg/a27/?v=…&t=…, "Almkerk per dag bekijken →" to /plaats/almkerk/. Only set when that page
+   * exists (data/entity-pages.ts), so the link is never a 404.
+   */
+  pageHref?: string;
+  pageLabel?: string;
 }
 
 const MODE_LABEL: Record<VehicleMode, string> = { auto: "voor auto's", vracht: 'voor vrachtverkeer', fiets: 'voor fietsers' };
@@ -114,8 +115,8 @@ export function renderAnswerCard(m: AnswerCardModel): string {
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}
+      ${m.pageHref ? `<a class="btn btn--secondary answer__page" href="${esc(m.pageHref)}">${esc(m.pageLabel ?? 'Per dag bekijken →')}</a>` : ''}
       ${horizonLine(m.answer)}
-      ${m.pageHref ? `<p class="answer__page"><a class="btn btn--link answer__page-link" href="${esc(m.pageHref)}">${esc(m.pageLabel ?? 'Per dag bekijken →')}</a></p>` : ''}
       ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
     </section>`;
 }

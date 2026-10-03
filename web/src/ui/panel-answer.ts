@@ -15,8 +15,10 @@ import { horizonMs } from '../data/horizon';
 import { TIME_WINDOWS, timeWindowRange } from '../data/time';
 import type { ItemFeature } from '../data/types';
 import type { UrlState } from '../data/url-state';
+import { slugify } from '../data/types';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
 import { fmtDayTime, plural } from './format';
+import { roadPageHref } from './map-link';
 
 /** The part of the URL state the panel answer reads. */
 export type PanelQuestion = Pick<UrlState, 'mode' | 'time' | 'moment' | 'road' | 'query'>;
@@ -50,6 +52,8 @@ export function asForecast(features: readonly ItemFeature[]): ForecastItem[] {
 export interface RoadAnswerOptions {
   /** "20:17" while the data is stale; the card then says "nu (gegevens van 20:17)". */
   dataAsOf?: string;
+  /** Whether /weg/<slug>/ exists (data/entity-pages.ts); without it the card has no page link. */
+  hasRoadPage?: (slug: string) => boolean;
   onExit(): void;
 }
 
@@ -77,6 +81,9 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
     answer,
     total: roadItems.length,
     ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
+    // The day overview lives on the road page; the panel links there instead of growing a
+    // second strip next to "Wanneer?" (zoek-6, vooruit-8).
+    ...(opts.hasRoadPage?.(slugify(road)) ? { pageHref: roadPageHref(road, q), pageLabel: `Per dag vooruitkijken op de ${road} →` } : {}),
   };
   els.answer.innerHTML = renderAnswerCard(model);
   els.answer.querySelector('[data-answer-exit]')?.addEventListener('click', () => opts.onExit());

@@ -203,35 +203,46 @@
   }
 }
 
-/* Counters ("Nu actief" / "Gepland") */
-.entity-counts {
+/* Compact head of a road / place page: badge and title on one line, then straight into the
+   answer (mobiel-7, vooruit-7). The intro copy moved to "Over de A27" below the list, where it
+   still serves search engines without standing between a visitor and the answer. */
+.entity-hero--compact {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--s-2) var(--s-6);
-  margin: var(--s-4) 0 0;
+  align-items: center;
+  gap: var(--s-3) var(--s-4);
+  margin: 0 0 var(--s-4);
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
 }
 
-.entity-counts__item {
-  display: flex;
-  flex-direction: column-reverse;
-  min-width: 96px;
-}
+.entity-hero--compact::before { content: none; }
 
-.entity-counts dt {
+.entity-hero--compact .entity-hero__meta {
+  margin-top: var(--s-1);
   font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-3);
 }
 
-.entity-counts dd {
-  margin: 0;
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: var(--text-2xl);
-  line-height: 1.1;
-  font-variant-numeric: tabular-nums;
+@media (min-width: 768px) {
+  .entity-hero--compact { padding: 0; gap: var(--s-4); }
 }
+
+@media (max-width: 768px) {
+  .entity-hero--compact h1 { font-size: var(--text-2xl); }
+
+  /* badge--lg: one step under the desktop sign, so the title keeps its line. */
+  .entity-hero.entity-hero--compact .badge--xl {
+    min-height: 44px;
+    padding: var(--s-1) var(--s-3);
+    font-size: var(--text-xl);
+  }
+}
+
+/* Without JavaScript the forecast block stays empty and must not leave a gap. */
+.entity-forecast:empty { display: none; }
 
 /* Facts (bridge) */
 .entity-facts {
@@ -365,6 +376,28 @@
   }
 }
 
+/* The small map plus "Op de grote kaart" (road / place pages). The column is the sticky part:
+   a sticky map inside it would slide past the link and over the next section (overzicht-11). */
+.entity-mapcol {
+  display: grid;
+  gap: var(--s-2);
+  min-width: 0;
+}
+
+.entity-mapcol .entity-map { position: relative; top: auto; }
+
+.entity-mapcol__open {
+  justify-self: start;
+  min-height: var(--touch);
+}
+
+@media (min-width: 1024px) {
+  .entity-mapcol {
+    position: sticky;
+    top: calc(var(--topbar-h) + var(--s-4));
+  }
+}
+
 .entity-map__fallback {
   position: absolute;
   inset: 0;
@@ -423,10 +456,9 @@
   margin: 0;
 }
 
-.entity-summary {
-  font-weight: 500;
-  color: var(--text-2);
-}
+/* "Over de A27": the intro copy under the list, an ordinary open section (SEO text stays). */
+.entity-about__intro p { margin: 0 0 var(--s-3); }
+.prose .entity-about > h2:first-child { margin-top: var(--s-4); }
 
 /* ---------------------------------------------------------------------------------------- */
 /* Prose                                                                                    */

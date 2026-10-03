@@ -3,55 +3,14 @@
  * in batches with a "Toon meer" button, every item a link to `/?id=<id>` (deep link into the
  * map). Uses the same list-item component as the app panel.
  */
-import { countCategories } from '../data/entity';
 import type { IndexItem } from '../data/index';
-import type { Category, ItemDetail } from '../data/types';
+import type { ItemDetail } from '../data/types';
 import { VERDICT_SEVERITY, type Verdict, type VehicleMode } from '../data/verdict';
 import { esc, formatCount, plural } from './format';
 import { listItemVerdict, modelFromIndexItem, renderListItem, type ListItemOptions } from './list-item';
 
 /** Default number of items rendered before "Toon meer". */
 export const ENTITY_BATCH = 25;
-
-/** Singular / plural nouns per category, for the summary sentence. */
-const CATEGORY_NOUN: Record<Category, [one: string, many: string]> = {
-  werk: ['werkzaamheid', 'werkzaamheden'],
-  afsluiting: ['afsluiting', 'afsluitingen'],
-  file: ['file', 'files'],
-  incident: ['incident', 'incidenten'],
-  brug: ['brugopening', 'brugopeningen'],
-  evenement: ['evenement', 'evenementen'],
-  overig: ['melding', 'meldingen'],
-};
-
-/** Order the categories appear in the summary sentence. */
-const NOUN_ORDER: readonly Category[] = ['werk', 'afsluiting', 'file', 'incident', 'brug', 'evenement', 'overig'];
-
-/** "3 werkzaamheden, 1 afsluiting" — empty string when there is nothing to count. */
-export function countsSentence(items: readonly IndexItem[]): string {
-  const counts = countCategories(items);
-  const parts: string[] = [];
-  for (const cat of NOUN_ORDER) {
-    const n = counts.get(cat) ?? 0;
-    const noun = CATEGORY_NOUN[cat];
-    if (n > 0) parts.push(plural(n, noun[0], noun[1]));
-  }
-  return parts.join(', ');
-}
-
-/**
- * The one-line summary under the heading:
- * "3 werkzaamheden, 1 afsluiting nu actief · 12 gepland".
- */
-export function summaryText(active: readonly IndexItem[], upcoming: readonly IndexItem[]): string {
-  const parts: string[] = [];
-  const nu = countsSentence(active);
-  if (nu) parts.push(`${nu} nu actief`);
-  else parts.push('Nu niets actief');
-  if (upcoming.length > 0) parts.push(`${formatCount(upcoming.length)} gepland`);
-  if (active.length === 0 && upcoming.length === 0) return 'Geen actuele of geplande meldingen bekend';
-  return parts.join(' · ');
-}
 
 export interface EntitySection {
   /** Heading above the group; omitted for a single ungrouped list. */
@@ -71,6 +30,11 @@ export interface EntityListOptions {
   batch?: number;
   /** Extra query parameters appended to the deep link, e.g. `cat=file`. */
   linkQuery?: string;
+  /**
+   * The page's question for the map (`v=vracht&t=2026-10-03T08:00`, ui/map-link.ts), so a row
+   * opens the map on the verdict its pill shows instead of "nu" for auto (zoek-10).
+   */
+  mapQuery?: string;
   /** Vehicle mode the verdict pills are computed for (default: auto). */
   mode?: VehicleMode;
   /** The moment the verdicts are asked for (period check); defaults to `now`. */
@@ -87,8 +51,8 @@ export interface EntityListOptions {
   revealClosures?: boolean;
 }
 
-function itemHref(id: string, query: string | undefined): string {
-  const q = query ? `&${query}` : '';
+export function itemHref(id: string, opts: Pick<EntityListOptions, 'mapQuery' | 'linkQuery'> = {}): string {
+  const q = [opts.mapQuery, opts.linkQuery].filter((x): x is string => typeof x === 'string' && x !== '').map((x) => `&${x}`).join('');
   return `/?id=${encodeURIComponent(id)}${q}`;
 }
 
@@ -141,7 +105,7 @@ function renderBatch(container: HTMLElement, items: readonly IndexItem[], from: 
   const html = slice
     .map((it, i) =>
       renderListItem(modelFromIndexItem(it), now, {
-        href: itemHref(it.id, opts.linkQuery),
+        href: itemHref(it.id, opts),
         index: from === 0 ? i : 99,
         ...rowOptions(it, opts),
       }),

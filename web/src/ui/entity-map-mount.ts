@@ -21,6 +21,8 @@ const FALLBACK_SELECTOR = '.entity-map__fallback';
 export interface PageMapOptions {
   /** Extra query parameters for the deep link when a feature is clicked, e.g. `cat=file`. */
   linkQuery?: string;
+  /** The page's current question for the map (`v=…&t=…`), read at click time (ui/map-link.ts). */
+  contextQuery?: () => string;
 }
 
 /**
@@ -49,7 +51,7 @@ export async function mountPageMap(
       attribution: site.attribution,
       reducedMotion: prefersReducedMotion(),
       onSelect: (id) => {
-        const q = opts.linkQuery ? `&${opts.linkQuery}` : '';
+        const q = [opts.contextQuery?.(), opts.linkQuery].filter((x) => x).map((x) => `&${x}`).join('');
         window.location.assign(`/?id=${encodeURIComponent(id)}${q}`);
       },
     });

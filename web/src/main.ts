@@ -30,10 +30,10 @@ import { matchesRoad } from './data/entity';
 import { bboxIntersects, bboxOf, countByCategory, dedupeById, matchesQuery, midpointOf, sortItems, type BBox, type SortId } from './data/filter';
 import { liveAppliesAt } from './data/forecast';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
+import { entityPagesNow } from './data/entity-pages';
 import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
 import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, toMs } from './data/time';
 import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
-import { entityPagesNow } from './data/entity-pages';
 import {
   detailStepBackAllowed,
   itemDeepLink,
@@ -284,7 +284,11 @@ function render(): void {
   const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt, place ? placePrefix(place) : undefined);
   layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
   const dataAsOf = staleDataLabel(liveStatus, now);
-  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
+  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, {
+    ...(dataAsOf ? { dataAsOf } : {}),
+    hasRoadPage: (slug) => entityPagesNow()?.hasRoadPage(slug) ?? false,
+    onExit: () => exitRoad(),
+  });
   let placeText: string | null = null;
   if (place) {
     const pageHref = hasPlacePage(place, entityPagesNow()) ? placePageHref(place, url) : null;
