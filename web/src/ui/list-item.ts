@@ -2,16 +2,19 @@
  * Shared list-item component: used as <button> in the app panel and as <a href="/?id=…"> on the
  * generated pages. Verdict-first:
  *   line 1  verdict pill + specifics ("Doorrijden mogelijk · 1 rijstrook dicht · tot 10 min")
- *   line 2  road badge + place/section + when ("nog 2 u 15 min" / "start za 13 sep 22:00")
+ *   line 2  road badge + place/section + when ("tot di 29 sep 05:00" / "begint za 13 sep 22:00"),
+ *           from the chosen moment or day when the reader looks ahead (data/time-phrase.ts)
  *   line 3  (muted) category icon + label + wegbeheerder
  */
+import type { ForecastItem } from '../data/forecast';
 import type { IndexItem } from '../data/index';
-import type { Category, Hindrance, Impact, ItemProperties, RoadType, Vehicle } from '../data/types';
+import { phraseAt, phraseIn } from '../data/time-phrase';
+import type { Category, Hindrance, Impact, ItemDetail, ItemProperties, RoadType, Vehicle } from '../data/types';
 import { cleanVehicles, isImpact, verdictFor, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
 import { isLongRunning } from '../data/time';
-import { LONG_RUNNING_TAG, esc, statusLine, subLabel, whenLabel } from './format';
+import { LONG_RUNNING_TAG, esc, kindLabel, statusLine, whenLabel } from './format';
 import { renderVerdictPill } from './verdict-pill';
 
 export interface ListItemModel {
@@ -105,6 +108,11 @@ export interface ListItemOptions {
   /** Contract v4 timeline and its horizon, when the caller has the detail. */
   tl?: unknown;
   tlTo?: string;
+  /**
+   * The "when" text, when the caller has worded it already. Without it the row words it itself:
+   * from the chosen moment or day (`at` / `window`) when that is not now, else from now.
+   */
+  whenText?: string;
 }
 
 /** Place shown next to the section: woonplaats when it adds information beyond the title, else gemeente. */
@@ -138,10 +146,45 @@ export function listItemVerdict(m: ListItemModel, now: number, opts: ListItemOpt
   });
 }
 
+/** The row as the time-phrase module reads it: the same inputs the pill's verdict uses. */
+function forecastItemOf(m: ListItemModel, opts: ListItemOptions): ForecastItem {
+  const d = {
+    ...(opts.periods ? { periods: opts.periods } : {}),
+    ...(opts.tl ? { tl: opts.tl } : {}),
+    ...(opts.tlTo ? { tlTo: opts.tlTo } : {}),
+    ...(opts.to ? { to: opts.to } : {}),
+  };
+  const properties = { ...m, sub: m.sub ?? undefined, end: m.end ?? undefined } as unknown as ItemProperties;
+  return { f: { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties }, d: Object.keys(d).length > 0 ? (d as ItemDetail) : null };
+}
+
+/** Within a minute of now counts as now (the panel passes `at = now` for "Nu"). */
+const SAME_MOMENT_MS = 60_000;
+
+/**
+ * The row's "when" (vooruit-3, taal-3): with a day picked, the stretches of that day ("wo 30 sep
+ * 20:00–05:00", "hele dag"); at a chosen moment, how long what applies then lasts ("tot za 3 okt
+ * 10:00"); otherwise the clock-time label from now. Falls back to the span label from the chosen
+ * moment when the phrase has nothing to say.
+ */
+function rowWhen(m: ListItemModel, now: number, opts: ListItemOptions): { text: string; ref: number } {
+  const span = { start: m.start, end: m.end };
+  const mode = opts.mode ?? 'auto';
+  if (opts.window) {
+    const text = opts.whenText ?? phraseIn(forecastItemOf(m, opts), mode, opts.window.from, opts.window.to);
+    return { text: text || whenLabel(span, opts.window.from), ref: opts.window.from };
+  }
+  const at = opts.at ?? now;
+  if (opts.whenText !== undefined) return { text: opts.whenText, ref: at };
+  if (Math.abs(at - now) < SAME_MOMENT_MS) return { text: whenLabel(span, now), ref: now };
+  return { text: phraseAt(forecastItemOf(m, opts), mode, at) || whenLabel(span, at), ref: at };
+}
+
 export function renderListItem(m: ListItemModel, now: number, opts: ListItemOptions = {}): string {
   const meta = CATEGORY_META[m.cat];
   const span = { start: m.start, end: m.end };
-  const status = statusLine(span, now);
+  const when = rowWhen(m, now, opts);
+  const status = statusLine(span, when.ref);
   const verdict = listItemVerdict(m, now, opts);
 
   const where: string[] = [];
@@ -151,8 +194,7 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
   if (place && !where.join(' ').toLowerCase().includes(place.toLowerCase())) where.push(place);
 
   const line3: string[] = [];
-  const sub = subLabel(m.sub);
-  line3.push(esc(sub && m.cat !== 'file' && m.cat !== 'incident' ? `${meta.label} · ${sub}` : (sub ?? meta.label)));
+  line3.push(esc(kindLabel(m.cat, m.sub, { spd: m.spd })));
   if (m.src) line3.push(esc(m.src));
   if (isLongRunning(span, now)) line3.push(`<span class="tag tag--long" title="Deze maatregel loopt langer dan 90 dagen">${LONG_RUNNING_TAG}</span>`);
 
@@ -167,7 +209,7 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
   return `<${tag} class="item${opts.selected ? ' is-selected' : ''}" data-id="${esc(m.id)}" data-cat="${m.cat}" data-verdict="${verdict.level}" ${attrs}${style}>
     <span class="item__body">
       <span class="item__verdict">${renderVerdictPill(verdict, { size: 'sm' })}${verdict.detail ? `<span class="item__verdict-detail">${esc(verdict.detail)}</span>` : ''}</span>
-      <span class="item__where">${badge}<span class="item__title">${esc(where.join(' · '))}</span><span class="item__when item__when--${status.kind}">${esc(whenLabel(span, now))}</span></span>
+      <span class="item__where">${badge}<span class="item__title">${esc(where.join(' · '))}</span><span class="item__when item__when--${status.kind}">${esc(when.text)}</span></span>
       <span class="item__meta">${meta.icon}<span>${line3.join(' <span aria-hidden="true">·</span> ')}</span></span>
     </span>
     <span class="item__chevron" aria-hidden="true"></span>

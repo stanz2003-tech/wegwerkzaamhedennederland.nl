@@ -38,7 +38,8 @@ const CHIPS: readonly { id: ChipId; label: string }[] = [
 export function whenHint(kind: 'nu' | 'window' | 'day' | 'part' | 'moment'): string {
   switch (kind) {
     case 'moment':
-      return 'Je ziet wat op dat moment geldt. Werk dat alleen op bepaalde tijden geldt, wordt zo gemeld.';
+      // P7 (taal-4): 'op bepaalde tijden' read as 'you can only pass at certain times'.
+      return 'Je ziet wat er op dat moment geldt. Werk op vaste uren telt alleen binnen die uren mee als de wegbeheerder de uren heeft gemeld; anders rekenen we het de hele periode mee.';
     case 'day':
       return 'Je ziet het zwaarste dat die dag ergens geldt. Kies een dagdeel of een precies tijdstip om het smaller te maken.';
     case 'part':

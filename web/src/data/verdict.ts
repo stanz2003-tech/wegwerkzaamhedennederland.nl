@@ -33,7 +33,7 @@ export interface Verdict {
   level: VerdictLevel;
   /** Short Dutch headline: "Weg dicht", "Doorrijden mogelijk", "Geldt niet voor auto's". */
   label: string;
-  /** One line of specifics: "1 rijstrook dicht · max 70 km/u · op bepaalde tijden". */
+  /** One line of specifics: "1 rijstrook dicht · max 70 km/u · alleen ma–vr 22:00–05:00". */
   detail?: string;
 }
 
@@ -51,7 +51,7 @@ export interface VerdictMeta {
 
 export const VERDICT_META: Record<VerdictLevel, VerdictMeta> = {
   dicht: { label: 'Weg dicht', meaning: 'Je kunt er niet langs; volg de omleiding.', color: '--v-dicht' },
-  rijbaan: { label: 'Rijbaan dicht', meaning: 'Eén rijbaan of richting is dicht; de andere kant is meestal open.', color: '--v-rijbaan' },
+  rijbaan: { label: 'Rijbaan dicht', meaning: 'Een deel van de weg is dicht, meestal één richting. Rijd je die kant op, houd dan rekening met een omleiding.', color: '--v-rijbaan' },
   hinder: { label: 'Doorrijden mogelijk', meaning: 'Je kunt er langs, met minder rijstroken, een lagere snelheid of vertraging.', color: '--v-hinder' },
   geen: { label: 'Geen hinder', meaning: 'De melding heeft geen merkbaar gevolg voor het verkeer.', color: '--v-geen' },
   nvt: { label: 'Geldt niet voor jou', meaning: 'De maatregel geldt alleen voor een ander soort verkeer.', color: '--v-nvt' },
@@ -75,8 +75,8 @@ const MODE_NOT_FOR: Record<VehicleMode, string> = {
 const VEHICLE_ONLY: Record<Vehicle, string> = {
   car: "alleen auto's",
   lorry: 'alleen vrachtverkeer',
-  bicycle: 'alleen fietspad',
-  moped: 'alleen fietspad',
+  bicycle: 'alleen voor het fietspad',
+  moped: 'alleen voor het fietspad',
   bus: 'alleen bussen',
   agricultural: 'alleen landbouwverkeer',
   other: 'alleen overig verkeer',
@@ -116,7 +116,7 @@ export function appliesToMode(veh: readonly Vehicle[] | null | undefined, mode: 
   return MODE_GROUPS[mode].some((g) => veh.includes(g));
 }
 
-/** "alleen fietspad", "alleen vrachtverkeer", "alleen bussen en landbouwverkeer". */
+/** "alleen voor het fietspad", "alleen vrachtverkeer", "alleen bussen en landbouwverkeer". */
 export function onlyForLabel(veh: readonly Vehicle[]): string {
   const uniq = Array.from(new Set(veh.map((v) => VEHICLE_ONLY[v])));
   if (uniq.length === 1) return uniq[0] ?? '';
@@ -183,7 +183,12 @@ const DELAY_TEXT: Record<DelayBand, string | null> = {
   longerThanThreeHours: 'meer dan 3 uur vertraging',
 };
 
-const PERIOD_HINT = 'op bepaalde tijden';
+/**
+ * The measure has gaps but their pattern is not known (yet). Not "op bepaalde tijden": read right
+ * after "Doorrijden mogelijk" that said "you can only pass at certain times" — the reverse of
+ * what is meant. Not "werktijden" either: it also covers events.
+ */
+export const PERIOD_HINT = 'niet de hele tijd; tijden in het detail';
 
 function kmLabel(metres: number): string {
   if (metres < 1000) return `${Math.round(metres / 50) * 50} m`;
@@ -206,13 +211,29 @@ function hinderDetail(item: VerdictInput, d: VerdictDetail): string | undefined 
   return parts.length ? parts.join(' · ') : undefined;
 }
 
-/** Text for the recurring pattern when periods are known, else the generic hint. */
+/** "ma–vr 22:00–05:00" when the periods form a regular pattern, else null. */
+function periodPattern(periods: VerdictDetail['periods'], now: number | undefined): string | null {
+  if (!periods || periods.length === 0) return null;
+  const s = summarizePeriods(periods, now ?? 0);
+  return s.kind === 'pattern' ? `${s.days} ${s.from}–${s.to}` : null;
+}
+
+/**
+ * The pattern as a clause after the verdict: "Weg dicht, alleen ma–vr 22:00–05:00"; a daily one
+ * reads "elke nacht 22:00–05:00" / "elke dag 07:00–16:00". Unknown pattern: the generic hint.
+ */
 export function periodHint(periods: VerdictDetail['periods'], now: number | undefined): string {
-  if (periods && periods.length > 0) {
-    const s = summarizePeriods(periods, now ?? 0);
-    if (s.kind === 'pattern') return `${s.days} ${s.from}–${s.to}`;
-  }
-  return PERIOD_HINT;
+  const pattern = periodPattern(periods, now);
+  if (!pattern) return PERIOD_HINT;
+  const daily = /^dagelijks (\d\d:\d\d)–(\d\d:\d\d)$/.exec(pattern);
+  if (daily) return `${(daily[1] ?? '') > (daily[2] ?? '') ? 'elke nacht' : 'elke dag'} ${daily[1]}–${daily[2]}`;
+  return `alleen ${pattern}`;
+}
+
+/** "buiten werktijden (ma–vr 22:00–05:00)", or without the brackets when no pattern is known. */
+function outsideHours(periods: VerdictDetail['periods'], now: number | undefined): string {
+  const pattern = periodPattern(periods, now);
+  return pattern ? `buiten werktijden (${pattern})` : 'buiten werktijden';
 }
 
 function insidePeriod(periods: readonly Period[], now: number): boolean {
@@ -271,18 +292,18 @@ function impactVerdict(
 function timelineVerdict(item: VerdictInput, mode: VehicleMode, d: VerdictDetail, segments: readonly TimeSegment[]): Verdict | null {
   if (segments.length === 0) return null;
   const derived = periodsFromTimeline(segments);
-  // "op bepaalde tijden" only means something when the measure really has gaps; a continuous
+  // The period clause only means something when the measure really has gaps; a continuous
   // measure whose verdict merely changes per phase gets no pattern suffix.
   const per = derived.length > 1 ? periodHint(derived, d.now) : undefined;
 
   if (typeof d.now === 'number') {
     const seg = segmentAt(segments, d.now);
-    if (!seg) return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(derived, d.now)})` };
+    if (!seg) return { level: 'geen', label: 'Geen hinder', detail: outsideHours(derived, d.now) };
     return impactVerdict(seg.imp, seg.veh, item, mode, d, per);
   }
   if (d.window) {
     const inside = segmentsIn(segments, d.window.from, d.window.to);
-    if (inside.length === 0) return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(derived, d.window.from)})` };
+    if (inside.length === 0) return { level: 'geen', label: 'Geen hinder', detail: outsideHours(derived, d.window.from) };
     const forMode = inside.filter((s) => !s.veh || appliesToMode(s.veh, mode));
     if (forMode.length === 0) {
       const veh = Array.from(new Set(inside.flatMap((s) => s.veh ?? [])));
@@ -305,10 +326,11 @@ function join(...parts: (string | undefined)[]): string | undefined {
  * The verdict of one item for one vehicle mode.
  *
  * 1. `veh` present and the mode's groups are not in it → `nvt` ("Geldt niet voor auto's"),
- *    with a detail naming who it IS for ("alleen fietspad").
+ *    with a detail naming who it IS for ("alleen voor het fietspad").
  * 2. Recurring periods known and a moment given, moment outside every period → `geen`
  *    ("Geen hinder · buiten werktijden (ma–vr 22:00–05:00)").
- * 3. Otherwise `imp` decides; `per` appends the pattern or "op bepaalde tijden".
+ * 3. Otherwise `imp` decides; `per` appends the pattern ("alleen ma–vr 22:00–05:00") or the
+ *    generic hint ("niet de hele tijd; tijden in het detail").
  *
  * Contract v4, when a moment or a window is asked:
  * 0a. The moment (or the start of the window) lies at or past `tlTo` → `onbekend` "Nog niet
@@ -350,12 +372,12 @@ function knownVerdict(item: VerdictInput, mode: VehicleMode, d: VerdictDetail): 
   const hasPer = item.per === true || item.per === 1;
   const periods = hasPer && d.periods && d.periods.length > 0 ? parsePeriods(d.periods) : [];
   if (periods.length > 0 && typeof d.now === 'number' && !insidePeriod(periods, d.now)) {
-    return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(d.periods, d.now)})` };
+    return { level: 'geen', label: 'Geen hinder', detail: outsideHours(d.periods, d.now) };
   }
   // A day picked in the strip on which none of the blocks falls: the day pill counts the item as
   // "geen", so the row under it must say so too instead of the measure's heaviest verdict.
   if (periods.length > 0 && typeof d.now !== 'number' && d.window && !touchesPeriod(periods, d.window.from, d.window.to)) {
-    return { level: 'geen', label: 'Geen hinder', detail: `buiten werktijden (${periodHint(d.periods, d.window.from)})` };
+    return { level: 'geen', label: 'Geen hinder', detail: outsideHours(d.periods, d.window.from) };
   }
   const per = hasPer ? periodHint(d.periods, d.now ?? d.window?.from) : undefined;
   const imp: Impact = isImpact(item.imp) ? item.imp : 'onbekend';

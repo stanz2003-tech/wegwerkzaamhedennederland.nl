@@ -89,3 +89,4 @@ export const listFilter = await load('pages/list-filter.ts');
 export const whenWords = await load('ui/when-words.ts');
 export const stripModel = await load('ui/strip-model.ts');
 export const datePick = await load('ui/date-pick.ts');
+export const timePhrase = await load('data/time-phrase.ts');

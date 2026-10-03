@@ -127,15 +127,17 @@ export function mountPanelLayout(els: PanelLayoutEls, panel: PanelController, cb
  * and scroll only the panel instead. Without JS the links still work as plain fragments.
  */
 function wireSkipLinks(panel: PanelController): void {
-  document.querySelectorAll<HTMLAnchorElement>('a[data-skip]').forEach((link) => {
-    link.addEventListener('click', (e) => {
-      const id = link.getAttribute('href')?.slice(1);
-      const target = id ? document.getElementById(id) : null;
-      if (!target) return;
-      e.preventDefault();
-      panel.ensureAtLeast('half');
-      target.focus({ preventScroll: true });
-      panel.scrollTo(target);
-    });
+  // Delegated, so links rendered later take part too: the answer card's "+ nog 4 plekken, zie
+  // de lijst" is re-rendered on every change and carries data-skip.
+  document.addEventListener('click', (e) => {
+    const link = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>('a[data-skip]') : null;
+    if (!link) return;
+    const id = link.getAttribute('href')?.slice(1);
+    const target = id ? document.getElementById(id) : null;
+    if (!target) return;
+    e.preventDefault();
+    panel.ensureAtLeast('half');
+    target.focus({ preventScroll: true });
+    panel.scrollTo(target);
   });
 }

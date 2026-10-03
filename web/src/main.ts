@@ -60,7 +60,7 @@ import { modelFromProps } from './ui/list-item';
 import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
 import { mountPanelLayout } from './ui/panel-layout';
-import { dayWindowOf, renderPanelSummary, renderRoadAnswer, type PanelAnswerEls } from './ui/panel-answer';
+import { dayWindowOf, renderPanelSummary, renderRoadAnswer, whenLabelOf, type PanelAnswerEls } from './ui/panel-answer';
 import { pickOfUrl } from './ui/date-pick';
 import { mountSearch } from './ui/search';
 import { QUIETLY, createPlaceController, type LeaveOptions } from './ui/place-controller';
@@ -460,7 +460,7 @@ function paintDetail(open = false): void {
       error: detailError,
       mode: url.mode,
       at: momentAt(now),
-      ...(dayWin ? { window: dayWin } : {}),
+      ...(dayWin ? { window: dayWin, whenLabel: whenLabelOf(url) } : {}),
       roadMode: url.road,
     },
     now,
