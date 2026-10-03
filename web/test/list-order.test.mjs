@@ -111,6 +111,9 @@ describe('Snelwegen dit weekend', () => {
     assert.equal(a27.more, true);
     // The road page opens on the day the named closure starts (zo 4 okt).
     assert.equal(a27.href, '/weg/a27/?dag=2026-10-04');
+    // Never a day before today: the road page's strip starts today.
+    const later = motorwayBlock.motorwayLines(rows, (r) => r.level, window, 'het hele weekend', Date.parse('2026-10-05T08:00:00Z'));
+    assert.equal(later.find((l) => l.road === 'A27').href, '/weg/a27/?dag=2026-10-05');
     assert.equal(lines.find((l) => l.road === 'A2').when, 'het hele weekend');
   });
 

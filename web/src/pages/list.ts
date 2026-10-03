@@ -175,7 +175,7 @@ async function renderDataList(id: DataList): Promise<void> {
   sections.push({ title: BACKGROUND_TITLE, items: background, collapsed: true, note: titles.backgroundNote });
   renderEntityList(itemsEl, sections, now, { linkQuery: id === 'files' ? 'cat=file' : undefined });
   if (motorway) {
-    const lines = motorwayLines([...activeRows, ...upcomingRows, ...background], levelOf, timeWindowBounds(LIST_WINDOW[id], now), motorway.whole);
+    const lines = motorwayLines([...activeRows, ...upcomingRows, ...background], levelOf, timeWindowBounds(LIST_WINDOW[id], now), motorway.whole, now);
     itemsEl.insertAdjacentHTML('afterbegin', renderMotorwayBlock(motorway.title, lines));
   }
 }

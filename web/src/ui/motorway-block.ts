@@ -25,7 +25,7 @@ export interface MotorwayLine {
   when: string;
   /** More closed rows on this road in the window than the one named. */
   more: boolean;
-  /** The road page opened on the day the named row starts in the window (`?dag=`, P6's strip day). */
+  /** The road page opened on the day the named row starts in the window, today at the earliest (`?dag=`). */
   href: string;
 }
 
@@ -56,6 +56,8 @@ export function motorwayLines(
   levelOf: (it: IndexItem) => VerdictLevel,
   window: { from: number; to: number },
   whole: string,
+  /** The road page's strip starts today: a closure that began on Friday opens on today. */
+  now: number = window.from,
 ): MotorwayLine[] {
   const byRoad = new Map<string, { level: MotorwayLine['level']; rows: IndexItem[] }>();
   for (const it of items) {
@@ -82,7 +84,7 @@ export function motorwayLines(
       place: place ? `bij ${place}` : '',
       when: whenInWindow(lead, window.from, window.to, whole),
       more: rows.length > 1,
-      href: `/weg/${slugify(road)}/?dag=${localDateKey(Math.max(window.from, toMs(lead.start)))}`,
+      href: `/weg/${slugify(road)}/?dag=${localDateKey(Math.max(window.from, now, toMs(lead.start)))}`,
     });
   }
   const num = (r: string): number => Number(r.slice(1)) || 0;
