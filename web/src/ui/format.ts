@@ -14,7 +14,8 @@ import {
   zonedParts,
   type TimeSpan,
 } from '../data/time';
-import type { DelayBand, Direction, Hindrance, ItemDetail, Probability } from '../data/types';
+import type { Category, DelayBand, Direction, Hindrance, ItemDetail, Probability } from '../data/types';
+import { CATEGORY_META } from './categories';
 
 const LOCALE = 'nl-NL';
 
@@ -157,17 +158,37 @@ export function statusLine(p: TimeSpan, now: number): StatusLine {
 }
 
 /**
- * The "when" of a list row, without the "Nu actief" preamble the verdict pill already implies:
- * "nog 2 u 15 min" / "tot en met vr 25 sep" / "langdurig · tot 31 mei 2031" / "start za 13 sep 22:00".
+ * The "when" of a list row, without the "Nu actief" preamble the verdict pill already implies,
+ * in clock times rather than a countdown (taal-3: "nog 5 u 56 min" said neither from when nor
+ * until what): "tot di 29 sep 05:00" / "tot en met vr 25 sep" / "langdurig · tot 31 mei 2031" /
+ * "begint za 13 sep 22:00" / "einde niet opgegeven". `now` is the reference moment: the caller
+ * passes the chosen moment when the reader looks ahead.
  */
 export function whenLabel(p: TimeSpan, now: number): string {
+  const { end } = itemInterval(p);
+  if (isActiveAt(p, now) && Number.isFinite(end) && end - now <= SHORT_HORIZON_MS) return `tot ${fmtDayTime(end)}`;
   return statusLine(p, now)
-    .text.replace(/^Nu actief · /, '')
+    .text.replace(/^Nu actief · einde nog onbekend$/, 'einde niet opgegeven')
+    .replace(/^Nu actief · /, '')
+    .replace(new RegExp(`^${LONG_RUNNING_LABEL} · einddatum onbekend$`), `${LONG_RUNNING_TAG} · einde niet opgegeven`)
     .replace(new RegExp(`^${LONG_RUNNING_LABEL} · `), `${LONG_RUNNING_TAG} · `)
     .replace(new RegExp(` · ${LONG_RUNNING_LABEL_LOWER}$`), ` · ${LONG_RUNNING_TAG}`)
-    .replace(/^Start /, 'start ')
+    .replace(/^Start /, 'begint ')
     .replace(/^Afgelopen · /, 'afgelopen · ')
     .replace(/^Gepland$/, 'gepland');
+}
+
+/**
+ * Status relative to the chosen moment, for the detail (overzicht-10, taal-3): "Nu actief · …"
+ * when that moment is now, else "Op wo 21 okt 12:00: bezig (tot en met do 29 okt)".
+ */
+export function statusAt(p: TimeSpan, now: number, at: number): StatusLine {
+  if (Math.abs(at - now) < MS.minute) return statusLine(p, now);
+  const s = statusLine(p, at);
+  const when = `Op ${fmtDayTime(at)}`;
+  if (s.kind === 'active') return { kind: 'active', text: `${when}: bezig (${whenLabel(p, at)})` };
+  if (s.kind === 'upcoming') return { kind: 'upcoming', text: `${when}: nog niet begonnen (${whenLabel(p, at)})` };
+  return { kind: 'past', text: `${when}: al afgelopen (${fmtDayTimeYear(itemInterval(p).end, at)})` };
 }
 
 /**
@@ -310,6 +331,28 @@ const SUB_LABELS: Record<string, string> = {
 export function subLabel(sub: string | null | undefined): string | null {
   if (!sub) return null;
   return SUB_LABELS[sub] ?? null;
+}
+
+/**
+ * Sub types that only describe the effect, which the verdict pill already says in plain words.
+ * Next to the pill they repeated it in DATEX terms or contradicted it: "Weg dicht" over
+ * "Afsluiting · rijbaan afgesloten", "Geldt niet voor auto's" over "weg afgesloten" (taal-2).
+ * Not here: contraflow ("tegenverkeer" says something the pill does not), and the work and event
+ * subs ("nieuw asfalt", "festival").
+ */
+const EFFECT_SUBS: ReadonlySet<string> = new Set(['roadClosed', 'carriagewayClosures', 'laneClosures', 'narrowLanes']);
+
+/**
+ * The muted kind line of a row or the detail: "Werkzaamheden · nieuw asfalt", "Afsluiting",
+ * "stilstaand verkeer" (files and incidents: the sub alone). A speed restriction is only left
+ * out when the speed is known, because only then does the pill name it ("max 70 km/u").
+ */
+export function kindLabel(cat: Category, sub: string | null | undefined, opts: { spd?: number | null } = {}): string {
+  const label = CATEGORY_META[cat].label;
+  const text = subLabel(sub);
+  const repeats = !!sub && (EFFECT_SUBS.has(sub) || (sub === 'speedRestrictionInOperation' && typeof opts.spd === 'number' && opts.spd > 0));
+  if (!text || repeats) return label;
+  return cat === 'file' || cat === 'incident' ? text : `${label} · ${text}`;
 }
 
 const VEHICLE_LABELS: Record<string, string> = {

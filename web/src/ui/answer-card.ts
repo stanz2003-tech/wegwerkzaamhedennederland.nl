@@ -78,6 +78,25 @@ export function answerAnnouncement(m: AnswerCardModel): string {
   return `${subject}, ${MODE_LABEL[m.mode]}, ${whenText(m)}: ${cardHeadline(m).replace(/[.s]+$/, '')}.`;
 }
 
+/** "Tot za 3 okt 10:00" as its own line under the headline (vooruit-4); '' without a phrase. */
+function timeLine(a: Answer): string {
+  const phrase = a.timePhrase ?? '';
+  if (!phrase) return '';
+  return `<p class="answer__time">${ICONS.clock}<span>${esc(phrase.charAt(0).toUpperCase() + phrase.slice(1))}</span></p>`;
+}
+
+/**
+ * "+ nog 4 plekken, zie de lijst ↓" when the specifics left closures out (overzicht-9): three
+ * lines while fourteen spots are closed read as "only here". On the map the link uses the panel's
+ * skip-link handling (data-skip, ui/panel-layout.ts); on a road or place page it is a plain jump.
+ */
+function moreLine(m: AnswerCardModel): string {
+  const more = m.answer.moreCount ?? 0;
+  if (more <= 0) return '';
+  const href = m.exit === false ? '#entity-list' : '#list-heading';
+  return `<p class="answer__more"><a href="${href}"${m.exit === false ? '' : ' data-skip'}>+ nog ${more} ${more === 1 ? 'plek' : 'plekken'}, zie de lijst <span aria-hidden="true">↓</span></a></p>`;
+}
+
 export function renderAnswerCard(m: AnswerCardModel): string {
   const level = levelOf(m.answer);
   const meta = VERDICT_META[level];
@@ -96,7 +115,10 @@ export function renderAnswerCard(m: AnswerCardModel): string {
         ${m.exit === false ? '' : `<button type="button" class="btn btn--secondary answer__exit" data-road-exit aria-label="Alle wegen tonen" title="Alle wegen tonen">${ICONS.x}<span class="answer__exit-text">Alle wegen</span></button>`}
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
+      ${timeLine(m.answer)}
+      ${m.answer.subline ? `<p class="answer__sub">${esc(m.answer.subline)}</p>` : ''}
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}
+      ${moreLine(m)}
       ${horizonLine(m.answer)}
       ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
     </section>`;

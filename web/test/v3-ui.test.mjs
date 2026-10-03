@@ -86,7 +86,7 @@ describe('verdict-first list row', () => {
     assert.ok(html.includes('Doorrijden mogelijk'));
     assert.ok(html.includes('1 rijstrook dicht · max 70 km/u'));
     assert.ok(html.includes('Lunetten → Utrecht-Noord'), 'section without the road prefix');
-    assert.ok(html.includes('nog 6 u'), 'when line without "Nu actief"');
+    assert.ok(html.includes('tot wo 9 sep 20:00'), 'when line in clock time, without "Nu actief"');
     assert.ok(html.includes('data-road="A27"'), 'badge is a road-mode target');
     assert.ok(html.includes('Rijkswaterstaat'), 'wegbeheerder on the muted line');
   });
@@ -94,7 +94,7 @@ describe('verdict-first list row', () => {
   it('follows the vehicle mode: a cycle path is nvt for cars and dicht for cyclists', () => {
     const cycle = modelFromProps({ ...props, imp: 'dicht', veh: ['bicycle', 'moped'], road: undefined, roadType: 'lokaal', title: 'Fietspad dicht' });
     assert.ok(renderListItem(cycle, NOW, { mode: 'auto' }).includes("Geldt niet voor auto"));
-    assert.ok(renderListItem(cycle, NOW, { mode: 'auto' }).includes('alleen fietspad'));
+    assert.ok(renderListItem(cycle, NOW, { mode: 'auto' }).includes('alleen voor het fietspad'));
     assert.ok(renderListItem(cycle, NOW, { mode: 'fiets' }).includes('data-verdict="dicht"'));
   });
 
@@ -149,5 +149,43 @@ describe('map colours by verdict', () => {
     const fc = detourCollection([[5, 52], [5.1, 52.1]]);
     assert.equal(fc.features[0].geometry.type, 'LineString');
     assert.equal(fc.features[0].geometry.coordinates.length, 2);
+  });
+});
+
+describe('list row times from the chosen moment or day (vooruit-3, taal-3, taal-2)', () => {
+  const night = {
+    id: 'n1', cat: 'afsluiting', sub: 'carriagewayClosures', sev: 3, title: 'A27 · Houten → Hagestein', road: 'A27', roadType: 'A',
+    start: '2026-09-29T18:00:00Z', end: '2026-10-01T03:00:00Z', src: 'RWS', imp: 'rijbaan', per: true,
+  };
+  const tl = [
+    ['2026-09-29T18:00:00Z', '2026-09-30T03:00:00Z', 'rijbaan'],
+    ['2026-09-30T18:00:00Z', '2026-10-01T03:00:00Z', 'rijbaan'],
+  ];
+  const TODAY = Date.parse('2026-09-28T10:00:00Z');
+
+  it('with wo 30 picked, the row shows that day\'s stretches instead of "nog 2 dagen"', () => {
+    const wed = { from: Date.parse('2026-09-29T22:00:00Z'), to: Date.parse('2026-09-30T21:59:59Z') };
+    const html = renderListItem(modelFromProps(night), TODAY, { window: wed, tl });
+    assert.ok(html.includes('tot wo 30 sep 05:00, wo 30 sep 20:00–05:00'), html);
+    assert.doesNotMatch(html, /nog \d/);
+  });
+
+  it('at a chosen moment, until when what applies then lasts', () => {
+    const html = renderListItem(modelFromProps(night), TODAY, { at: Date.parse('2026-09-29T20:00:00Z'), tl });
+    assert.ok(html.includes('tot wo 30 sep 05:00'));
+    const between = renderListItem(modelFromProps(night), TODAY, { at: Date.parse('2026-09-30T10:00:00Z'), tl });
+    assert.ok(between.includes('begint wo 30 sep 20:00'));
+  });
+
+  it('a caller-worded when text wins', () => {
+    assert.ok(renderListItem(modelFromProps(night), TODAY, { whenText: 'hele dag' }).includes('>hele dag<'));
+  });
+
+  it('a cycle-path closure no longer says "Afsluiting · rijbaan afgesloten" next to "Geldt niet voor auto\'s"', () => {
+    const cycle = modelFromProps({ ...night, veh: ['bicycle'], imp: 'dicht', road: undefined, title: 'Fietspad Vechtdijk' });
+    const html = renderListItem(cycle, TODAY, { mode: 'auto' });
+    assert.ok(html.includes('Geldt niet voor auto&#39;s'));
+    assert.doesNotMatch(html, /rijbaan afgesloten/);
+    assert.ok(html.includes('<span>Afsluiting'));
   });
 });

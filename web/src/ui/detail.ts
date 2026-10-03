@@ -1,36 +1,39 @@
 /**
- * Detail view of one item. Verdict-first: the banner ("Weg dicht · richting Utrecht · nog
- * 2 u 15 min") for the chosen vehicle mode, the detour (text, and "Omleiding in Google Maps"
- * when the wegbeheerder published its geometry), then header, timeline, impact rows from the
- * detail shard, description, periods, source and actions.
+ * Detail view of one item, verdict-first and answered for the moment the reader chose:
+ *   1. the banner ("Voor auto's · wo 21 okt 12:00", "Rijbaan dicht · richting Utrecht · tot za
+ *      3 okt 10:00") for the chosen vehicle mode,
+ *   2. title, then "Wanneer" (status at the chosen moment, the working-time pattern),
+ *   3. the detour and the route buttons ("Omleiding in Google Maps", "Route hiernaartoe"),
+ *   4. impact rows from the detail shard, "Wanneer wat" (v4 timeline), the start–end bar,
+ *      the description, links and the source.
+ * The order follows what a driver looking ahead needs first (overzicht-10): when, and how to go
+ * around, before the background. The time parts live in ui/detail-when.ts.
  */
-import { itemVerdict } from '../data/forecast';
-import { summarizePeriods } from '../data/periods';
-import { itemInterval, toMs } from '../data/time';
+import { itemVerdict, type ForecastItem } from '../data/forecast';
+import { toMs } from '../data/time';
+import { phraseAt } from '../data/time-phrase';
+import { parseTimeline, segmentAt } from '../data/timeline';
 import type { ItemDetail, ItemProperties } from '../data/types';
 import { slugify } from '../data/types';
-import type { VehicleMode } from '../data/verdict';
+import { PERIOD_HINT, othersNoun, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
 import {
   delayLabel,
   directionLabel,
-  durationLabel,
   esc,
   fmtDayTime,
-  fmtDayTimeYear,
-  fmtPeriodMs,
   hindLabel,
+  kindLabel,
   lanesLabel,
   planningStatusLabel,
   probabilityLabel,
   queueLabel,
   relatedNote,
-  statusLine,
   subLabel,
   vehiclesLabel,
-  whenLabel,
 } from './format';
+import { isNow, periodsBlock, phasesBlock, timelineBar, whenBlock } from './detail-when';
 import { ICONS } from './icons';
 import { renderVerdictBanner } from './verdict-pill';
 
@@ -88,51 +91,6 @@ function impactRows(p: ItemProperties, d: ItemDetail | null): Row[] {
   return rows;
 }
 
-function timeline(p: ItemProperties, now: number): string {
-  const { start, end } = itemInterval(p);
-  const open = !Number.isFinite(end);
-  const total = open ? Number.NaN : end - start;
-  let progress: number;
-  if (now < start) progress = 0;
-  else if (open) progress = 1;
-  else progress = Math.max(0, Math.min(1, (now - start) / Math.max(total, 1)));
-  const nowPct = Math.round(progress * 1000) / 10;
-  // Same wording as the list line: never "5 jaar" next to "Langdurige maatregel".
-  const duration = durationLabel(p, now);
-  const state = now < start ? 'upcoming' : !open && now > end ? 'past' : 'active';
-  // The year is part of the label when it is not the current one: a measure that runs from
-  // 2023 to 2028 must not print two bare "31 mei" style dates.
-  const startLabel = fmtDayTimeYear(start, now);
-  const endLabel = open ? 'einddatum onbekend' : fmtDayTimeYear(end, now);
-  return `<div class="timeline timeline--${state}" role="img" aria-label="Periode van ${esc(startLabel)} tot ${esc(open ? 'onbekend' : endLabel)}">
-      <div class="timeline__bar"><span class="timeline__elapsed" style="width:${nowPct}%"></span>
-        ${state === 'active' ? `<span class="timeline__now" style="left:${nowPct}%"><span>NU</span></span>` : ''}
-      </div>
-      <div class="timeline__labels">
-        <span><span class="timeline__k">Start</span><time datetime="${esc(p.start)}">${esc(startLabel)}</time></span>
-        <span class="timeline__dur">${esc(duration)}</span>
-        <span><span class="timeline__k">Einde</span>${open ? '<span>onbekend</span>' : `<time datetime="${esc(p.end ?? '')}">${esc(endLabel)}</time>`}</span>
-      </div>
-    </div>`;
-}
-
-function periodsBlock(d: ItemDetail, now: number): string {
-  const summary = summarizePeriods(d.periods, now);
-  if (summary.kind === 'none') return '';
-  if (summary.kind === 'pattern') {
-    return `<section class="detail__section">
-        <h3 class="detail__h">Werktijden</h3>
-        <p class="detail__pattern">${ICONS.clock}<span><strong>${esc(summary.days)} ${esc(summary.from)}–${esc(summary.to)}</strong><br>
-        ${esc(summary.count)} keer, van ${esc(fmtDayTime(summary.first))} tot ${esc(fmtDayTime(summary.last))}</span></p>
-      </section>`;
-  }
-  return `<section class="detail__section">
-      <h3 class="detail__h">Komende periodes</h3>
-      <ul class="detail__periods">${summary.items.map((it) => `<li><time datetime="${new Date(it.start).toISOString()}">${esc(fmtPeriodMs(it.start, it.end))}</time></li>`).join('')}</ul>
-      ${summary.more > 0 ? `<p class="detail__more">+ ${summary.more} meer</p>` : ''}
-    </section>`;
-}
-
 function routeUrl(center: [number, number] | null): string | null {
   if (!center) return null;
   return `https://www.google.com/maps/dir/?api=1&destination=${center[1].toFixed(5)},${center[0].toFixed(5)}&travelmode=driving`;
@@ -170,6 +128,26 @@ export function detourMapsUrl(coords: readonly [number, number][]): string | nul
   return `https://www.google.com/maps/dir/?api=1&origin=${fmt(first)}&destination=${fmt(last)}${waypoints}&travelmode=driving`;
 }
 
+const MODE_FOR: Record<VehicleMode, string> = { auto: "Voor auto's", vracht: 'Voor vrachtverkeer', fiets: 'Voor fietsers' };
+
+/**
+ * The kind line over the title. When the measure does not concern the mode, it says who it is
+ * for ("Afsluiting voor fietsers"), not the DATEX effect: "Afsluiting · weg afgesloten" under
+ * "Geldt niet voor auto's" contradicted the banner (taal-2).
+ */
+function kindLine(p: ItemProperties, d: ItemDetail | null, verdict: Verdict, at: number): string {
+  if (verdict.level !== 'nvt') return kindLabel(p.cat, p.sub, { spd: p.spd ?? null });
+  const veh = segmentAt(parseTimeline(d?.tl), at)?.veh ?? p.veh ?? null;
+  return `${p.cat === 'afsluiting' ? 'Afsluiting' : 'Maatregel'} voor ${othersNoun(veh)}`;
+}
+
+/** Inside the detail "tijden in het detail" points at itself; the times follow right below. */
+function bannerVerdict(v: Verdict): Verdict {
+  if (!v.detail?.includes(PERIOD_HINT)) return v;
+  const detail = v.detail.split(' · ').filter((part) => part !== PERIOD_HINT).join(' · ');
+  return { level: v.level, label: v.label, ...(detail ? { detail } : {}) };
+}
+
 export const GMAPS_DETOUR_NOTE =
   'Google Maps kent de omleiding niet zelf; we sturen de route langs de omleidingsborden. Controleer onderweg de borden.';
 
@@ -177,8 +155,9 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   const { props: p, detail: d } = state;
   const meta = CATEGORY_META[p.cat];
   const at = state.at ?? now;
-  const status = statusLine(p, now);
-  const verdict = itemVerdict({ f: { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: p }, d }, state.mode, at);
+  const item: ForecastItem = { f: { type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] }, properties: p }, d };
+  const verdict = itemVerdict(item, state.mode, at);
+  const kicker = isNow(at, now) ? '' : `${MODE_FOR[state.mode]} · ${fmtDayTime(at)}`;
   const rows = impactRows(p, d);
   const route = routeUrl(state.center);
   const detourCoords = d?.detourGeom && d.detourGeom.length >= 2 ? d.detourGeom : null;
@@ -208,7 +187,15 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
         <button type="button" class="btn btn--ghost detail__back" data-back>${ICONS.arrowLeft}<span>Terug</span></button>
         <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Link kopiëren">${ICONS.share2}<span>Deel</span></button>
       </div>
-      ${renderVerdictBanner(verdict, [whenLabel(p, now)])}
+      ${renderVerdictBanner(bannerVerdict(verdict), [phraseAt(item, state.mode, at)], kicker)}
+      <header class="detail__head">
+        ${badge}
+        <div>
+          <p class="detail__cat" style="--cat-color: var(${meta.color})">${meta.icon}<span>${esc(kindLine(p, d, verdict, at))}</span></p>
+          <h2 class="detail__title" id="detail-title">${esc(p.title)}</h2>
+        </div>
+      </header>
+      ${whenBlock(p, d, now, at)}
       ${
         detourText
           ? `<div class="detail__detour">${ICONS.signpost}<div><strong>Omleiding</strong><p>${esc(detourText)}</p></div></div>`
@@ -216,16 +203,16 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
             ? `<div class="detail__detour">${ICONS.signpost}<div><strong>Omleiding</strong><p>De wegbeheerder heeft een omleidingsroute uitgezet; hij staat <span class="swatch--detour" aria-hidden="true"></span> gestippeld blauw op de kaart.</p></div></div>`
             : ''
       }
-      <header class="detail__head">
-        ${badge}
-        <div>
-          <p class="detail__cat" style="--cat-color: var(${meta.color})">${meta.icon}<span>${esc(meta.label)}${subLabel(p.sub) ? ` · ${esc(subLabel(p.sub))}` : ''}</span></p>
-          <h2 class="detail__title" id="detail-title">${esc(p.title)}</h2>
-          <p class="detail__status detail__status--${status.kind}">${esc(status.text)}</p>
-        </div>
-      </header>
+      ${
+        detourUrl || route
+          ? `<div class="detail__actions">
+        ${detourUrl ? `<a class="btn btn--primary" href="${esc(detourUrl)}" target="_blank" rel="noopener noreferrer" data-gmaps-detour>${ICONS.signpost}<span>Omleiding in Google Maps</span></a>` : ''}
+        ${route ? `<a class="btn ${detourUrl ? 'btn--secondary' : 'btn--primary'}" href="${esc(route)}" target="_blank" rel="noopener noreferrer" data-gmaps-route>${ICONS.navigation}<span>Route hiernaartoe</span></a>` : ''}
+      </div>`
+          : ''
+      }
+      ${detourUrl ? `<p class="detail__gmaps-note">${esc(GMAPS_DETOUR_NOTE)}</p>` : ''}
       ${onlyRoad}
-      ${timeline(p, now)}
       ${
         state.loading
           ? `<div class="skeleton skeleton--detail" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Details worden geladen</p>`
@@ -241,14 +228,11 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
           ? `<dl class="impact">${rows.map((r) => `<div class="impact__row">${r.icon}<dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`
           : ''
       }
+      ${phasesBlock(item, state.mode, now, at)}
+      ${d ? periodsBlock(d, now, at) : ''}
+      ${timelineBar(p, now, at)}
       ${desc ? `<section class="detail__section"><h3 class="detail__h">Toelichting</h3><p class="detail__desc">${esc(desc)}</p></section>` : ''}
-      ${d ? periodsBlock(d, now) : ''}
-      <div class="detail__actions">
-        ${detourUrl ? `<a class="btn btn--primary" href="${esc(detourUrl)}" target="_blank" rel="noopener noreferrer" data-gmaps-detour>${ICONS.signpost}<span>Omleiding in Google Maps</span></a>` : ''}
-        ${route ? `<a class="btn ${detourUrl ? 'btn--secondary' : 'btn--primary'}" href="${esc(route)}" target="_blank" rel="noopener noreferrer" data-gmaps-route>${ICONS.navigation}<span>Route hiernaartoe</span></a>` : ''}
-        ${links.join('')}
-      </div>
-      ${detourUrl ? `<p class="detail__gmaps-note">${esc(GMAPS_DETOUR_NOTE)}</p>` : ''}
+      ${links.length ? `<div class="detail__actions">${links.join('')}</div>` : ''}
       <footer class="detail__source">
         <p>Bron: <strong>${esc(d?.src ?? p.src)}</strong>${d?.upd ? ` · bijgewerkt <time datetime="${esc(d.upd)}">${esc(fmtDayTime(toMs(d.upd)))}</time>` : ''}</p>
         <p class="detail__id">Melding ${esc(p.id)}</p>

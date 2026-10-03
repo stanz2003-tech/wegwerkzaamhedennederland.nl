@@ -232,3 +232,55 @@ describe('merged double publications (ItemDetail.related)', () => {
     assert.equal(relatedNote(['', '  ']), null, 'empty ids are not a merge');
   });
 });
+
+describe('whenLabel and statusAt in clock times (taal-3)', () => {
+  const { whenLabel, statusAt } = format;
+
+  it('a running measure ending within a week says until when, not "nog …"', () => {
+    assert.equal(whenLabel({ start: '2026-09-09T06:00:00Z', end: '2026-09-09T14:15:00Z' }, NOW), 'tot wo 9 sep 16:15');
+    assert.equal(whenLabel({ start: '2026-09-04T06:00:00Z', end: '2026-09-25T15:00:00Z' }, NOW), 'tot en met vr 25 sep');
+  });
+
+  it('future: "begint …"; no end: "einde niet opgegeven"', () => {
+    assert.equal(whenLabel({ start: '2026-09-12T20:00:00Z' }, NOW), 'begint za 12 sep 22:00');
+    assert.equal(whenLabel({ start: '2026-09-09T06:00:00Z' }, NOW), 'einde niet opgegeven');
+    assert.equal(whenLabel({ start: '2024-01-01T00:00:00Z' }, NOW), 'langdurig · einde niet opgegeven');
+  });
+
+  it('counts from the moment it is given, not from today', () => {
+    // At za 12 sep 23:00 the same span runs and ends within a week.
+    assert.equal(whenLabel({ start: '2026-09-12T20:00:00Z', end: '2026-09-14T03:00:00Z' }, ms('2026-09-12T21:00:00Z')), 'tot ma 14 sep 05:00');
+  });
+
+  it('statusAt says "Nu actief" only for now, else names the chosen moment', () => {
+    const span = { start: '2026-09-04T06:00:00Z', end: '2026-10-29T15:00:00Z' };
+    assert.equal(statusAt(span, NOW, NOW).text, 'Nu actief · tot en met do 29 okt');
+    assert.deepEqual(statusAt(span, NOW, ms('2026-10-21T10:00:00Z')), { kind: 'active', text: 'Op wo 21 okt 12:00: bezig (tot en met do 29 okt)' });
+    assert.equal(statusAt({ start: '2026-09-12T20:00:00Z', end: '2026-09-13T03:00:00Z' }, NOW, ms('2026-09-10T10:00:00Z')).text, 'Op do 10 sep 12:00: nog niet begonnen (begint za 12 sep 22:00)');
+    assert.equal(statusAt({ start: '2026-09-01T06:00:00Z', end: '2026-09-02T14:00:00Z' }, NOW, ms('2026-09-05T10:00:00Z')).text, 'Op za 5 sep 12:00: al afgelopen (wo 2 sep 16:00)');
+  });
+});
+
+describe('kindLabel: no sub that repeats or contradicts the pill (taal-2)', () => {
+  const { kindLabel } = format;
+
+  it('hides the effect subs the verdict pill already says', () => {
+    assert.equal(kindLabel('afsluiting', 'carriagewayClosures'), 'Afsluiting');
+    assert.equal(kindLabel('afsluiting', 'roadClosed'), 'Afsluiting');
+    assert.equal(kindLabel('werk', 'laneClosures'), 'Werkzaamheden');
+    assert.equal(kindLabel('werk', 'narrowLanes'), 'Werkzaamheden');
+  });
+
+  it('a speed restriction is hidden only when the pill names the speed', () => {
+    assert.equal(kindLabel('werk', 'speedRestrictionInOperation', { spd: 70 }), 'Werkzaamheden');
+    assert.equal(kindLabel('werk', 'speedRestrictionInOperation'), 'Werkzaamheden · snelheidsbeperking');
+  });
+
+  it('keeps what the pill does not say: contraflow, the kind of work, events, file and incident subs', () => {
+    assert.equal(kindLabel('werk', 'contraflow'), 'Werkzaamheden · tegenverkeer');
+    assert.equal(kindLabel('werk', 'resurfacingWork'), 'Werkzaamheden · nieuw asfalt');
+    assert.equal(kindLabel('evenement', 'festival'), 'Evenement · festival');
+    assert.equal(kindLabel('file', 'stationaryTraffic'), 'stilstaand verkeer');
+    assert.equal(kindLabel('werk', null), 'Werkzaamheden');
+  });
+});

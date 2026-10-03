@@ -911,6 +911,24 @@
 .timeline__labels > span:last-child { text-align: right; }
 .timeline__k { font-family: var(--font-body); color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; font-size: 10px; }
 .timeline__dur { color: var(--text-3); align-self: end; }
+/* The chosen moment ("21 OKT") is the marker; today stays in view as a faint tick (overzicht-10). */
+.timeline__tick { position: absolute; top: -3px; transform: translateX(-50%); opacity: 0.55; }
+.timeline__tick::before { content: ''; display: block; width: 1px; height: 16px; background: var(--text-3); margin: 0 auto; }
+.timeline__tick span { display: block; font-family: var(--font-display); font-weight: 700; font-size: 9px; letter-spacing: 0.08em; color: var(--text-3); margin-top: 1px; }
+.timeline__chosen::before { background: var(--accent); width: 3px; box-shadow: 0 0 0 1px var(--text); }
+
+/* "Wanneer wat": one row per stretch of the timeline, from the chosen moment on (vooruit-11). */
+.phases { list-style: none; display: grid; gap: 0; }
+.phase { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.phase time { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-2); }
+.phase__what { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.phase__gap { font-size: var(--text-sm); color: var(--text-3); }
+.phase.is-chosen { border-left: 3px solid var(--accent); padding-left: 8px; background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.phase.is-chosen time { color: var(--text); font-weight: 600; }
+.phase__mark { font-size: var(--text-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); }
+.phases__more > summary { min-height: var(--touch); display: flex; align-items: center; cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--text); }
+.phases__more > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-1); }
+.detail__periods li.is-chosen { color: var(--text); font-weight: 600; }
 
 /* impact rows */
 .impact { display: grid; gap: 0; margin: 0; border: 1px solid var(--border); border-radius: var(--r-2); overflow: hidden; }
@@ -1087,6 +1105,9 @@
   width: 6px;
   background: var(--vpill-color);
 }
+
+/* "Voor auto's · wo 21 okt 12:00": the verdict is about the chosen moment, not now (taal-3). */
+.vbanner__kicker { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-2); }
 
 .vbanner__label {
   font-family: var(--font-display);
@@ -1367,6 +1388,43 @@
   border-radius: 50%;
   background: var(--vpill-color);
 }
+
+/* "Tot za 3 okt 10:00": when the headline's closure ends, right under it (vooruit-4). */
+.answer__time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -4px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--answer-text, var(--text));
+}
+
+.answer__time svg { width: 16px; height: 16px; flex: none; color: var(--vpill-color); }
+
+/* "Rijd je richting Eemnes, houd dan rekening met een omleiding." (taal-1) */
+.answer__sub {
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+/* "+ nog 4 plekken, zie de lijst ↓": the specifics are not the whole story (overzicht-9). */
+.answer__more { font-size: var(--text-sm); margin-top: calc(-1 * var(--s-2)); }
+
+.answer__more a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.answer__more a:hover { text-decoration-thickness: 2px; }
+.answer__more a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: var(--r-1); }
 
 .answer__hidden {
   font-size: var(--text-xs);

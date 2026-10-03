@@ -20,7 +20,10 @@ describe('answerFor on the fixture roads', () => {
     assert.equal(a.level, 'rijbaan');
     assert.equal(a.headline, 'Rijbaan dicht tussen Hintham en Vught, richting Vught');
     assert.equal(a.specifics.length, 2);
-    assert.equal(a.specifics[0], 'Hintham–Vught: rijbaan dicht · richting Vught');
+    assert.equal(a.specifics[0], 'Hintham–Vught: rijbaan dicht · richting Vught · tot do 10 sep 04:00');
+    assert.equal(a.timePhrase, 'tot do 10 sep 04:00');
+    assert.equal(a.subline, 'Rijd je richting Vught, houd dan rekening met een omleiding.');
+    assert.equal(a.moreCount, 0);
     assert.equal(a.specifics[1], 'Vinkeveen–Holendrecht: 1 rijstrook dicht · max 70 km/u · 8 min vertraging');
     assert.equal(a.counts.rijbaan, 1);
     assert.equal(a.counts.hinder, 1);
@@ -48,7 +51,8 @@ describe('answerFor on the fixture roads', () => {
     const a = answerFor(items, 'auto', { kind: 'moment', at: inside }, { kind: 'road', name: 'A12' });
     assert.equal(a.level, 'dicht');
     assert.equal(a.headline, 'Dicht tussen Bunnik en Driebergen, richting Driebergen');
-    assert.match(a.specifics[0], /^Bunnik–Driebergen: weg dicht · richting Driebergen · dagelijks 21:00–05:00$/);
+    assert.match(a.specifics[0], /^Bunnik–Driebergen: weg dicht · richting Driebergen · elke nacht 21:00–05:00 · tot zo 13 sep 05:00$/);
+    assert.equal(a.timePhrase, 'tot zo 13 sep 05:00', 'the end of this night, not of the whole work');
     const noon = Date.parse(first) + 18 * 60 * 60_000; // 15:00 the next day: inside the span, between two nightly periods
     const b = answerFor(items, 'auto', { kind: 'moment', at: noon }, { kind: 'road', name: 'A12' });
     const nightly = b.items.find((x) => x.item.f.properties.id === 'NDW03_2200001');
@@ -89,11 +93,11 @@ describe('wording helpers', () => {
     const generic = x({ title: 'Overige', road: undefined, imp: 'dicht', woonplaats: 'Vleuten', gemeente: 'Utrecht' }).item;
     const a = answerFor([generic], 'auto', nowMoment, { kind: 'gemeente', name: 'Utrecht' });
     assert.equal(a.headline, 'Weg dicht in Vleuten');
-    assert.equal(a.specifics[0], 'Vleuten: weg dicht');
+    assert.equal(a.specifics[0], 'Vleuten: weg dicht · einde niet opgegeven');
     const noPlace = x({ title: 'Met name hinder', road: undefined, imp: 'dicht', woonplaats: 'Utrecht', gemeente: 'Utrecht' }).item;
     const b = answerFor([noPlace], 'auto', nowMoment, { kind: 'gemeente', name: 'Utrecht' });
     assert.equal(b.headline, 'Weg dicht in Utrecht');
-    assert.equal(b.specifics[0], 'Weg dicht');
+    assert.equal(b.specifics[0], 'Weg dicht · einde niet opgegeven');
   });
 
   it('itemName / itemSection', () => {
@@ -103,18 +107,100 @@ describe('wording helpers', () => {
     assert.equal(itemSection(x({ title: 'Los werk', road: undefined }).item), 'Los werk');
   });
 
-  it('placeLabel prefers from–to, then the woonplaats, then the section', () => {
+  it('placeLabel prefers from–to, then the section with its arrow, then the woonplaats', () => {
     const roadS = { kind: 'road', name: 'A27' };
     assert.equal(placeLabel(x({}, { from: 'Hank', to: 'Werkendam' }), roadS), 'Hank–Werkendam');
-    assert.equal(placeLabel(x({ woonplaats: 'Hank' }), roadS), 'Bij Hank');
+    assert.equal(placeLabel(x({ woonplaats: 'Hank' }), roadS), 'Lunetten → Utrecht-Noord', 'the arrow says where and which way');
+    assert.equal(placeLabel(x({ woonplaats: 'Hank', title: 'A27 · Hank' }), roadS), 'Bij Hank');
     assert.equal(placeLabel(x({}), roadS), 'Lunetten → Utrecht-Noord');
     assert.equal(placeLabel(x({ woonplaats: 'Hank' }), { kind: 'gebied', name: '' }), 'A27 bij Hank');
   });
 
   it('specificLine puts the place first and capitalises a bare line', () => {
-    assert.equal(specificLine(x({ woonplaats: 'Hank' }), { kind: 'road', name: 'A27' }), 'Bij Hank: 1 rijstrook dicht');
+    assert.equal(specificLine(x({ woonplaats: 'Hank', title: 'A27 · Hank' }), { kind: 'road', name: 'A27' }), 'Bij Hank: 1 rijstrook dicht');
     assert.equal(specificLine(x({ title: 'x', road: undefined }, null, 'hinder', 'max 50 km/u'), { kind: 'road', name: 'A27' }), 'Max 50 km/u');
     assert.equal(specificLine(x({}, { to: 'Breda' }, 'dicht', 'richting Breda'), { kind: 'road', name: 'A27' }), 'Lunetten → Utrecht-Noord: weg dicht · richting Breda');
+  });
+});
+
+describe('answer order, direction and time (zoek-11, overzicht-9, taal-1, vooruit-4)', () => {
+  const subject = { kind: 'road', name: 'A27' };
+  const feat = (id, props) => ({
+    f: { type: 'Feature', geometry: { type: 'Point', coordinates: [5, 52] }, properties: { id, cat: 'werk', sev: 3, src: 's', road: 'A27', imp: 'rijbaan', start: '2026-09-09T10:00:00Z', end: '2026-09-10T04:00:00Z', ...props } },
+    d: null,
+  });
+  const items = [
+    feat('a', { title: 'A27 · Rijnsweerd → Eemnes', woonplaats: 'De Bilt' }),
+    feat('b', { title: 'A27 · Werkendam → Gorinchem', woonplaats: 'Werkendam', sev: 4 }),
+    feat('c', { title: 'A27 · Eemnes', woonplaats: 'Eemnes', start: '2026-09-09T11:00:00Z' }),
+    feat('d', { title: 'A27 · Hilversum', woonplaats: 'Hilversum' }),
+    feat('e', { title: 'A27 · Houten', woonplaats: 'Houten', imp: 'hinder', lc: 1 }),
+  ];
+
+  it('the same items in another input order give the same headline, specifics and order', () => {
+    const forward = answerFor(items, 'auto', nowMoment, subject, NOW);
+    const backward = answerFor([...items].reverse(), 'auto', nowMoment, subject, NOW);
+    assert.equal(forward.level, 'rijbaan');
+    assert.equal(backward.level, 'rijbaan');
+    assert.equal(forward.headline, backward.headline);
+    assert.deepEqual(forward.specifics, backward.specifics);
+    assert.equal(forward.timePhrase, backward.timePhrase);
+    assert.deepEqual(forward.items.map((x) => x.item.f.properties.id), backward.items.map((x) => x.item.f.properties.id));
+  });
+
+  it('several closed places: the headline says so, the card counts what the specifics leave out', () => {
+    const a = answerFor(items, 'auto', nowMoment, subject, NOW);
+    // 'b' has the highest impact score among the four rijbaan items, so it leads.
+    assert.equal(a.headline, 'Rijbaan dicht op meerdere plekken, o.a. tussen Werkendam en Gorinchem');
+    assert.equal(a.subline, '', 'one direction would suggest the other places are open');
+    assert.equal(a.timePhrase, 'tot do 10 sep 06:00');
+    assert.equal(a.specifics[0], 'Werkendam → Gorinchem: rijbaan dicht · tot do 10 sep 06:00');
+    assert.equal(a.specifics.length, 3);
+    assert.equal(a.moreCount, 2);
+  });
+
+  it('on the map (d: null) the direction comes from the title arrow, never "niet gemeld"', () => {
+    const one = answerFor([items[0]], 'auto', nowMoment, subject, NOW);
+    assert.equal(one.headline, 'Rijbaan dicht tussen Rijnsweerd en Eemnes, richting Eemnes');
+    assert.equal(one.subline, 'Rijd je richting Eemnes, houd dan rekening met een omleiding.');
+    const noArrow = answerFor([items[2]], 'auto', nowMoment, subject, NOW);
+    assert.equal(noArrow.headline, 'Rijbaan dicht bij Eemnes');
+    assert.equal(noArrow.subline, '', 'without the detail the direction may simply not be loaded');
+    const loaded = answerFor([{ ...items[2], d: { from: 'Eemnes' } }], 'auto', nowMoment, subject, NOW);
+    assert.equal(loaded.subline, 'De richting is niet gemeld; houd rekening met een omleiding.');
+  });
+
+  it('a window answer phrases the stretches inside the window', () => {
+    const day = { kind: 'window', from: Date.parse('2026-09-09T22:00:00Z'), to: Date.parse('2026-09-10T21:59:59Z') };
+    const a = answerFor([items[0]], 'auto', day, subject, NOW);
+    assert.equal(a.timePhrase, 'tot do 10 sep 06:00');
+  });
+
+  it('the order never makes a level lighter: on every fixture road the first item carries the worst level', () => {
+    const files = fixtureFiles().filter((f) => f.startsWith('roads/'));
+    let checked = 0;
+    for (const file of files) {
+      const list = readJson(file).items;
+      for (const mode of ['auto', 'vracht', 'fiets']) {
+        for (const when of [nowMoment, { kind: 'window', from: NOW, to: NOW + 7 * 86_400_000 }]) {
+          const a = answerFor(list, mode, when, subject, NOW);
+          const b = answerFor([...list].reverse(), mode, when, subject, NOW);
+          assert.equal(a.level, b.level, `${file} ${mode}`);
+          assert.equal(a.headline, b.headline, `${file} ${mode}: same headline whatever the input order`);
+          if (a.items.length === 0) continue;
+          assert.equal(a.items[0].verdict.level, a.level, `${file} ${mode}: the headline item is the worst one`);
+          checked += 1;
+        }
+      }
+    }
+    assert.ok(checked > 20, `enough answers were compared (${checked})`);
+  });
+
+  it('no time line when the headline names no closure', () => {
+    const a = answerFor([items[4]], 'auto', nowMoment, subject, NOW);
+    assert.equal(a.level, 'hinder');
+    assert.equal(a.timePhrase, '');
+    assert.equal(a.subline, '');
   });
 });
 

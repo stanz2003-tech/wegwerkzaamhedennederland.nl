@@ -103,7 +103,7 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     }
     clear.hidden = !has;
     hint.hidden = !has;
-    hint.textContent = has ? 'Je ziet wat op dat moment geldt. Werk dat alleen op bepaalde tijden geldt, wordt zo gemeld.' : '';
+    hint.textContent = has ? 'Je ziet wat er op dat moment geldt. Werk op vaste uren telt alleen binnen die uren mee als de wegbeheerder de uren heeft gemeld; anders rekenen we het de hele periode mee.' : '';
     const range = has ? '' : whenRangeLabel(current, Date.now());
     rangeEl.textContent = range;
     rangeEl.hidden = range === '';

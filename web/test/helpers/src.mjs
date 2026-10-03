@@ -82,3 +82,4 @@ export const verdictPill = await load('ui/verdict-pill.ts');
 export const panelLayout = await load('ui/panel-layout.ts');
 export const chips = await load('ui/chips.ts');
 export const whenControl = await load('ui/when-control.ts');
+export const timePhrase = await load('data/time-phrase.ts');

@@ -33,7 +33,7 @@ describe('vehicle gate', () => {
 
   it('returns nvt with a label naming the mode and a detail naming who it IS for', () => {
     const cycle = verdictFor(item({ imp: 'dicht', veh: ['bicycle', 'moped'] }), 'auto');
-    assert.deepEqual(cycle, { level: 'nvt', label: "Geldt niet voor auto's", detail: 'alleen fietspad' });
+    assert.deepEqual(cycle, { level: 'nvt', label: "Geldt niet voor auto's", detail: 'alleen voor het fietspad' });
     assert.equal(verdictFor(item({ imp: 'dicht', veh: ['bicycle'] }), 'vracht').label, 'Geldt niet voor vrachtverkeer');
     assert.equal(verdictFor(item({ imp: 'dicht', veh: ['lorry'] }), 'fiets').label, 'Geldt niet voor fietsers');
     assert.equal(verdictFor(item({ veh: ['lorry'] }), 'auto').detail, 'alleen vrachtverkeer');
@@ -97,7 +97,7 @@ describe('recurring periods', () => {
   ];
 
   it('without loaded periods `per` only adds the hint', () => {
-    assert.equal(verdictFor(item({ imp: 'dicht', per: true }), 'auto').detail, 'op bepaalde tijden');
+    assert.equal(verdictFor(item({ imp: 'dicht', per: true }), 'auto').detail, 'niet de hele tijd; tijden in het detail');
     assert.equal(verdictFor(item({ imp: 'dicht', per: 1 }), 'auto', { now: NOW }).level, 'dicht');
   });
 
@@ -105,7 +105,7 @@ describe('recurring periods', () => {
     const inside = Date.parse('2026-09-09T22:00:00Z');
     const v = verdictFor(item({ imp: 'dicht', per: true }), 'auto', { periods, now: inside });
     assert.equal(v.level, 'dicht');
-    assert.equal(v.detail, 'wo–vr 21:00–05:00');
+    assert.equal(v.detail, 'alleen wo–vr 21:00–05:00');
     const outside = verdictFor(item({ imp: 'dicht', per: true }), 'auto', { periods, now: NOW });
     assert.equal(outside.level, 'geen');
     assert.equal(outside.detail, 'buiten werktijden (wo–vr 21:00–05:00)');
@@ -114,12 +114,12 @@ describe('recurring periods', () => {
   it('without a moment the pattern is appended, never a false "geen"', () => {
     const v = verdictFor(item({ imp: 'rijbaan', per: true }), 'auto', { periods, to: 'Utrecht' });
     assert.equal(v.level, 'rijbaan');
-    assert.equal(v.detail, 'richting Utrecht · wo–vr 21:00–05:00');
+    assert.equal(v.detail, 'richting Utrecht · alleen wo–vr 21:00–05:00');
   });
 
   it('periodHint falls back to the generic hint for an irregular list', () => {
-    assert.equal(periodHint([['2026-09-09T19:00:00Z', '2026-09-10T03:00:00Z']], NOW), 'op bepaalde tijden');
-    assert.equal(periodHint(null, NOW), 'op bepaalde tijden');
+    assert.equal(periodHint([['2026-09-09T19:00:00Z', '2026-09-10T03:00:00Z']], NOW), 'niet de hele tijd; tijden in het detail');
+    assert.equal(periodHint(null, NOW), 'niet de hele tijd; tijden in het detail');
   });
 });
 
