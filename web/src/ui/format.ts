@@ -176,7 +176,8 @@ export function whenLabel(p: TimeSpan, now: number): string {
  */
 export function durationLabel(p: TimeSpan, now: number): string {
   const { start, end } = itemInterval(p);
-  if (!Number.isFinite(end)) return 'einddatum onbekend';
+  // An open end is said once, in the status line; the timeline does not repeat it (taal-7).
+  if (!Number.isFinite(end)) return '';
   if (isLongRunning(p, now)) return LONG_RUNNING_LABEL_LOWER;
   return fmtDuration(end - start);
 }
@@ -235,51 +236,58 @@ export function hindLabel(h: Hindrance | null | undefined): string | null {
   return h ? HIND_LABELS[h] : null;
 }
 
+/**
+ * "1 van de 3 rijstroken dicht" / "1 rijstrook dicht" / "alle rijstroken open". Never
+ * "0 rijstroken dicht · 1 open" next to a heading that says "rijstrookafzetting" (taal-6).
+ */
 export function lanesLabel(lanes: ItemDetail['lanes']): string | null {
   if (!lanes) return null;
-  const parts: string[] = [];
-  if (typeof lanes.closed === 'number') parts.push(`${lanes.closed} ${lanes.closed === 1 ? 'rijstrook' : 'rijstroken'} dicht`);
-  if (typeof lanes.open === 'number') parts.push(`${lanes.open} open`);
-  if (parts.length === 0 && typeof lanes.total === 'number') parts.push(`${lanes.total} rijstroken`);
-  return parts.length ? parts.join(' · ') : null;
+  const { closed, open, total } = lanes;
+  if (closed === 0) return 'alle rijstroken open';
+  if (typeof closed === 'number') {
+    const all = typeof total === 'number' ? total : typeof open === 'number' ? closed + open : null;
+    if (all !== null && all > closed) return `${closed} van de ${all} rijstroken dicht`;
+    return `${closed} ${closed === 1 ? 'rijstrook' : 'rijstroken'} dicht`;
+  }
+  if (typeof open === 'number') return `${open} ${open === 1 ? 'rijstrook' : 'rijstroken'} open`;
+  if (typeof total === 'number') return `${total} rijstroken`;
+  return null;
 }
 
-const DIR_LABELS: Record<Direction, string> = {
-  positive: 'oplopende hectometrering',
-  negative: 'aflopende hectometrering',
-  both: 'beide richtingen',
-};
-
+/**
+ * "Lunetten → Utrecht-Noord" / "richting Breda" / "vanaf Gorinchem (richting niet gemeld)".
+ * The coded directions ("oplopende hectometrering") mean nothing to a driver: null instead.
+ */
 export function directionLabel(dir: Direction | undefined, from?: string, to?: string): string | null {
   if (from && to) return `${from} → ${to}`;
-  if (from) return `vanaf ${from}`;
-  if (to) return `tot ${to}`;
-  if (dir) return DIR_LABELS[dir];
+  if (to) return `richting ${to}`;
+  if (from) return `vanaf ${from} (richting niet gemeld)`;
+  if (dir === 'both') return 'beide richtingen';
   return null;
 }
 
 const PROB_LABELS: Record<Probability, string> = {
   certain: 'zeker',
-  probable: 'waarschijnlijk',
-  riskOf: 'kans op',
+  probable: 'Gaat waarschijnlijk door',
+  riskOf: 'Misschien',
 };
 
+/** Only an uncertain item gets a line; "zeker" is what every other melding already is. */
 export function probabilityLabel(p: Probability | undefined): string | null {
   return p ? PROB_LABELS[p] : null;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  published: 'planning',
-  initial: 'planning',
-  alignmentFinished: 'planning',
-  running: 'actuele maatregel',
-  final: 'actuele maatregel',
-  active: 'actuele maatregel',
-};
-
-export function planningStatusLabel(status: string | undefined): string | null {
-  if (!status) return null;
-  return STATUS_LABELS[status] ?? null;
+/**
+ * The readable name of the wegbeheerder: "Rijkswaterstaat West-Nederland Zuid District Zuid"
+ * from "WNZ-Z [RWS West-Nederland Zuid District Zuid]", "Rijkswaterstaat" from a bare "RWS10".
+ */
+export function sourceLabel(src: string | null | undefined): string {
+  const raw = (src ?? '').trim();
+  const bracket = /\[([^\]]+)\]/.exec(raw);
+  const name = (bracket?.[1] ?? raw).trim();
+  if (/^RWS\d*$/i.test(name)) return 'Rijkswaterstaat';
+  if (/^NDW\d*$/i.test(name)) return 'Nationaal Dataportaal Wegverkeer';
+  return name.replace(/^RWS\s+/, 'Rijkswaterstaat ');
 }
 
 const SUB_LABELS: Record<string, string> = {
@@ -289,10 +297,10 @@ const SUB_LABELS: Record<string, string> = {
   speedRestrictionInOperation: 'snelheidsbeperking',
   slowTraffic: 'langzaam rijdend verkeer',
   stationaryTraffic: 'stilstaand verkeer',
-  queueingTraffic: 'filevorming',
+  queueingTraffic: 'file',
   accident: 'ongeval',
-  brokenDownVehicle: 'pechgeval',
-  vehicleObstruction: 'voertuig op de weg',
+  brokenDownVehicle: 'voertuig met pech',
+  vehicleObstruction: 'stilstaand voertuig',
   generalObstruction: 'obstakel op de weg',
   bridgeSwingInOperation: 'brug open',
   festival: 'festival',
@@ -339,31 +347,8 @@ export function plural(n: number, one: string, many: string): string {
 }
 
 /**
- * Honest summary line for a window view ("vandaag", "dit weekend"). `changes` is what starts or
- * ends inside the window, `active` how many of those are already running, and `background` the
- * long-running measures that merely overlap the window — those are counted separately instead of
- * being reported as "nu actief" (which produced 4.763 for one weekend).
- */
-export interface WindowSummaryCounts {
-  changes: number;
-  active: number;
-  background: number;
-}
-
-export function windowSummary(counts: WindowSummaryCounts, windowLabel: string): string {
-  const { changes, active, background } = counts;
-  if (changes === 0 && background === 0) return `Er is nog niets aangemeld voor ${windowLabel}`;
-  const parts: string[] = [];
-  parts.push(changes > 0 ? `${plural(changes, 'melding', 'meldingen')} ${windowLabel}` : `Niets nieuws ${windowLabel}`);
-  if (active > 0) parts.push(`${formatCount(active)} nu al actief`);
-  if (background > 0) parts.push(backgroundPhrase(background));
-  return parts.join(' · ');
-}
-
-/**
- * The tail every window summary ends with: "4.729 langdurige maatregelen lopen al langer".
- * One sentence for the whole site, so /vandaag/, /dit-weekend/, /afsluitingen/ and /files/
- * all name the same thing the same way.
+ * The tail of the closures and files summaries: "4.729 langdurige maatregelen lopen al langer".
+ * One sentence for both pages, so they name the same thing the same way.
  */
 export function backgroundPhrase(n: number): string {
   return n === 1
@@ -371,18 +356,22 @@ export function backgroundPhrase(n: number): string {
     : `${plural(n, 'langdurige maatregel', 'langdurige maatregelen')} lopen al langer`;
 }
 
+/** The merged publisher ids of `ItemDetail.related`, without empty entries. */
+export function relatedIds(related: readonly string[] | undefined): string[] {
+  return (related ?? []).filter((id) => typeof id === 'string' && id.trim() !== '');
+}
+
 /**
  * Explains a merged double publication in the detail view. The pipeline folds the planning
  * object and the actual measure of one roadwork into a single item (`ItemDetail.related`), and
- * the reader has to be able to see that: the ids differ, the work does not.
+ * the reader has to be able to see that, in plain words; the ids go in the small "Melding …"
+ * line, not in this sentence (taal-6).
  */
 export function relatedNote(related: readonly string[] | undefined): string | null {
-  const ids = (related ?? []).filter((id) => typeof id === 'string' && id.trim() !== '');
-  if (ids.length === 0) return null;
-  const list = ids.join(', ');
-  return ids.length === 1
-    ? `Deze melding en de planning van de wegbeheerder (${list}) gaan over dezelfde werkzaamheid en zijn samengevoegd.`
-    : `Deze melding is samengevoegd met ${formatCount(ids.length)} planningsmeldingen (${list}) over dezelfde werkzaamheid.`;
+  const n = relatedIds(related).length;
+  if (n === 0) return null;
+  const times = n === 1 ? 'twee' : n === 2 ? 'drie' : formatCount(n + 1);
+  return `Deze werkzaamheid stond ${times} keer in de gegevens (aankondiging en uitvoering); we tonen ze als één melding.`;
 }
 
 /** Escape text for insertion into innerHTML. */

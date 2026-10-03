@@ -137,9 +137,9 @@ describe('the spoken answer is the card answer', () => {
     }
   });
 
-  it('beyond the horizon the spoken headline is the card\'s "Nog niet bekend"', () => {
+  it('beyond the horizon the spoken headline is the card\'s "nog niets gepubliceerd"', () => {
     const m = { road: 'A1', whenLabel: 'za 21 nov', mode: 'auto', answer: answer('onbekend', answerMod.BEYOND_HORIZON_HEADLINE), total: 4 };
-    assert.equal(answerAnnouncement(m), "A1, voor auto's, za 21 nov: Nog niet bekend.");
+    assert.equal(answerAnnouncement(m), "A1, voor auto's, za 21 nov: Voor deze datum is nog niets gepubliceerd.");
   });
 });
 

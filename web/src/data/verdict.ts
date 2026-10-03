@@ -55,7 +55,7 @@ export const VERDICT_META: Record<VerdictLevel, VerdictMeta> = {
   hinder: { label: 'Doorrijden mogelijk', meaning: 'Je kunt er langs, met minder rijstroken, een lagere snelheid of vertraging.', color: '--v-hinder' },
   geen: { label: 'Geen hinder', meaning: 'De melding heeft geen merkbaar gevolg voor het verkeer.', color: '--v-geen' },
   nvt: { label: 'Geldt niet voor jou', meaning: 'De maatregel geldt alleen voor een ander soort verkeer.', color: '--v-nvt' },
-  onbekend: { label: 'Hinder onbekend', meaning: 'De wegbeheerder heeft niet gemeld wat de maatregel voor je betekent.', color: '--v-onbekend' },
+  onbekend: { label: 'Gevolgen niet gemeld', meaning: 'De wegbeheerder heeft niet gezegd of je erdoor kunt. Ga er niet van uit dat het kan.', color: '--v-onbekend' },
 };
 
 /* --------------------------------- vehicles --------------------------------- */
@@ -71,6 +71,11 @@ const MODE_NOT_FOR: Record<VehicleMode, string> = {
   vracht: 'Geldt niet voor vrachtverkeer',
   fiets: 'Geldt niet voor fietsers',
 };
+
+/** "Geldt niet voor auto's": the pill of an `nvt` item, also used as the heading over those items. */
+export function modeNotFor(mode: VehicleMode): string {
+  return MODE_NOT_FOR[mode];
+}
 
 const VEHICLE_ONLY: Record<Vehicle, string> = {
   car: "alleen auto's",
@@ -224,7 +229,7 @@ function touchesPeriod(periods: readonly Period[], from: number, to: number): bo
 }
 
 /** Wording for a question past the end of what the timeline knows. */
-export const BEYOND_TIMELINE_LABEL = 'Nog niet bekend';
+export const BEYOND_TIMELINE_LABEL = 'Werktijden nog niet bekend';
 
 function beyondTimeline(tlTo: string): Verdict {
   const d = new Date(tlTo);
@@ -260,7 +265,7 @@ function impactVerdict(
     case 'geen':
       return { level: 'geen', label: 'Geen hinder', detail: per };
     default:
-      return { level: 'onbekend', label: 'Hinder onbekend', detail: per };
+      return { level: 'onbekend', label: VERDICT_META.onbekend.label, detail: per };
   }
 }
 
@@ -311,14 +316,14 @@ function join(...parts: (string | undefined)[]): string | undefined {
  * 3. Otherwise `imp` decides; `per` appends the pattern or "op bepaalde tijden".
  *
  * Contract v4, when a moment or a window is asked:
- * 0a. The moment (or the start of the window) lies at or past `tlTo` → `onbekend` "Nog niet
- *     bekend": the list of working times simply stops there, so silence is not "no hindrance".
+ * 0a. The moment (or the start of the window) lies at or past `tlTo` → `onbekend` "Werktijden
+ *     nog niet bekend": the list of working times simply stops there, so silence is not "no hindrance".
  *     The `nvt` check (1) comes first: an item that never concerns the mode stays `nvt`.
  * 0b. A timeline is known → the stretch that covers the moment (or the heaviest one inside the
  *     window) decides, with its own vehicle groups. The measure's overall `imp`/`veh` is the
  *     heaviest phase of all and would paint the Paul Krugerkade "dicht voor iedereen" on a day on
  *     which only the cycle path is closed.
- * 0c. A window that reaches past `tlTo` is never lighter than "Nog niet bekend": the part past
+ * 0c. A window that reaches past `tlTo` is never lighter than `onbekend`: the part past
  *     it may hold the closure.
  */
 export function verdictFor(item: VerdictInput, mode: VehicleMode, d: VerdictDetail = {}): Verdict {

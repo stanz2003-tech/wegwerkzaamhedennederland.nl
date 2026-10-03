@@ -119,13 +119,14 @@ describe('wording helpers', () => {
 });
 
 describe('sentences', () => {
-  it('areaSentence names every number', () => {
+  it('areaSentence names every number, and leaves the hidden ones to the switch line (taal-8)', () => {
     const a = answerFor(readJson('roads/a2.json').items, 'auto', nowMoment, { kind: 'gebied', name: '' });
-    assert.equal(areaSentence(a, 'auto', false), 'In beeld: 1 weg dicht, 1 plek met hinder');
+    assert.equal(areaSentence(a), 'In beeld: 1 weg dicht, 1 plek met hinder');
     const b = answerFor(readJson('roads/a12.json').items, 'auto', nowMoment, { kind: 'gebied', name: '' });
-    assert.equal(areaSentence(b, 'auto', false), "In beeld: 1 plek met hinder, 1 melding geldt niet voor auto's (verborgen)");
-    assert.equal(areaSentence(b, 'auto', true), "In beeld: 1 plek met hinder, 1 melding geldt niet voor auto's (vervaagd)");
-    assert.equal(areaSentence(answerFor([], 'auto', nowMoment, { kind: 'gebied', name: '' }), 'auto', false), 'In beeld: geen meldingen');
+    assert.equal(b.hidden.length, 1, 'the fixture has one item for other traffic');
+    assert.equal(areaSentence(b), 'In beeld: 1 plek met hinder');
+    assert.equal(hiddenSentence(b.hidden, 'auto').endsWith('verborgen'), true, 'said once, under the switch');
+    assert.equal(areaSentence(answerFor([], 'auto', nowMoment, { kind: 'gebied', name: '' })), 'In beeld: geen meldingen');
   });
 
   it('hiddenSentence names who the hidden items are for', () => {
@@ -232,10 +233,10 @@ describe('beyond the horizon (vooruit-5)', () => {
 describe('text filter prefix (zoek-3)', () => {
   it('areaSentence says what it is about', () => {
     const empty = answerFor([], 'auto', nowMoment, { kind: 'gebied', name: '' });
-    assert.equal(areaSentence(empty, 'auto', false, 'Met “x”'), 'Met “x”: geen meldingen');
-    assert.equal(areaSentence(empty, 'auto', false), 'In beeld: geen meldingen');
+    assert.equal(areaSentence(empty, 'Met “x”'), 'Met “x”: geen meldingen');
+    assert.equal(areaSentence(empty), 'In beeld: geen meldingen');
     const a = answerFor(road('a2'), 'auto', nowMoment, { kind: 'gebied', name: '' });
-    assert.equal(areaSentence(a, 'auto', false, 'Met “A2”'), 'Met “A2”: 1 weg dicht, 1 plek met hinder');
+    assert.equal(areaSentence(a, 'Met “A2”'), 'Met “A2”: 1 weg dicht, 1 plek met hinder');
   });
 });
 

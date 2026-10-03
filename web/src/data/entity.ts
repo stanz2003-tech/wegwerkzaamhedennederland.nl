@@ -7,6 +7,7 @@ import { CATEGORY_PRIORITY, compareByImpact, haversineKm, midpointOf, sameRoad, 
 import type { IndexItem } from './index';
 import { MS, toMs } from './time';
 import type { Category, ItemFeature, ItemProperties } from './types';
+import { VERDICT_SEVERITY, type VerdictLevel } from './verdict';
 
 /** Upcoming horizon of the generated pages, matching werk-gepland.geojson. */
 export const UPCOMING_DAYS = 30;
@@ -129,10 +130,12 @@ function startMs(it: IndexItem): number {
 }
 
 /**
- * Impact order for index rows: exactly the order the map list uses (`compareByImpact` in
- * data/filter.ts) — severity dominates, semi-permanent measures are demoted and something that
- * starts or ends soon is promoted. Items the pipeline marked active still come first, because a
- * page that mixes "nu actief" and "gepland" in one list must not bury the current situation.
+ * Impact order for index rows (`compareByImpact` in data/filter.ts): severity dominates,
+ * semi-permanent measures are demoted and something that starts or ends soon is promoted. Items
+ * the pipeline marked active still come first, because a page that mixes "nu actief" and
+ * "gepland" in one list must not bury the current situation. This is NOT the order the reader
+ * sees on its own: the lists put the verdict level first (entity-list.ts `sortByVerdict`, the
+ * map panel in main.ts) and on a road page the position along the road next (`orderAlongRoad`).
  */
 export function compareImpact(a: IndexItem, b: IndexItem, now: number = Date.now()): number {
   if (a.active !== b.active) return a.active ? -1 : 1;
@@ -187,4 +190,61 @@ export function countCategories(items: readonly IndexItem[]): Map<Category, numb
 export function dedupeItems(items: readonly IndexItem[]): IndexItem[] {
   const seen = new Set<string>();
   return items.filter((it) => (seen.has(it.id) ? false : (seen.add(it.id), true)));
+}
+
+/* ------------------------------ along the road ------------------------------ */
+
+/** What ordering along a road reads: the id and the representative point. */
+export interface RoadPoint {
+  id: string;
+  lon: number;
+  lat: number;
+}
+
+/** Rough km per degree; only the ratio of the two bbox sides matters here. */
+const KM_PER_DEG = 111.32;
+
+/**
+ * Position of every item along the road, keyed by id: its point projected on the dominant axis
+ * of the bbox of all items — north to south for a road that runs mainly north–south (the A27),
+ * west to east otherwise. A lower number comes first. Points at 0,0 (no geometry) go last.
+ */
+export function alongRoad(items: readonly RoadPoint[]): Map<string, number> {
+  const placed = items.filter((it) => !(it.lon === 0 && it.lat === 0));
+  const out = new Map<string, number>();
+  if (placed.length === 0) {
+    for (const it of items) out.set(it.id, Number.POSITIVE_INFINITY);
+    return out;
+  }
+  const lons = placed.map((it) => it.lon);
+  const lats = placed.map((it) => it.lat);
+  const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+  const widthKm = (Math.max(...lons) - Math.min(...lons)) * KM_PER_DEG * Math.cos((midLat * Math.PI) / 180);
+  const heightKm = (Math.max(...lats) - Math.min(...lats)) * KM_PER_DEG;
+  const northSouth = heightKm >= widthKm;
+  for (const it of items) {
+    if (it.lon === 0 && it.lat === 0) out.set(it.id, Number.POSITIVE_INFINITY);
+    else out.set(it.id, northSouth ? -it.lat : it.lon);
+  }
+  return out;
+}
+
+/**
+ * Road-page order (overzicht-4): the verdict level first — the same pill the row shows — then
+ * the position along the road, then the direction, so the reader can follow the road from one
+ * end to the other inside each level. Only the order changes; every row keeps its own pill.
+ */
+export function orderAlongRoad<T extends RoadPoint>(
+  items: readonly T[],
+  levelOf: (it: T) => VerdictLevel,
+  directionOf: (it: T) => string = () => '',
+): T[] {
+  const pos = alongRoad(items);
+  const rank = new Map(items.map((it) => [it.id, VERDICT_SEVERITY.indexOf(levelOf(it))]));
+  return [...items].sort(
+    (a, b) =>
+      (rank.get(a.id) ?? VERDICT_SEVERITY.length) - (rank.get(b.id) ?? VERDICT_SEVERITY.length) ||
+      (pos.get(a.id) ?? 0) - (pos.get(b.id) ?? 0) ||
+      directionOf(a).localeCompare(directionOf(b), 'nl'),
+  );
 }

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { badge, filter, format, time } from './helpers/src.mjs';
 
-const { durationLabel, statusLine, windowSummary } = format;
+const { durationLabel, statusLine } = format;
 const { MS, isLongRunning, measureLengthMs, msToNearestChange, timeWindowBounds, timeWindowRange, windowRelevance } = time;
 const { changeBonus, compareByImpact, groupByWindow, impactScore, longRunPenalty, sortItems } = filter;
 
@@ -95,7 +95,8 @@ describe('statusLine wording', () => {
   it('gives the detail timeline the same words as the list line', () => {
     assert.equal(durationLabel({ start: '2026-09-09T06:00:00Z', end: '2026-09-09T18:00:00Z' }, NOW), '12 u');
     assert.equal(durationLabel({ start: '2021-03-01T00:00:00Z', end: '2031-05-31T22:00:00Z' }, NOW), 'langdurige maatregel');
-    assert.equal(durationLabel({ start: '2026-09-09T06:00:00Z' }, NOW), 'einddatum onbekend');
+    // An open end is said once, in the status line; the timeline middle stays empty (taal-7).
+    assert.equal(durationLabel({ start: '2026-09-09T06:00:00Z' }, NOW), '');
   });
 });
 
@@ -197,17 +198,6 @@ describe('window semantics for /vandaag/ and /dit-weekend/', () => {
     const groups = groupByWindow(items, 'weekend', SAT);
     assert.deepEqual(groups.changes.map((i) => i.id), ['weekend']);
     assert.deepEqual(groups.background.map((i) => i.id), ['permanent']);
-  });
-
-  it('explains the numbers in Dutch', () => {
-    assert.equal(
-      windowSummary({ changes: 34, active: 12, background: 4729 }, 'dit weekend'),
-      '34 meldingen dit weekend · 12 nu al actief · 4.729 langdurige maatregelen lopen al langer',
-    );
-    assert.equal(
-      windowSummary({ changes: 0, active: 0, background: 0 }, 'dit weekend'),
-      'Er is nog niets aangemeld voor dit weekend',
-    );
   });
 });
 

@@ -2,20 +2,22 @@
  * The two answer surfaces of the map panel, moved out of main.ts so the panel can grow (place
  * mode, "per dag vooruitkijken") without main.ts growing with it:
  *   - the answer card in road mode ("Kan ik over de A27?"),
- *   - the one verdict sentence above the list outside road mode ("In beeld: 3 wegen dicht, …").
+ *   - the line above the list outside road mode: "Zoek je weg of plaats voor een antwoord", or
+ *     with a text filter the verdict sentence for the matches ("Met “Almkerk”: 1 plek dicht").
  *
  * Both take the part of the URL state they need, the items and `now`, and write into the
  * elements they are given; they hold no state of their own. Both return the sentence a screen
  * reader should hear when the user changed the question (main.ts passes it to ui/announce.ts
  * after a user action only).
  */
-import { answerFor, areaSentence, hiddenSentence } from '../data/answer';
+import { answerFor, areaSentence, hiddenSentence, type Answer } from '../data/answer';
 import type { ForecastItem, When } from '../data/forecast';
 import { horizonMs } from '../data/horizon';
 import { TIME_WINDOWS, timeWindowRange } from '../data/time';
 import type { ItemFeature } from '../data/types';
 import type { UrlState } from '../data/url-state';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
+import { SEARCH_PROMPT } from './copy';
 import { fmtDayTime, plural } from './format';
 
 /** The part of the URL state the panel answer reads. */
@@ -76,6 +78,8 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
     mode: q.mode,
     answer,
     total: roadItems.length,
+    // The panel says how many items the relevance switch hides under the switch itself.
+    hiddenNote: false,
     ...(opts.dataAsOf ? { dataAsOf: opts.dataAsOf } : {}),
   };
   els.answer.innerHTML = renderAnswerCard(model);
@@ -86,9 +90,13 @@ export function renderRoadAnswer(els: PanelAnswerEls, q: PanelQuestion, roadItem
 /**
  * The sentence above the list and the "N meldingen … verborgen" button. With a text filter the
  * list is every match in the country, not the viewport, so the sentence says `Met “Almkerk”:`.
- * Returns the sentence and how many items the relevance switch hides (for the filters summary,
- * ui/panel-layout.ts). That the list stops at its first 800 rows is said under the list itself
- * (ui/list.ts), not in a `title` that touch and screen-reader users never get (toeg-11).
+ * Without one there is no count sentence ("In beeld: 2604 plekken dicht, …" answered nothing,
+ * overzicht-5): the panel asks for a road or place, and main.ts adds the closed motorways at
+ * national zoom (ui/closed-roads.ts) from the `answer` returned here.
+ * Returns the sentence, how many items the relevance switch hides (for the filters summary,
+ * ui/panel-layout.ts) and the answer for the view. That the list stops at its first 800 rows is
+ * said under the list itself (ui/list.ts), not in a `title` that touch and screen-reader users
+ * never get (toeg-11).
  */
 export function renderPanelSummary(
   els: PanelAnswerEls,
@@ -97,19 +105,22 @@ export function renderPanelSummary(
   now: number,
   counts: { total: number },
   hideNvt: boolean,
-): { text: string; hidden: number } {
+): { text: string; hidden: number; answer: Answer } {
   const answer = answerFor(asForecast(inView), q.mode, whenOf(q, now), { kind: 'gebied', name: '' }, now, horizonMs());
-  const prefix = q.query ? `Met “${q.query}”` : 'In beeld';
-  const text = q.road ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}` : areaSentence(answer, q.mode, !hideNvt, prefix);
+  const text = q.road
+    ? `${plural(counts.total, 'melding', 'meldingen')} op de ${q.road} · ${whenLabelOf(q)}`
+    : q.query
+      ? areaSentence(answer, `Met “${q.query}”`)
+      : SEARCH_PROMPT;
   els.summary.textContent = text;
   els.summary.removeAttribute('title');
   const hidden = hideNvt ? answer.hidden.length : 0;
   if (hidden > 0) {
     els.hiddenBtn.hidden = false;
     els.hiddenBtn.textContent = hiddenSentence(answer.hidden, q.mode);
-    els.hiddenBtn.title = 'Toon deze meldingen toch (vervaagd op de kaart)';
+    els.hiddenBtn.title = 'Toon deze meldingen toch (lichter op de kaart)';
   } else {
     els.hiddenBtn.hidden = true;
   }
-  return { text, hidden };
+  return { text, hidden, answer };
 }

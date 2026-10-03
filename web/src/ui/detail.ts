@@ -22,15 +22,17 @@ import {
   fmtPeriodMs,
   hindLabel,
   lanesLabel,
-  planningStatusLabel,
   probabilityLabel,
   queueLabel,
+  relatedIds,
   relatedNote,
+  sourceLabel,
   statusLine,
   subLabel,
   vehiclesLabel,
   whenLabel,
 } from './format';
+import { NO_DESCRIPTION } from './copy';
 import { ICONS } from './icons';
 import { renderVerdictBanner } from './verdict-pill';
 
@@ -82,9 +84,11 @@ function impactRows(p: ItemProperties, d: ItemDetail | null): Row[] {
     push(ICONS.truck, 'Geldt voor', vehiclesLabel(p.veh));
   }
   push(ICONS.triangleAlert, 'Hinder', hindLabel(p.hind));
-  const status = planningStatusLabel(d?.status);
-  const prob = probabilityLabel(p.prob);
-  push(ICONS.info, 'Status', [status, prob && prob !== 'zeker' ? prob : null].filter(Boolean).join(' · ') || null);
+  // No "Status: planning" row: the status line already says "Nu actief" or "Start …", and the
+  // publisher's planning status contradicted it for works that run right now (taal-6). Only an
+  // uncertain melding says so.
+  const prob = p.prob && p.prob !== 'certain' ? probabilityLabel(p.prob) : null;
+  push(ICONS.info, 'Zekerheid', prob);
   return rows;
 }
 
@@ -103,15 +107,15 @@ function timeline(p: ItemProperties, now: number): string {
   // The year is part of the label when it is not the current one: a measure that runs from
   // 2023 to 2028 must not print two bare "31 mei" style dates.
   const startLabel = fmtDayTimeYear(start, now);
-  const endLabel = open ? 'einddatum onbekend' : fmtDayTimeYear(end, now);
-  return `<div class="timeline timeline--${state}" role="img" aria-label="Periode van ${esc(startLabel)} tot ${esc(open ? 'onbekend' : endLabel)}">
+  const endLabel = open ? '–' : fmtDayTimeYear(end, now);
+  return `<div class="timeline timeline--${state}" role="img" aria-label="Periode vanaf ${esc(startLabel)}${open ? ', einde niet opgegeven' : ` tot ${esc(endLabel)}`}">
       <div class="timeline__bar"><span class="timeline__elapsed" style="width:${nowPct}%"></span>
         ${state === 'active' ? `<span class="timeline__now" style="left:${nowPct}%"><span>NU</span></span>` : ''}
       </div>
       <div class="timeline__labels">
         <span><span class="timeline__k">Start</span><time datetime="${esc(p.start)}">${esc(startLabel)}</time></span>
         <span class="timeline__dur">${esc(duration)}</span>
-        <span><span class="timeline__k">Einde</span>${open ? '<span>onbekend</span>' : `<time datetime="${esc(p.end ?? '')}">${esc(endLabel)}</time>`}</span>
+        <span><span class="timeline__k">Einde</span>${open ? '<span>–</span>' : `<time datetime="${esc(p.end ?? '')}">${esc(endLabel)}</time>`}</span>
       </div>
     </div>`;
 }
@@ -188,6 +192,12 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   // The pipeline folds the planning object and the actual measure of one roadwork into a single
   // item; say so, otherwise the reader cannot tell why one id covers two publications.
   const merged = relatedNote(d?.related);
+  const mergedIds = relatedIds(d?.related);
+  // An "overig" melding without a sub type or a description said only "OVERIG"; say that the
+  // wegbeheerder gave no explanation instead of leaving the reader to guess (taal-7).
+  const noDescription = d !== null && !desc && p.cat === 'overig' && !subLabel(p.sub);
+  // An open end is said once, in the status line under the title (taal-7).
+  const bannerWhen = Number.isFinite(itemInterval(p).end) ? [whenLabel(p, now)] : [];
 
   const links: string[] = [];
   if (d?.url) links.push(`<a class="btn btn--link" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${ICONS.externalLink}<span>Meer info bij wegbeheerder</span></a>`);
@@ -208,7 +218,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
         <button type="button" class="btn btn--ghost detail__back" data-back>${ICONS.arrowLeft}<span>Terug</span></button>
         <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Link kopiëren">${ICONS.share2}<span>Deel</span></button>
       </div>
-      ${renderVerdictBanner(verdict, [whenLabel(p, now)])}
+      ${renderVerdictBanner(verdict, bannerWhen)}
       ${
         detourText
           ? `<div class="detail__detour">${ICONS.signpost}<div><strong>Omleiding</strong><p>${esc(detourText)}</p></div></div>`
@@ -241,7 +251,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
           ? `<dl class="impact">${rows.map((r) => `<div class="impact__row">${r.icon}<dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`
           : ''
       }
-      ${desc ? `<section class="detail__section"><h3 class="detail__h">Toelichting</h3><p class="detail__desc">${esc(desc)}</p></section>` : ''}
+      ${desc || noDescription ? `<section class="detail__section"><h3 class="detail__h">Toelichting</h3><p class="detail__desc">${esc(desc || NO_DESCRIPTION)}</p></section>` : ''}
       ${d ? periodsBlock(d, now) : ''}
       <div class="detail__actions">
         ${detourUrl ? `<a class="btn btn--primary" href="${esc(detourUrl)}" target="_blank" rel="noopener noreferrer" data-gmaps-detour>${ICONS.signpost}<span>Omleiding in Google Maps</span></a>` : ''}
@@ -250,8 +260,8 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
       </div>
       ${detourUrl ? `<p class="detail__gmaps-note">${esc(GMAPS_DETOUR_NOTE)}</p>` : ''}
       <footer class="detail__source">
-        <p>Bron: <strong>${esc(d?.src ?? p.src)}</strong>${d?.upd ? ` · bijgewerkt <time datetime="${esc(d.upd)}">${esc(fmtDayTime(toMs(d.upd)))}</time>` : ''}</p>
-        <p class="detail__id">Melding ${esc(p.id)}</p>
+        <p>Bron: <strong>${esc(sourceLabel(d?.src ?? p.src))}</strong>${d?.upd ? ` · bijgewerkt <time datetime="${esc(d.upd)}">${esc(fmtDayTimeYear(toMs(d.upd), now))}</time>` : ''}</p>
+        <p class="detail__id">Melding ${esc(p.id)}${mergedIds.length ? ` (ook ${esc(mergedIds.join(', '))})` : ''}</p>
         ${merged ? `<p class="detail__merged">${esc(merged)}</p>` : ''}
       </footer>
     </article>`;

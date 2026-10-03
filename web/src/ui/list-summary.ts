@@ -7,11 +7,16 @@
  * two halves. `changes` are the measures that start, end or have a sub-period inside the window
  * — the news. `background` are the semi-permanent measures (longer than 90 days) that were
  * already there before the window and are still there after it. Reporting them together is what
- * made /dit-weekend/ claim 4.544 meldingen "nu actief" for a weekend, so they are counted, named
- * and shown separately.
+ * made /dit-weekend/ claim 4.544 meldingen "nu actief" for a weekend, so they are shown
+ * separately. /vandaag/ and /dit-weekend/ no longer count at all ("1.727 meldingen dit weekend ·
+ * 1.129 nu al actief · 3.906 langdurige …" told a driver nothing, taal-11): their line says what
+ * the list is, and the list leads with the closures, motorways first (overzicht-12).
  */
+import type { RoadType } from '../data/types';
 import type { TimeWindowId } from '../data/time';
-import { backgroundPhrase, formatCount, plural, windowSummary } from './format';
+import { VERDICT_SEVERITY, type VerdictLevel } from '../data/verdict';
+import { windowListIntro } from './copy';
+import { backgroundPhrase, formatCount, plural } from './format';
 
 export type DataList = 'afsluitingen' | 'files' | 'vandaag' | 'weekend';
 
@@ -66,8 +71,8 @@ export const LIST_TITLES: Record<DataList, ListTitles> = {
     backgroundNote: 'Deze maatregelen liepen vandaag al voor het eerste uur en lopen morgen door.',
   },
   weekend: {
-    active: 'Nu actief',
-    upcoming: 'Dit weekend gepland',
+    active: 'Loopt al en duurt dit weekend door',
+    upcoming: 'Begint dit weekend',
     backgroundNote: 'Deze maatregelen liepen al voor vrijdagavond 20:00 en lopen na maandagochtend 06:00 door.',
   },
 };
@@ -87,9 +92,15 @@ function filesSummary({ active, background }: ListCounts): string {
   return parts.join(' · ');
 }
 
+/** "Hieronder wat dit weekend dicht of beperkt is, …", or that nothing has been announced yet. */
+function windowLine({ changes, background }: ListCounts, label: string): string {
+  if (changes === 0 && background === 0) return `Er is nog niets aangemeld voor ${label}`;
+  return windowListIntro(label);
+}
+
 /**
- * The one line under the heading. It names every number it prints, so "34 meldingen dit weekend"
- * can never again be read as "34 things are happening right now".
+ * The one line under the heading. The closures and files pages name every number they print, so
+ * "34 afsluitingen" can never be read as something else; the window pages print no numbers.
  */
 export function listSummary(id: DataList, counts: ListCounts): string {
   switch (id) {
@@ -98,8 +109,48 @@ export function listSummary(id: DataList, counts: ListCounts): string {
     case 'files':
       return filesSummary(counts);
     case 'vandaag':
-      return windowSummary(counts, 'vandaag');
+      return windowLine(counts, 'vandaag');
     case 'weekend':
-      return windowSummary(counts, 'dit weekend');
+      return windowLine(counts, 'dit weekend');
   }
+}
+
+/** Title of the motorway block on the window pages. */
+export const MOTORWAY_TITLES: Partial<Record<DataList, { title: string; whole: string }>> = {
+  vandaag: { title: 'Snelwegen vandaag', whole: 'de hele dag' },
+  weekend: { title: 'Snelwegen dit weekend', whole: 'het hele weekend' },
+};
+
+/** A > E > N > S > local: the bigger the road, the more readers it concerns. */
+const ROAD_RANK: Record<RoadType, number> = { A: 0, E: 1, N: 2, S: 3, lokaal: 4 };
+
+function roadRank(t: RoadType | null): number {
+  return t ? ROAD_RANK[t] : ROAD_RANK.lokaal;
+}
+
+/**
+ * Order of the window pages: the closures first ("Weg dicht" and "Rijbaan dicht" together, so a
+ * closed motorway is not pushed below a hundred closed side streets), then every lighter level in
+ * severity order; inside each, the bigger road first, then the heavier level, then the start.
+ * Only the order changes: every row keeps the pill `levelOf` gives it.
+ */
+export function windowOrder<T extends { id: string; roadType: RoadType | null; start: string }>(
+  items: readonly T[],
+  levelOf: (it: T) => VerdictLevel,
+): T[] {
+  const level = new Map(items.map((it) => [it.id, VERDICT_SEVERITY.indexOf(levelOf(it))]));
+  const closedRank = VERDICT_SEVERITY.indexOf('rijbaan');
+  const tier = (it: T): number => Math.max(level.get(it.id) ?? VERDICT_SEVERITY.length, closedRank);
+  const start = (it: T): number => {
+    const ms = Date.parse(it.start);
+    return Number.isNaN(ms) ? Number.POSITIVE_INFINITY : ms;
+  };
+  return [...items].sort(
+    (a, b) =>
+      tier(a) - tier(b) ||
+      roadRank(a.roadType) - roadRank(b.roadType) ||
+      (level.get(a.id) ?? 0) - (level.get(b.id) ?? 0) ||
+      start(a) - start(b) ||
+      a.id.localeCompare(b.id),
+  );
 }

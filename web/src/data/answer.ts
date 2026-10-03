@@ -10,7 +10,7 @@
  * Pure; unit-tested in web/test/answer.test.mjs with the fixture roads.
  */
 import { selectWhen, type AnsweredItem, type ForecastItem, type When } from './forecast';
-import { countLevels, modeNoun, type VehicleMode, type VerdictLevel } from './verdict';
+import { VERDICT_META, countLevels, type VehicleMode, type VerdictLevel } from './verdict';
 
 export interface AnswerSubject {
   kind: 'road' | 'gemeente' | 'woonplaats' | 'gebied';
@@ -61,7 +61,7 @@ function askedFrom(when: When): number {
  * "Geen hinder gemeld", in the same confident wording it uses for a genuinely quiet road, while
  * 1.765 closures for that period simply were not in its files.
  */
-export const BEYOND_HORIZON_HEADLINE = 'Nog niet bekend';
+export const BEYOND_HORIZON_HEADLINE = 'Voor deze datum is nog niets gepubliceerd';
 
 const HORIZON_DATE_FMT = new Intl.DateTimeFormat('nl-NL', { day: 'numeric', month: 'long', timeZone: 'Europe/Amsterdam' });
 
@@ -167,7 +167,7 @@ function headlineFor(sel: AnsweredItem[], worst: VerdictLevel | null, subject: A
   }
   if (worst === 'hinder') return 'Doorrijden mogelijk';
   if (worst === 'geen') return 'Geen hinder';
-  return 'Hinder onbekend';
+  return VERDICT_META.onbekend.label;
 }
 
 /** Both directions of one closure produce the same line; say it once. */
@@ -226,14 +226,14 @@ function n(count: number, one: string, many: string): string {
 }
 
 /**
- * The summary line of the map panel outside road mode — a verdict sentence, never a bare count:
- * "In beeld: 3 wegen dicht, 12 plekken met hinder, 40 meldingen gelden niet voor auto's (verborgen)".
+ * The verdict sentence for a text filter ("Met “Almkerk”: 1 plek dicht, 2 plekken met hinder"):
+ * the list is then every match in the country, so the sentence names what was matched. Outside
+ * a text filter the panel asks for a road or place instead (ui/copy.ts SEARCH_PROMPT).
  *
- * @param prefix  What the sentence is about. "In beeld" for the viewport; with a text filter the
- *                list is no longer the viewport, so the caller passes `Met “Almkerk”` instead —
- *                "In beeld: geen meldingen" for a typo read as "the road is free".
+ * Hidden items are not mentioned here: the line under the relevance switch says that once
+ * (`hiddenSentence`), and two sentences about the same items read as twice as many (taal-8).
  */
-export function areaSentence(a: Answer, mode: VehicleMode, hiddenVisible: boolean, prefix = 'In beeld'): string {
+export function areaSentence(a: Answer, prefix = 'In beeld'): string {
   const parts: string[] = [];
   const closed = a.counts.dicht + a.counts.rijbaan;
   if (closed > 0) {
@@ -242,10 +242,7 @@ export function areaSentence(a: Answer, mode: VehicleMode, hiddenVisible: boolea
   }
   if (a.counts.hinder > 0) parts.push(n(a.counts.hinder, 'plek met hinder', 'plekken met hinder'));
   if (a.counts.geen > 0) parts.push(n(a.counts.geen, 'melding zonder hinder', 'meldingen zonder hinder'));
-  if (a.counts.onbekend > 0) parts.push(n(a.counts.onbekend, 'melding met onbekende hinder', 'meldingen met onbekende hinder'));
-  if (a.hidden.length > 0) {
-    parts.push(`${n(a.hidden.length, 'melding geldt', 'meldingen gelden')} niet voor ${modeNoun(mode)} (${hiddenVisible ? 'vervaagd' : 'verborgen'})`);
-  }
+  if (a.counts.onbekend > 0) parts.push(n(a.counts.onbekend, 'melding zonder gemelde gevolgen', 'meldingen zonder gemelde gevolgen'));
   if (parts.length === 0) return `${prefix}: geen meldingen`;
   return `${prefix}: ${parts.join(', ')}`;
 }

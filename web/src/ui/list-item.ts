@@ -1,17 +1,18 @@
 /**
  * Shared list-item component: used as <button> in the app panel and as <a href="/?id=…"> on the
- * generated pages. Verdict-first:
- *   line 1  verdict pill + specifics ("Doorrijden mogelijk · 1 rijstrook dicht · tot 10 min")
- *   line 2  road badge + place/section + when ("nog 2 u 15 min" / "start za 13 sep 22:00")
- *   line 3  (muted) category icon + label + wegbeheerder
+ * generated pages. Verdict-first, two lines so a list of dozens can be scanned (overzicht-8):
+ *   line 1  verdict pill + road badge + section ("Rijbaan dicht [A27] Lunetten → Nieuwegein · Houten")
+ *   line 2  category icon (named for screen readers) + when + "richting X" + the verdict detail
+ *           ("nog 2 u 15 min · richting Utrecht · 1 rijstrook dicht · max 70 km/u")
+ * The wegbeheerder is in the detail only; the category no longer repeats the pill in words.
  */
 import type { IndexItem } from '../data/index';
-import type { Category, Hindrance, Impact, ItemProperties, RoadType, Vehicle } from '../data/types';
+import { midpointOf } from '../data/filter';
+import type { Category, Hindrance, Impact, ItemFeature, ItemProperties, RoadType, Vehicle } from '../data/types';
 import { cleanVehicles, isImpact, verdictFor, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
-import { isLongRunning } from '../data/time';
-import { LONG_RUNNING_TAG, esc, statusLine, subLabel, whenLabel } from './format';
+import { esc, statusLine, subLabel, whenLabel } from './format';
 import { renderVerdictPill } from './verdict-pill';
 
 export interface ListItemModel {
@@ -35,6 +36,8 @@ export interface ListItemModel {
   per: boolean;
   spd: number | null;
   lc: number | null;
+  /** Representative point [lon, lat] when known: lets the list fold one street's parts (ui/list-group.ts). */
+  pos?: readonly [number, number] | null;
 }
 
 export function modelFromProps(p: ItemProperties): ListItemModel {
@@ -82,7 +85,13 @@ export function modelFromIndexItem(it: IndexItem): ListItemModel {
     per: it.per,
     spd: it.spd,
     lc: it.lc,
+    pos: it.lon === 0 && it.lat === 0 ? null : [it.lon, it.lat],
   };
+}
+
+/** The model of a map feature, with the midpoint of its geometry as its position. */
+export function modelFromFeature(f: ItemFeature): ListItemModel {
+  return { ...modelFromProps(f.properties), pos: midpointOf(f.geometry) };
 }
 
 export interface ListItemOptions {
@@ -105,6 +114,10 @@ export interface ListItemOptions {
   /** Contract v4 timeline and its horizon, when the caller has the detail. */
   tl?: unknown;
   tlTo?: string;
+  /** Replaces the when text (a grouped row lists the dates of its members, ui/list-group.ts). */
+  whenText?: string;
+  /** A short extra on line 2 ("3 delen van deze straat"). */
+  note?: string;
 }
 
 /** Place shown next to the section: woonplaats when it adds information beyond the title, else gemeente. */
@@ -138,6 +151,21 @@ export function listItemVerdict(m: ListItemModel, now: number, opts: ListItemOpt
   });
 }
 
+/** "Afsluiting · rijbaan afgesloten": what the category icon stands for, for its title and screen readers. */
+export function categoryName(m: Pick<ListItemModel, 'cat' | 'sub'>): string {
+  const label = CATEGORY_META[m.cat].label;
+  const sub = subLabel(m.sub);
+  if (!sub) return label;
+  return m.cat === 'file' || m.cat === 'incident' ? sub.charAt(0).toUpperCase() + sub.slice(1) : `${label} · ${sub}`;
+}
+
+/** "richting Utrecht" when the detail names a direction that neither the section nor the verdict already says. */
+function directionText(verdict: Verdict, opts: ListItemOptions): string | null {
+  if (!opts.to || opts.from) return null;
+  const text = `richting ${opts.to}`;
+  return (verdict.detail ?? '').includes(text) ? null : text;
+}
+
 export function renderListItem(m: ListItemModel, now: number, opts: ListItemOptions = {}): string {
   const meta = CATEGORY_META[m.cat];
   const span = { start: m.start, end: m.end };
@@ -149,12 +177,15 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
   else where.push(sectionOf(m));
   const place = placeTag(m);
   if (place && !where.join(' ').toLowerCase().includes(place.toLowerCase())) where.push(place);
+  const whereText = where.join(' · ');
 
-  const line3: string[] = [];
-  const sub = subLabel(m.sub);
-  line3.push(esc(sub && m.cat !== 'file' && m.cat !== 'incident' ? `${meta.label} · ${sub}` : (sub ?? meta.label)));
-  if (m.src) line3.push(esc(m.src));
-  if (isLongRunning(span, now)) line3.push(`<span class="tag tag--long" title="Deze maatregel loopt langer dan 90 dagen">${LONG_RUNNING_TAG}</span>`);
+  const sep = ' <span aria-hidden="true">·</span> ';
+  const line2: string[] = [`<span class="item__when item__when--${status.kind}">${esc(opts.whenText ?? whenLabel(span, now))}</span>`];
+  const dir = directionText(verdict, opts);
+  if (dir) line2.push(`<span>${esc(dir)}</span>`);
+  if (verdict.detail) line2.push(`<span class="item__verdict-detail">${esc(verdict.detail)}</span>`);
+  if (opts.note) line2.push(`<span class="item__note">${esc(opts.note)}</span>`);
+  const cat = categoryName(m);
 
   const tag = opts.href ? 'a' : 'button';
   // A row opens the details; it is not a toggle, so no aria-pressed ("schakelknop, niet
@@ -166,9 +197,8 @@ export function renderListItem(m: ListItemModel, now: number, opts: ListItemOpti
     : roadBadge(null, m.roadType, { size: 'sm', place: m.woonplaats ?? m.gemeente });
   return `<${tag} class="item${opts.selected ? ' is-selected' : ''}" data-id="${esc(m.id)}" data-cat="${m.cat}" data-verdict="${verdict.level}" ${attrs}${style}>
     <span class="item__body">
-      <span class="item__verdict">${renderVerdictPill(verdict, { size: 'sm' })}${verdict.detail ? `<span class="item__verdict-detail">${esc(verdict.detail)}</span>` : ''}</span>
-      <span class="item__where">${badge}<span class="item__title">${esc(where.join(' · '))}</span><span class="item__when item__when--${status.kind}">${esc(whenLabel(span, now))}</span></span>
-      <span class="item__meta">${meta.icon}<span>${line3.join(' <span aria-hidden="true">·</span> ')}</span></span>
+      <span class="item__where">${renderVerdictPill(verdict, { size: 'sm' })}${badge}<span class="item__title" title="${esc(whereText)}">${esc(whereText)}</span></span>
+      <span class="item__meta"><span class="item__cat" title="${esc(cat)}">${meta.icon}<span class="sr-only">${esc(cat)}</span></span><span class="item__facts">${line2.join(sep)}</span></span>
     </span>
     <span class="item__chevron" aria-hidden="true"></span>
   </${tag}>`;

@@ -930,11 +930,26 @@
   padding-left: var(--s-4);
 }
 
+/* Two lines per row (overzicht-8). Line 1: pill, badge and section, one line; a long section
+   ends in an ellipsis (the full text is in the row's name and in the detail). */
 .item__where {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
+  gap: 6px;
+  min-width: 0;
+}
+
+.item__where .vpill { flex: none; }
+.item__where .item__badge,
+.item__where > .badge { flex: none; }
+
+.item__where .item__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: var(--text-sm);
 }
 
 .item__badge {
@@ -958,17 +973,79 @@
 .item__when--active { color: var(--text-2); font-weight: 600; }
 .item__when--past { color: var(--text-3); }
 
+/* Line 2: category icon, when, direction and the verdict detail, in the secondary text colour.
+   Colour belongs to the pill alone; a green "nog 5 u" next to a red pill read as "in orde". */
 .item__meta {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: baseline;
   gap: 6px;
-  font-size: var(--text-xs);
-  color: var(--text-3);
-  line-height: 1.3;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+  line-height: 1.35;
 }
 
-.item__meta > svg { width: 14px; height: 14px; color: var(--text-3); flex: none; }
-.item__meta .tag--long { margin-left: 2px; }
+.item__cat {
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  color: var(--text-3);
+}
+
+.item__cat > svg { width: 14px; height: 14px; }
+
+.item__facts {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.item__note { font-weight: 600; color: var(--text); }
+
+/* ------------------------------------------------------------------ folded rows */
+/* A series or a street in parts (ui/list-group.ts): the lead row, then a disclosure with every
+   member as its own row. The summary is a full-width 44 px target under the row. */
+.item-group { border-bottom: 1px solid var(--border); }
+.item-group > .item { border-bottom: 0; }
+
+.item-group__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-height: var(--touch);
+  padding: 0 var(--s-3) 0 var(--s-4);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.item-group__toggle::-webkit-details-marker { display: none; }
+
+.item-group__toggle::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  margin-top: -3px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: rotate(45deg);
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.item-group__more[open] > .item-group__toggle::after { transform: rotate(-135deg); margin-top: 3px; }
+.item-group__toggle:hover { background: var(--surface-2); }
+.item-group__toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+.item-group__members {
+  margin-left: var(--s-4);
+  border-left: 2px solid var(--border);
+}
+
+.item-group__members .item:last-child { border-bottom: 0; }
 /* "Alleen de A27 bekijken": the keyboard- and screen-reader route to road mode (toeg-13). */
 .detail__road { justify-self: start; min-height: var(--touch); gap: var(--s-2); }
 .detail__road-badge { display: inline-flex; }
@@ -1042,20 +1119,10 @@
 
 .vpill--nvt { border-style: dashed; }
 
-/* List row: pill + specifics on the first line. */
-.item__verdict {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-bottom: 2px;
-}
-
+/* The verdict detail on line 2 ("1 rijstrook dicht · max 70 km/u") reads in full colour. */
 .item__verdict-detail {
-  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text);
-  overflow-wrap: break-word;
 }
 
 .item[data-verdict='nvt'] .item__verdict-detail,

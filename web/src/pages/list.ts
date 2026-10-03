@@ -17,19 +17,22 @@ import { compareImpact, compareStart, dedupeItems, roadKey } from '../data/entit
 import { groupByWindow, normalizeText } from '../data/filter';
 import { indexItemFromRow, loadIndexAll, rowsToItems, type IndexItem } from '../data/index';
 import { isIndexRow, loadBridges, loadLive } from '../data/load';
-import { MEDIUM_RUN_MS, toMs } from '../data/time';
+import { MEDIUM_RUN_MS, timeWindowBounds, toMs } from '../data/time';
 import { slugify, type BridgeEntry } from '../data/types';
 import type { VerdictLevel } from '../data/verdict';
-import { renderEntityList, renderEntityNotice, renderEntitySkeleton, type EntitySection } from '../ui/entity-list';
+import { renderEntityList, renderEntityNotice, renderEntitySkeleton, rowVerdict, type EntitySection } from '../ui/entity-list';
 import { esc, fmtDayTime, formatCount, plural } from '../ui/format';
 import {
   BACKGROUND_TITLE,
   LIST_TITLES,
   LIST_WINDOW,
+  MOTORWAY_TITLES,
   listSummary,
+  windowOrder,
   type DataList,
   type ListCounts,
 } from '../ui/list-summary';
+import { motorwayLines, renderMotorwayBlock } from '../ui/motorway-block';
 import { bodyAttr, bootPage, setEmptyVisible, setText, stampUpdated } from '../ui/page-boot';
 import { roadStateHtml, worstActiveByKey } from '../ui/road-state';
 
@@ -143,6 +146,12 @@ async function renderDataList(id: DataList): Promise<void> {
   const active = groups.changes.filter((it) => it.active).sort((a, b) => compareImpact(a, b, now));
   const upcoming = groups.changes.filter((it) => !it.active).sort(compareStart);
   const background = [...groups.background].sort((a, b) => compareImpact(a, b, now));
+  // Today and the weekend lead with the closures, motorways first, as their intro promises
+  // (overzicht-12); the pill each row shows decides, so the order can never disagree with it.
+  const motorway = MOTORWAY_TITLES[id];
+  const levelOf = (it: IndexItem): VerdictLevel => rowVerdict(it, now).level;
+  const activeRows = motorway ? windowOrder(active, levelOf) : active;
+  const upcomingRows = motorway ? windowOrder(upcoming, levelOf) : upcoming;
 
   const counts: ListCounts = {
     changes: groups.changes.length,
@@ -155,10 +164,14 @@ async function renderDataList(id: DataList): Promise<void> {
   setEmptyVisible('list-empty', counts.changes === 0 && counts.background === 0);
 
   if (!itemsEl) return;
-  const sections: EntitySection[] = [{ title: titles.active, items: active }];
-  if (titles.upcoming) sections.push({ title: titles.upcoming, items: upcoming });
+  const sections: EntitySection[] = [{ title: titles.active, items: activeRows }];
+  if (titles.upcoming) sections.push({ title: titles.upcoming, items: upcomingRows });
   sections.push({ title: BACKGROUND_TITLE, items: background, collapsed: true, note: titles.backgroundNote });
   renderEntityList(itemsEl, sections, now, { linkQuery: id === 'files' ? 'cat=file' : undefined });
+  if (motorway) {
+    const lines = motorwayLines([...activeRows, ...upcomingRows, ...background], levelOf, timeWindowBounds(LIST_WINDOW[id], now), motorway.whole);
+    itemsEl.insertAdjacentHTML('afterbegin', renderMotorwayBlock(motorway.title, lines));
+  }
 }
 
 /* ----------------------------- pre-rendered lists ---------------------------- */

@@ -1,26 +1,21 @@
 /**
  * Page-level helpers of the map page (/), moved out of main.ts so that file stays about the
- * one question and its state: the counters of the text section, the data-failure notice over the
+ * one question and its state: the "Bijgewerkt om" line, the data-failure notice over the
  * map, the "Uitleg ↓" links and copying the link of an open melding.
  */
 import { toMs } from '../data/time';
 import type { Meta } from '../data/types';
-import { esc, fmtTime, formatCount, plural } from './format';
+import { esc, fmtTime } from './format';
 import { ICONS } from './icons';
 import { showToast } from './toast';
 
-/** "Op dit moment": the counts per category and the "Bijgewerkt om" line under the map. */
-export function renderHomeCounts(m: Meta): void {
-  let total = 0;
-  for (const [cat, n] of Object.entries(m.counts)) {
-    total += n;
-    const node = document.querySelector<HTMLElement>(`[data-home-count="${cat}"]`);
-    if (node) node.textContent = formatCount(n);
-  }
+/**
+ * "Bijgewerkt om 14:20" under the map. The count tiles ("Werkzaamheden 2.177") are gone: they
+ * clashed with the numbers for the chosen moment and answered nothing (overzicht-5, taal-11).
+ */
+export function renderUpdatedLine(m: Meta): void {
   const updated = document.querySelector<HTMLElement>('[data-home-updated]');
-  if (updated) {
-    updated.textContent = `Bijgewerkt om ${fmtTime(toMs(m.generated))} · ${plural(total, 'actieve melding', 'actieve meldingen')} in Nederland.`;
-  }
+  if (updated) updated.textContent = `Bijgewerkt om ${fmtTime(toMs(m.generated))}.`;
 }
 
 /** The notice over the map when the data could not be loaded, with a retry button. */

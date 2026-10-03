@@ -9,11 +9,16 @@
  *
  * Focus moves never scroll by themselves (`preventScroll`): inside the clipped bottom sheet the
  * browser scrolled the whole page to reach the row (mobiel-2). `reveal` scrolls the panel.
+ *
+ * Rows that say the same thing (a nightly series, one street in parts) are folded into one row
+ * with an expandable list of its members (ui/list-group.ts); batches count those folded rows.
  */
 import type { VehicleMode } from '../data/verdict';
 import { esc, formatCount, plural } from './format';
 import { ICONS } from './icons';
-import { renderListItem, type ListItemModel } from './list-item';
+import { groupSeries, memberCount, type ListGroup } from './list-group';
+import { renderGroupHtml } from './list-group-row';
+import { listItemVerdict, renderListItem, type ListItemModel } from './list-item';
 
 export const LIST_BATCH = 40;
 const SKELETON_ROWS = 6;
@@ -85,6 +90,7 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
   root.setAttribute('aria-busy', 'false');
 
   let items: readonly ListItemModel[] = [];
+  let groups: ListGroup<ListItemModel>[] = [];
   let shown = 0;
   let now = Date.now();
   let selectedId: string | null = null;
@@ -96,16 +102,27 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     cb.reveal?.(el);
   };
 
+  const rowOpts = (): { mode: NonNullable<ListRenderOptions['mode']>; at?: number } => ({
+    mode: renderOpts.mode ?? 'auto',
+    ...(renderOpts.at !== undefined ? { at: renderOpts.at } : {}),
+  });
+
+  /** Rows the keyboard can reach: not the members of a folded group that is closed. */
+  const visibleRows = (): HTMLElement[] =>
+    Array.from(root.querySelectorAll<HTMLElement>('.item')).filter((el) => !el.closest('details:not([open])'));
+
   const renderMore = (): void => {
-    const next = items.slice(shown, shown + LIST_BATCH);
+    const next = groups.slice(shown, shown + LIST_BATCH);
     const html = next
-      .map((m, i) =>
-        renderListItem(m, now, {
-          selected: m.id === selectedId,
-          index: shown === 0 ? i : 99,
-          mode: renderOpts.mode ?? 'auto',
-          ...(renderOpts.at !== undefined ? { at: renderOpts.at } : {}),
-        }),
+      .map((g, i) =>
+        renderGroupHtml(g, (m, extra) =>
+          renderListItem(m, now, {
+            selected: m.id === selectedId,
+            index: shown === 0 ? i : 99,
+            ...rowOpts(),
+            ...extra,
+          }),
+        ),
       )
       .join('');
     const more = root.querySelector<HTMLElement>('.list__more');
@@ -114,9 +131,9 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     container.insertAdjacentHTML('beforeend', html);
     shown += next.length;
     if (more) {
-      if (shown < items.length) {
+      if (shown < groups.length) {
         more.hidden = false;
-        more.textContent = `Toon meer (${plural(items.length - shown, 'melding', 'meldingen')})`;
+        more.textContent = `Toon meer (${plural(memberCount(groups.slice(shown)), 'melding', 'meldingen')})`;
       } else {
         more.hidden = true;
       }
@@ -151,6 +168,8 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     }
     const cap = capLine(items.length, renderOpts.total);
     root.innerHTML = `<div class="list__items"></div><button type="button" class="btn btn--ghost list__more" hidden></button>${cap ? `<p class="list__cap">${esc(cap)}</p>` : ''}`;
+    const o = rowOpts();
+    groups = groupSeries(items, (m) => listItemVerdict(m, now, o).level, (m) => m);
     shown = 0;
     renderMore();
   };
@@ -176,7 +195,8 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     if (target.closest('.list__more')) {
       const before = shown;
       renderMore();
-      focusRow(root.querySelector<HTMLElement>(`.item:nth-child(${before + 1})`));
+      const next = root.querySelector('.list__items')?.children[before];
+      focusRow(next?.matches('.item') ? (next as HTMLElement) : next?.querySelector<HTMLElement>('.item'));
       return;
     }
     const badge = target.closest<HTMLElement>('.item__badge[data-road]');
@@ -202,7 +222,7 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
 
   root.addEventListener('keydown', (e) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
-    const focusables = Array.from(root.querySelectorAll<HTMLElement>('.item'));
+    const focusables = visibleRows();
     const current = focusables.indexOf(document.activeElement as HTMLElement);
     if (current === -1) return;
     e.preventDefault();
@@ -249,6 +269,9 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
     },
     focusItem(id) {
       const el = id ? root.querySelector<HTMLElement>(`.item[data-id="${CSS.escape(id)}"]`) : root.querySelector<HTMLElement>('.item');
+      // A member of a folded group: open the group so the focused row is visible.
+      const fold = el?.closest('details');
+      if (fold) fold.open = true;
       focusRow(el);
     },
   };

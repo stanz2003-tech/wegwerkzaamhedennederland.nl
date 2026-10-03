@@ -154,6 +154,8 @@
                 <div data-legend></div>
               </div>
             </div>
+            <!-- National zoom only: the motorways with a closure, each a button into road mode. -->
+            <div class="panel__roads closed-roads" data-closed-roads hidden></div>
             <details class="panel__filters" data-filters>
               <summary class="panel__filters-summary" data-filters-summary>Filters · alle soorten</summary>
               <div class="panel__filters-body">
@@ -179,7 +181,7 @@
         <section class="map" aria-label="Kaart van Nederland met alle meldingen">
           <div class="map__canvas" id="map" data-map></div>
           <div class="map__notice" data-map-error hidden></div>
-          <a class="map__uitleg" href="#uitleg" data-scroll-uitleg>Uitleg, wegen en plaatsen <span aria-hidden="true">↓</span></a>
+          <a class="map__uitleg" href="#uitleg" data-scroll-uitleg>Uitleg en alle wegen <span aria-hidden="true">↓</span></a>
           <noscript>
             <div class="map__notice is-visible">
               <p class="map__notice-title">De kaart heeft JavaScript nodig.</p>
@@ -210,6 +212,7 @@
                   <li><span class="vpill vpill--dicht vpill--sm" style="--vpill-color: var(--v-dicht)"><span class="vpill__icon" aria-hidden="true"><svg aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span>Weg dicht</span><span>Je kunt er niet langs; volg de omleiding. Op de kaart rood met witte streepjes.</span></li>
                   <li><span class="vpill vpill--rijbaan vpill--sm" style="--vpill-color: var(--v-rijbaan)"><span class="vpill__dot" aria-hidden="true"></span>Rijbaan dicht</span><span>Eén rijbaan of richting is dicht; de andere kant is meestal open.</span></li>
                   <li><span class="vpill vpill--hinder vpill--sm" style="--vpill-color: var(--v-hinder)"><span class="vpill__dot" aria-hidden="true"></span>Doorrijden mogelijk</span><span>Je kunt er langs, met minder rijstroken, een lagere snelheid of wat vertraging.</span></li>
+                  <li><span class="vpill vpill--onbekend vpill--sm" style="--vpill-color: var(--v-onbekend)"><span class="vpill__dot" aria-hidden="true"></span>Gevolgen niet gemeld</span><span>De wegbeheerder heeft niet gezegd of je erdoor kunt. Ga er niet van uit dat het kan.</span></li>
                   <li><span class="vpill vpill--geen vpill--sm" style="--vpill-color: var(--v-geen)"><span class="vpill__dot" aria-hidden="true"></span>Geen hinder</span><span>Gemeld, maar zonder merkbaar gevolg voor het verkeer.</span></li>
                   <li><span class="vpill vpill--nvt vpill--sm" style="--vpill-color: var(--v-nvt)"><span class="vpill__dot" aria-hidden="true"></span>Geldt niet voor jou</span><span>Alleen voor ander verkeer, bijvoorbeeld een afgesloten fietspad. Vervaagd of verborgen.</span></li>
                 </ul>
@@ -242,39 +245,6 @@
             </div>
           </div>
 
-          <div class="home__stats">
-            <h2 class="home__h2">Op dit moment</h2>
-            <dl class="home__counts" data-home-counts>
-              <div class="home__count" style="--count-color: var(--c-werk)">
-                <dt>Werkzaamheden</dt>
-                <dd data-home-count="werk">–</dd>
-              </div>
-              <div class="home__count" style="--count-color: var(--c-afsluiting)">
-                <dt>Afsluitingen</dt>
-                <dd data-home-count="afsluiting">–</dd>
-              </div>
-              <div class="home__count" style="--count-color: var(--c-file)">
-                <dt>Files</dt>
-                <dd data-home-count="file">–</dd>
-              </div>
-              <div class="home__count" style="--count-color: var(--c-incident)">
-                <dt>Incidenten</dt>
-                <dd data-home-count="incident">–</dd>
-              </div>
-              <div class="home__count" style="--count-color: var(--c-brug)">
-                <dt>Bruggen open</dt>
-                <dd data-home-count="brug">–</dd>
-              </div>
-              <div class="home__count" style="--count-color: var(--c-evenement)">
-                <dt>Evenementen</dt>
-                <dd data-home-count="evenement">–</dd>
-              </div>
-            </dl>
-            <p class="home__updated" data-home-updated>
-              De teller vult zich zodra de gegevens geladen zijn.
-            </p>
-          </div>
-
           <nav class="home__links" aria-labelledby="home-links-title">
             <h2 class="home__h2" id="home-links-title">Overzichten per weg, plaats en periode</h2>
             <ul class="home__linklist">
@@ -299,6 +269,7 @@
                 <a href="/veelgestelde-vragen/"><strong>Veelgestelde vragen</strong><span>Waar komt de data vandaan?</span></a>
               </li>
             </ul>
+            <p class="home__updated" data-home-updated>De gegevens worden geladen.</p>
           </nav>
         </div>
       </section>

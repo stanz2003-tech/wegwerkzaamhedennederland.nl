@@ -88,7 +88,8 @@ describe('verdict-first list row', () => {
     assert.ok(html.includes('Lunetten → Utrecht-Noord'), 'section without the road prefix');
     assert.ok(html.includes('nog 6 u'), 'when line without "Nu actief"');
     assert.ok(html.includes('data-road="A27"'), 'badge is a road-mode target');
-    assert.ok(html.includes('Rijkswaterstaat'), 'wegbeheerder on the muted line');
+    assert.equal(html.includes('Rijkswaterstaat'), false, 'the wegbeheerder is in the detail only');
+    assert.ok(html.includes('<span class="sr-only">Werkzaamheden · rijstrookafzetting</span>'), 'category named for screen readers');
   });
 
   it('follows the vehicle mode: a cycle path is nvt for cars and dicht for cyclists', () => {
@@ -101,7 +102,7 @@ describe('verdict-first list row', () => {
   it('renders as a link on the generated pages and reads a v2 feature as onbekend', () => {
     const html = renderListItem(modelFromProps({ ...props, imp: undefined }), NOW, { href: '/?id=x1' });
     assert.ok(html.startsWith('<a class="item"'));
-    assert.ok(html.includes('Hinder onbekend'));
+    assert.ok(html.includes('Gevolgen niet gemeld'));
     assert.equal(sectionOf({ title: 'Los', road: null }), 'Los');
   });
 });

@@ -12,7 +12,7 @@ import { describe, it } from 'node:test';
 import { filter, format, listSummary as summaryModule, time } from './helpers/src.mjs';
 
 const { groupByWindow } = filter;
-const { backgroundPhrase, windowSummary } = format;
+const { backgroundPhrase } = format;
 const { MS } = time;
 const { BACKGROUND_TITLE, LIST_TITLES, LIST_WINDOW, listSummary } = summaryModule;
 
@@ -75,10 +75,14 @@ describe('/dit-weekend/ counts what changes in the weekend', () => {
     assert.deepEqual(overlap, []);
   });
 
-  it('reports the real numbers in Dutch instead of one inflated total', () => {
+  it('says what the list is instead of counting it (taal-11)', () => {
     assert.equal(
       listSummary('weekend', { changes: 2, active: 1, upcoming: 1, background: 2 }),
-      '2 meldingen dit weekend · 1 nu al actief · 2 langdurige maatregelen lopen al langer',
+      'Hieronder wat dit weekend dicht of beperkt is, ernstigste eerst; lang lopend werk staat onderaan.',
+    );
+    assert.equal(
+      listSummary('weekend', { changes: 0, active: 0, upcoming: 0, background: 0 }),
+      'Er is nog niets aangemeld voor dit weekend',
     );
   });
 });
@@ -95,10 +99,10 @@ describe('/vandaag/ separates today from the standing situation', () => {
     assert.deepEqual(ids(groups.background), ['sinds-2024']);
   });
 
-  it('says what the numbers mean', () => {
+  it('says what the list is, without numbers', () => {
     assert.equal(
       listSummary('vandaag', { changes: 34, active: 12, upcoming: 22, background: 4729 }),
-      '34 meldingen vandaag · 12 nu al actief · 4.729 langdurige maatregelen lopen al langer',
+      'Hieronder wat vandaag dicht of beperkt is, ernstigste eerst; lang lopend werk staat onderaan.',
     );
     assert.equal(
       listSummary('vandaag', { changes: 0, active: 0, upcoming: 0, background: 0 }),
@@ -175,7 +179,7 @@ describe('backgroundPhrase', () => {
     assert.equal(backgroundPhrase(4729), '4.729 langdurige maatregelen lopen al langer');
   });
 
-  it('is the same sentence windowSummary ends with', () => {
-    assert.ok(windowSummary({ changes: 1, active: 0, background: 12 }, 'vandaag').endsWith(backgroundPhrase(12)));
+  it('is the same sentence the closures summary ends with', () => {
+    assert.ok(listSummary('afsluitingen', { changes: 1, active: 1, upcoming: 0, background: 12 }).endsWith(backgroundPhrase(12)));
   });
 });
