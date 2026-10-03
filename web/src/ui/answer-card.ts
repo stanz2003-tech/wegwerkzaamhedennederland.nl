@@ -29,6 +29,12 @@ export interface AnswerCardModel {
    * "nu" then names the moment it really describes, so it cannot pass for the current situation.
    */
   dataAsOf?: string;
+  /**
+   * The page that answers the same question per day ("Per dag vooruitkijken op de A27 →",
+   * /weg/a27/?v=…&t=…). Only set when that page exists, so the link is never a 404.
+   */
+  pageHref?: string;
+  pageLabel?: string;
 }
 
 const MODE_LABEL: Record<VehicleMode, string> = { auto: "voor auto's", vracht: 'voor vrachtverkeer', fiets: 'voor fietsers' };
@@ -97,6 +103,7 @@ export function renderAnswerCard(m: AnswerCardModel): string {
       </div>
       <h2 class="answer__headline" id="answer-title" tabindex="-1">${esc(headline)}</h2>
       ${specifics ? `<ul class="answer__specifics">${specifics}</ul>` : ''}
+      ${m.pageHref && m.pageLabel ? `<a class="btn btn--secondary answer__page" href="${esc(m.pageHref)}">${esc(m.pageLabel)}</a>` : ''}
       ${horizonLine(m.answer)}
       ${hidden > 0 ? `<p class="answer__hidden">${hidden === 1 ? '1 melding geldt' : `${hidden} meldingen gelden`} niet ${esc(MODE_LABEL[m.mode])} en ${hidden === 1 ? 'is' : 'zijn'} weggelaten.</p>` : ''}
     </section>`;

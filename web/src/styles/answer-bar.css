@@ -1,0 +1,65 @@
+/* answer-bar.css — the compact answer bar of a long road / place page on a phone
+   (ui/answer-bar.ts, mobiel-12). Fixed to the bottom once the forecast block scrolled away;
+   body gets room underneath (.has-answer-bar), so the bar never covers the footer or an ad. */
+.answer-bar {
+  --answer-bar-h: 64px;
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: var(--z-sheet);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  min-height: var(--answer-bar-h);
+  padding: var(--s-2) var(--s-3) calc(var(--s-2) + env(safe-area-inset-bottom, 0px)) calc(var(--s-3) + 6px);
+  background: color-mix(in srgb, var(--vpill-color, var(--border)) 10%, var(--surface));
+  border-top: 1px solid color-mix(in srgb, var(--vpill-color, var(--border)) 40%, var(--border));
+  box-shadow: var(--shadow-2);
+}
+
+/* The verdict colour as a left edge, like the answer card it mirrors. */
+.answer-bar::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 6px;
+  background: var(--vpill-color, var(--border));
+}
+
+.answer-bar[hidden] { display: none; }
+
+.answer-bar__badge { display: inline-flex; }
+.answer-bar__badge:empty { display: none; }
+
+.answer-bar__text {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--text-sm);
+  line-height: 1.25;
+  color: var(--text-2);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
+.answer-bar__text strong { color: var(--text); font-weight: 700; }
+
+.answer-bar__btn {
+  min-height: var(--touch);
+  white-space: nowrap;
+}
+
+/* Wider screens keep the forecast block in reach; the bar is a phone aid only. */
+@media (min-width: 769px) {
+  .answer-bar { display: none; }
+}
+
+@media (max-width: 768px) {
+  body.has-answer-bar { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media print {
+  .answer-bar { display: none; }
+}

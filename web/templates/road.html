@@ -14,18 +14,12 @@
     </ol>
   </nav>
 
-  <header class="entity-hero entity-hero--{{badgeClass}}">
+  <header class="entity-hero entity-hero--compact entity-hero--{{badgeClass}}">
     <span class="badge badge--{{badgeClass}} badge--xl" role="img" aria-label="Weg {{road}}">{{road}}</span>
     <div class="entity-hero__text">
-      <p class="entity-hero__kicker">{{kindLabel}}</p>
       <h1>Wegwerkzaamheden {{road}}</h1>
-      <div class="entity-hero__intro">{{{intro}}}</div>
-      <dl class="entity-counts">
-        <div class="entity-counts__item"><dt>Nu actief</dt><dd id="entity-count-active">–</dd></div>
-        <div class="entity-counts__item"><dt>Gepland (30 dagen)</dt><dd id="entity-count-upcoming">–</dd></div>
-      </dl>
       <p class="entity-hero__meta">
-        <span id="entity-summary" class="entity-summary">Actuele meldingen worden geladen…</span>
+        <span>{{kindLabel}}</span>
         <span class="entity-hero__sep" aria-hidden="true">·</span>
         <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
       </p>
@@ -35,8 +29,11 @@
   <section class="entity-forecast" id="entity-forecast" aria-label="Kan ik over de {{road}}?"></section>
 
   <section class="entity-live" aria-label="Actuele situatie op de {{road}}">
-    <div id="entity-map" class="entity-map">
-      <p class="entity-map__fallback">Kaart met de meldingen op de {{road}}. <a href="{{mapHref}}">Open de {{road}} op de grote kaart</a>.</p>
+    <div class="entity-mapcol">
+      <div id="entity-map" class="entity-map">
+        <p class="entity-map__fallback">Kaart met de meldingen op de {{road}}. <a href="{{mapHref}}">Open de {{road}} op de grote kaart</a>.</p>
+      </div>
+      <a class="btn btn--secondary entity-mapcol__open" id="entity-map-link" href="{{mapHref}}">Op de grote kaart</a>
     </div>
     <div id="entity-list" class="entity-list"></div>
     <div id="entity-empty" class="entity-empty" hidden>
@@ -48,6 +45,10 @@
 
   <article class="prose prose--entity">
     <div class="prose__body">
+    <section class="entity-about" aria-labelledby="over-title">
+      <h2 id="over-title">Over de {{road}}</h2>
+      <div class="entity-about__intro">{{{intro}}}</div>
+    </section>
     <h2 id="uitleg">Zo lees je dit overzicht</h2>
     <p>Bovenaan staat alles wat wegbeheerders voor de {{road}} hebben aangemeld bij het Nationaal Dataportaal Wegverkeer (NDW): <strong>werkzaamheden</strong> (rijstrookafzettingen, versmalde rijstroken, tijdelijke snelheidsbeperkingen), <strong>afsluitingen</strong> van een rijbaan, op- of afrit, <strong>omleidingen</strong>, <strong>evenementen</strong> met verkeersmaatregelen en, als ze er zijn, <strong>files</strong> en <strong>incidenten</strong>. Meldingen die nu gelden staan bovenaan; daaronder volgen de geplande werkzaamheden voor de komende 30 dagen op volgorde van starttijd.</p>
     <p>Klik op een melding voor de details: de exacte periode, het aantal afgesloten rijstroken, een eventuele tijdelijke maximumsnelheid, de omleidingsroute en de wegbeheerder die de melding heeft ingevoerd. Elke melding heeft een eigen link die je kunt delen. Files en incidenten worden elke {{refreshMinutes}} minuten vernieuwd, de planning ongeveer elk kwartier; het tijdstip van de laatste update staat bovenaan de pagina.</p>

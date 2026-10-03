@@ -27,6 +27,7 @@ import { matchesRoad } from './data/entity';
 import { bboxIntersects, bboxOf, countByCategory, dedupeById, matchesQuery, midpointOf, sortItems, type BBox, type SortId } from './data/filter';
 import { liveAppliesAt } from './data/forecast';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
+import { entityPagesNow, loadEntityPages } from './data/entity-pages';
 import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
 import { DEFAULT_TIME_WINDOW, isActiveAt, matchesTimeWindow, toMs } from './data/time';
 import type { Category, ItemDetail, ItemFeature, Meta } from './data/types';
@@ -253,7 +254,11 @@ function render(): void {
   const summary = renderPanelSummary(answerEls, url, inViewAll.map((j) => j.f), now, { total: ordered.length }, hideNvt);
   layout.setFilters({ cats, hideNvt, hidden: summary.hidden });
   const dataAsOf = staleDataLabel(liveStatus, now);
-  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, { ...(dataAsOf ? { dataAsOf } : {}), onExit: () => exitRoad() });
+  const roadText = renderRoadAnswer(answerEls, url, cats ? roadAll.filter((f) => cats.has(f.properties.cat)) : roadAll, now, {
+    ...(dataAsOf ? { dataAsOf } : {}),
+    hasRoadPage: (slug) => entityPagesNow()?.hasRoadPage(slug) ?? false,
+    onExit: () => exitRoad(),
+  });
   lastAnswerText = roadText ?? summary.text;
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
@@ -655,6 +660,10 @@ async function start(retry = false): Promise<void> {
     if (needsGepland()) void ensureGepland();
     if (url.road) pendingRoadFit = true;
     render();
+    // The page manifest decides whether the road answer may link to /weg/<slug>/ (zoek-6).
+    void loadEntityPages().then((pages) => {
+      if (pages && url.road) render();
+    });
     for (const warning of data.warnings) {
       showToast(`Onderdeel niet geladen: ${warning}`, 'error');
     }

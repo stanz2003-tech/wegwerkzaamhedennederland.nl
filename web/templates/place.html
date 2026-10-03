@@ -14,18 +14,11 @@
     </ol>
   </nav>
 
-  <header class="entity-hero entity-hero--place">
-    <span class="badge badge--lokaal badge--xl badge--place" aria-hidden="true">{{#if isGemeente}}Gem.{{else}}Plaats{{/if}}</span>
+  <header class="entity-hero entity-hero--compact entity-hero--place">
     <div class="entity-hero__text">
-      <p class="entity-hero__kicker">{{kicker}}</p>
       <h1>{{heading}}</h1>
-      <div class="entity-hero__intro">{{{intro}}}</div>
-      <dl class="entity-counts">
-        <div class="entity-counts__item"><dt>Nu actief</dt><dd id="entity-count-active">–</dd></div>
-        <div class="entity-counts__item"><dt>Gepland (30 dagen)</dt><dd id="entity-count-upcoming">–</dd></div>
-      </dl>
       <p class="entity-hero__meta">
-        <span id="entity-summary" class="entity-summary">Actuele meldingen worden geladen…</span>
+        <span>{{kicker}}</span>
         <span class="entity-hero__sep" aria-hidden="true">·</span>
         <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
       </p>
@@ -35,8 +28,11 @@
   <section class="entity-forecast" id="entity-forecast" aria-label="Kan ik door {{name}}?"></section>
 
   <section class="entity-live" aria-label="Actuele situatie in {{name}}">
-    <div id="entity-map" class="entity-map">
-      <p class="entity-map__fallback">Kaart met de meldingen in {{name}}. <a href="{{mapHref}}">Open {{name}} op de grote kaart</a>.</p>
+    <div class="entity-mapcol">
+      <div id="entity-map" class="entity-map">
+        <p class="entity-map__fallback">Kaart met de meldingen in {{name}}. <a href="{{mapHref}}">Open {{name}} op de grote kaart</a>.</p>
+      </div>
+      <a class="btn btn--secondary entity-mapcol__open" id="entity-map-link" href="{{mapHref}}">Op de grote kaart</a>
     </div>
     <div id="entity-list" class="entity-list"></div>
     <div id="entity-empty" class="entity-empty" hidden>
@@ -48,6 +44,10 @@
 
   <article class="prose prose--entity">
     <div class="prose__body">
+    <section class="entity-about" aria-labelledby="over-title">
+      <h2 id="over-title">Over {{#if isGemeente}}de gemeente {{/if}}{{name}}</h2>
+      <div class="entity-about__intro">{{{intro}}}</div>
+    </section>
     <h2 id="uitleg">Zo lees je dit overzicht</h2>
     <p>Bovenaan staat alles wat wegbeheerders voor {{#if isGemeente}}de gemeente {{/if}}{{name}} hebben aangemeld bij het Nationaal Dataportaal Wegverkeer (NDW): <strong>werkzaamheden</strong> aan straten en wegen, <strong>afsluitingen</strong> met de bijbehorende <strong>omleidingen</strong>, en <strong>evenementen</strong> met verkeersmaatregelen, zoals een markt, kermis of wielerronde. Meldingen die nu gelden staan bovenaan; daaronder volgen de geplande werkzaamheden voor de komende 30 dagen op volgorde van starttijd. Een melding telt mee voor {{name}} als de wegbeheerder die plaats of gemeente bij de melding heeft opgegeven of als de locatie erbinnen ligt.</p>
     <p>Bij elke melding zie je een badge met het wegnummer (rood voor A-wegen, geel voor N-wegen) of een neutrale badge voor een straat, de periode, de verwachte hinder en wie het werk heeft aangemeld. Klik erop voor de omleiding en de details. Gemeentelijk werk staat vaak korter van tevoren in het systeem dan werk aan snelwegen; kijk dus vlak voor vertrek nog even. De planning wordt ongeveer elk kwartier vernieuwd, files en incidenten elke {{refreshMinutes}} minuten.</p>

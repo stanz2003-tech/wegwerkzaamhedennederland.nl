@@ -1373,6 +1373,14 @@
   color: var(--text-3);
 }
 
+/* "Per dag vooruitkijken op de A27 →": the way from the panel to the road page's day strip. */
+.answer__page {
+  width: 100%;
+  min-height: var(--touch);
+  justify-content: center;
+  text-align: center;
+}
+
 /* Past the planning horizon: "werk na 21 oktober is nog niet aangemeld" — in the 'onbekend'
    colours, the verdict for "not known", so it never reads as an all-clear. */
 .answer__horizon {
