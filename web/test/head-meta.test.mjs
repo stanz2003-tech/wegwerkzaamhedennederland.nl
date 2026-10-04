@@ -37,3 +37,19 @@ test('every absolute URL in index.html uses the configured origin', () => {
   });
   assert.deepEqual(wrong, [], `index.html links to a wrong host of our own: ${wrong.join(', ')}`);
 });
+
+// Google shows a grey globe next to search results until it can fetch a square raster favicon;
+// /favicon.ico is also what its favicon crawler tries first. The Organization logo must exist too.
+test('favicons, manifest and logo are linked and shipped', () => {
+  const head = readFileSync(resolve(WEB_ROOT, 'templates/_head.html'), 'utf8');
+  for (const doc of [html, head]) {
+    for (const href of ['/favicon.ico', '/favicon.svg', '/apple-touch-icon.png', '/site.webmanifest']) {
+      assert.ok(doc.includes(`href="${href}"`), `missing <link> to ${href}`);
+    }
+  }
+  const logo = html.match(/"logo":\s*"([^"]+)"/)?.[1];
+  assert.equal(logo, `${origin}/logo.png`);
+  const manifest = JSON.parse(readFileSync(resolve(WEB_ROOT, 'public/site.webmanifest'), 'utf8'));
+  const files = ['favicon.ico', 'apple-touch-icon.png', 'logo.png', ...manifest.icons.map((i) => i.src.slice(1))];
+  for (const f of files) assert.ok(readFileSync(resolve(WEB_ROOT, 'public', f)).length > 0, `public/${f} is empty`);
+});
