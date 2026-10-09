@@ -116,7 +116,10 @@ export function generate(opts) {
   const lastmod = model.buildIso.slice(0, 10);
   const sitemaps = buildSitemaps(sitemapEntries, { siteUrl: model.site.url, lastmod });
   for (const f of sitemaps) writeFile(join(outDir, f.name), f.xml);
-  const disallow = existsSync(join(outDir, 'data')) ? ['/data/'] : [];
+  // `/?id=…` deep links (one per roadwork, from every list) only reopen the map on one item and
+  // canonicalise to `/`; Google crawled them as redirects and spent its budget there instead of on
+  // the 3.900 content pages. Items also expire, so these URLs go stale by design.
+  const disallow = [...(existsSync(join(outDir, 'data')) ? ['/data/'] : []), '/*?id='];
   writeFile(join(outDir, 'robots.txt'), buildRobots({ siteUrl: model.site.url, disallow }));
   // Which entity pages exist, for the map's place mode and its links (web/src/data/entity-pages.ts).
   writeFile(join(outDir, ENTITY_MANIFEST_FILE), JSON.stringify(buildEntityManifest(model)));
