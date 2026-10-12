@@ -31,8 +31,8 @@ export const DEFAULT_VILD_PATH = fileURLToPath(new URL('../static/vild.json', im
  * @typedef {object} AlertCInfo
  * @property {string=} road
  * @property {string=} roadName
- * @property {string=} from
- * @property {string=} to
+ * @property {string=} from       start of the stretch in the direction of travel (AlertC secondary)
+ * @property {string=} to         end of the stretch = the direction (AlertC primary)
  * @property {string=} dir
  * @property {string=} route      "Amsterdam → Osnabrück"
  * @property {[number, number]=} point
@@ -103,7 +103,16 @@ export function createVild(loc) {
 
   /**
    * Describe an AlertC reference: road number, road name, from/to and point.
-   * `from` = name of the primary location, `to` = name of the secondary one.
+   *
+   * An AlertC linear location names its head as the primary location (the downstream end,
+   * where the measure ends in the direction of travel) and its tail as the secondary one, so
+   * traffic drives secondary → primary: `from` = secondary, `to` = primary, and `to` is the
+   * direction ("richting <to>"). Checked with `bin/check-direction.js` on the NDW feeds of
+   * 2026-10-12: the gml line runs secondary → primary in 1,744 of 1,750 clear cases, and for
+   * 2,091 of 2,130 pairs of opposite measures on one stretch, each measure's line lies to the
+   * right of its twin's when looking from its own secondary to its own primary location (Dutch
+   * right-hand traffic). A single named location (an AlertC point, a linear one whose ends
+   * share a name, or one end missing from the table) is `from`.
    * @param {{ p?: string, s?: string, dir?: string } | undefined} alertC
    * @returns {AlertCInfo | undefined}
    */
@@ -120,8 +129,14 @@ export function createVild(loc) {
     if (road) info.road = road;
     const roadName = base?.roadName || route?.roadName;
     if (roadName) info.roadName = roadName;
-    if (primary?.name1) info.from = primary.name1;
-    if (secondary?.name1 && secondary.name1 !== primary?.name1) info.to = secondary.name1;
+    const head = primary?.name1;
+    const tail = secondary?.name1;
+    if (head && tail && tail !== head) {
+      info.from = tail;
+      info.to = head;
+    } else if (head || tail) {
+      info.from = head || tail;
+    }
     if (alertC.dir === 'positive' || alertC.dir === 'negative' || alertC.dir === 'both') info.dir = alertC.dir;
     const name = routeName(base?.nr);
     if (name) info.route = name;

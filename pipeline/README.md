@@ -36,6 +36,7 @@ bin/run.js                CLI: flags → runPipeline(), one summary line, exit c
     ├── src/bridges.js         bridge registry lookup, naming rules, VILD merge, openings, seen ids
     ├── src/dedup.js           folds the RWS/Melvin double publication into one item
     └── src/log.js             timestamped structured logging on stderr
+bin/check-direction.js    checks the AlertC from → to direction on real feed files (see "Direction")
 ```
 
 ### Data flow of one run
@@ -139,6 +140,31 @@ they are half of the raw bytes. They are served per page and never all at once.
 Geometry is WGS84 `[lon, lat]`, 5 decimals (≈ 1 m), clipped to the Netherlands
 bbox `[3.2, 50.5, 7.3, 53.7]`; features that end up without usable coordinates
 are dropped and counted in `meta.dropped`.
+
+### Direction: `from → to` (`src/vild.js`)
+
+An AlertC linear location gives the **head** of the stretch as the primary
+location (downstream: where the measure ends in the direction of travel) and the
+**tail** as the secondary one. Traffic drives secondary → primary, so
+`ItemDetail.from` = secondary, `ItemDetail.to` = primary, and the title reads
+"A27 · Werkendam → Industriegebied Avelingen" for the northbound carriageway.
+The web app turns `to` into "richting <to>". A single location (an AlertC point,
+or two ends with the same name) is `from` only. Until 2026-10-12 the mapping was
+the other way round: every arrow title and every "richting" on an AlertC item
+pointed the wrong way (1,213 items on that day; verdicts were not affected).
+
+Measured with `node bin/check-direction.js actueel.xml.gz planning.xml.gz` on
+the NDW feeds of 2026-10-12; the script uses only the raw AlertC codes, the gml
+line and VILD coordinates, not the from/to code:
+
+* the gml line runs secondary → primary in 1,744 of 1,750 clear cases, so the
+  line direction is the direction of travel (RWS and province/Melvin items alike);
+* for two measures with opposite AlertC direction on one stretch (one per
+  carriageway), each measure's line lies to the right of its twin's when looking
+  from its own secondary to its own primary location — right-hand traffic — in
+  2,091 of 2,130 pairs.
+
+Test: `NLRWS_0005459577` / `NLRWS_0005454210` in `test/fixtures/rws_direction.xml`.
 
 ### Field coverage of the same run (13,868 items)
 

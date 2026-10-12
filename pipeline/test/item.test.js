@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildItem, finalizeItem } from '../src/item.js';
-import { fixture, parseSnippet } from './helpers.js';
+import { createVild } from '../src/vild.js';
+import { fixture, parseSnippet, VILD_SAMPLE } from './helpers.js';
 
 const NOW_MS = Date.parse('2026-09-10T12:00:00Z');
 /** No AlertC in these fixtures, so the VILD table is never consulted. */
@@ -97,4 +98,36 @@ test('a planning item whose closure phase runs today is active, even when the ma
   const built = buildItem(situation, 'planning', { vild: NO_VILD, nowMs: NOW_MS });
 
   assert.equal(built.item?.state, 'active');
+});
+
+test('RWS title and from/to follow the direction of travel: real A27 twin closures (NLRWS_0005459577 / NLRWS_0005454210)', async () => {
+  // actueel_beeld 2026-10-12: one lorry ban per carriageway between Werkendam and Avelingen.
+  // AlertC primary = head (downstream), secondary = tail; the gml line runs tail → head.
+  // 5459577: p=8318 Avelingen, s=8316 Werkendam, positive, line south → north = northbound.
+  const situations = await parseSnippet(fixture('rws_direction.xml'));
+  const now = Date.parse('2026-10-12T12:00:00Z');
+  const vild = createVild(VILD_SAMPLE);
+  const byId = Object.fromEntries(
+    situations.map((s) => {
+      const built = buildItem(s, 'live', { vild, nowMs: now });
+      assert.ok(built.item, `${s.id} builds an item`);
+      finalizeItem(built.item, undefined, now);
+      return [s.id, built.item];
+    }),
+  );
+  const north = byId.NLRWS_0005459577;
+  const south = byId.NLRWS_0005454210;
+
+  assert.equal(north.props.title, 'A27 · Werkendam → Industriegebied Avelingen');
+  assert.equal(north.detail.from, 'Werkendam');
+  assert.equal(north.detail.to, 'Industriegebied Avelingen');
+  assert.equal(north.detail.dir, 'positive');
+  assert.equal(south.props.title, 'A27 · Industriegebied Avelingen → Werkendam');
+  assert.equal(south.detail.from, 'Industriegebied Avelingen');
+  assert.equal(south.detail.to, 'Werkendam');
+  // the line itself runs from → to: the northbound one starts in the south
+  const [nStart, nEnd] = [north.geometry.coordinates[0], north.geometry.coordinates.at(-1)];
+  assert.ok(nStart[1] < nEnd[1], 'northbound line starts at Werkendam (south)');
+  const [sStart, sEnd] = [south.geometry.coordinates[0], south.geometry.coordinates.at(-1)];
+  assert.ok(sStart[1] > sEnd[1], 'southbound line starts at Avelingen (north)');
 });

@@ -119,8 +119,8 @@ export const TYPE_LABELS = Object.freeze({
  * @param {string=} input.causeDesc
  * @param {string=} input.road          "A7"
  * @param {string=} input.roadName      VILD road name, "Afsluitdijk"
- * @param {string=} input.from          VILD name of the primary location
- * @param {string=} input.to
+ * @param {string=} input.from          VILD name where the stretch starts in the direction of travel
+ * @param {string=} input.to            VILD name where it ends ("from → to" reads as the direction)
  * @param {string=} input.street        geocoded straatnaam
  * @param {string=} input.place         geocoded woonplaats (or gemeente)
  * @param {string} input.cat

@@ -50,6 +50,11 @@ v4 adds, without removing anything v3 had:
 | `ItemProperties.imp` / `veh` | `imp`: the heaviest verdict over the whole timeline, for the map colour without detail. `veh`: everyone the measure concerns in any stretch with an effect; absent as soon as one such stretch is for all traffic. |
 | `Meta.horizon` | (Since 2026-09-21, before v4.) `{ days, until }`: measures starting after `until` are not in the files. An empty answer past it is "nog niet bekend". |
 
+`ItemDetail.from` / `to` (fixed 2026-10-12, no version bump — same fields, corrected values): the
+stretch in the **direction of travel**, `to` being the direction ("richting <to>"). From AlertC:
+`from` = secondary location (tail), `to` = primary location (head). Titles "X → Y" follow the same
+order. See pipeline/README.md "Direction".
+
 The web build knows which `Meta.version` it was written for (`web/src/data/version.ts`); a tab
 that loads newer data reloads once to fetch the current code.
 

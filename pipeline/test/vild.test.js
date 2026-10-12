@@ -30,11 +30,13 @@ test('route names follow linRef to the first named L row', () => {
 });
 
 test('describe: road, roadName, from/to, direction, point', () => {
+  // AlertC: primary = head (downstream), secondary = tail, so traffic drives secondary → primary.
+  // Positive on the A9 runs Diemen → Amstelveen (the L row), i.e. Holendrecht → Amstelveen.
   const linear = vild.describe({ p: '10572', s: '10568', dir: 'positive' });
   assert.deepEqual(linear, {
     road: 'A9',
-    from: 'Amstelveen',
-    to: 'Holendrecht',
+    from: 'Holendrecht',
+    to: 'Amstelveen',
     dir: 'positive',
     route: 'Diemen → Amstelveen',
     point: [4.8793, 52.29664],
@@ -45,11 +47,28 @@ test('describe: road, roadName, from/to, direction, point', () => {
   assert.equal(point?.to, undefined);
   assert.equal(point?.dir, undefined);
   const same = vild.describe({ p: '10139', s: '10139' });
+  assert.equal(same?.from, 'Wildinghe');
   assert.equal(same?.to, undefined);
   assert.equal(vild.describe(undefined), undefined);
   assert.equal(vild.describe({ p: '1', s: '2' }), undefined);
-  const onlySecondary = vild.describe({ s: '10568' });
+  // only the tail resolves: it is where the stretch starts, the direction stays unknown
+  const onlySecondary = vild.describe({ p: '1', s: '10568' });
   assert.equal(onlySecondary?.road, 'A9');
+  assert.equal(onlySecondary?.from, 'Holendrecht');
+  assert.equal(onlySecondary?.to, undefined);
+});
+
+test('describe: from → to follows the direction of travel on both carriageways (A27 Werkendam–Avelingen)', () => {
+  // Codes of NLRWS_0005459577 (northbound) and its twin NLRWS_0005454210 (southbound).
+  const north = vild.describe({ p: '8318', s: '8316', dir: 'positive' });
+  const south = vild.describe({ p: '8316', s: '8318', dir: 'negative' });
+
+  assert.equal(north?.from, 'Werkendam');
+  assert.equal(north?.to, 'Industriegebied Avelingen');
+  assert.equal(south?.from, 'Industriegebied Avelingen');
+  assert.equal(south?.to, 'Werkendam');
+  // the event point is the primary location, the head of the stretch
+  assert.deepEqual(north?.point, [4.94488, 51.83396]);
 });
 
 test('rows() iterates every row', () => {

@@ -190,7 +190,9 @@ export interface ItemDetail {
   delaySec?: number;
   /** Queue length in metres (files). */
   queueM?: number;
+  /** Where the stretch starts in the direction of travel (VILD name). */
   from?: string;
+  /** Where the stretch ends, i.e. the direction of travel: "richting <to>". */
   to?: string;
   dir?: Direction;
   /** Full publisher / road authority name as published. */
