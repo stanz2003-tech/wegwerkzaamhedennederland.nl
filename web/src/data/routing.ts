@@ -10,9 +10,14 @@
  * no use as a substantial part of a commercial or high-traffic site. The one-per-second rule is
  * enforced here for every caller; docs/handleiding.md says when to move to another host.
  *
+ * A Geoapify endpoint (data/routing-geoapify.ts) is recognised by its host and spoken to in its
+ * own way: that is the router for when the site carries ads (docs/handleiding.md §12).
+ *
  * Request building and response parsing are pure and unit-tested (web/test/routing.test.mjs).
  */
 import type { LonLat } from './route-match';
+import { GEOAPIFY_GAP_MS, buildGeoapifyUrl, geoapifyError, isGeoapify, parseGeoapifyResponse } from './routing-geoapify';
+import { MAX_ROUTE_POINTS, RoutingError, inRouteBounds, type RouteOption, type RouteRequest } from './routing-types';
 import type { VehicleMode } from './verdict';
 
 export const DEFAULT_ROUTING_URL = 'https://valhalla1.openstreetmap.de/route';
@@ -21,56 +26,26 @@ export const MIN_REQUEST_GAP_MS = 1100;
 const TIMEOUT_MS = 20_000;
 /** Valhalla's own maximum is 2 alternates on the public servers. */
 export const MAX_ALTERNATES = 2;
-/** A route through the Netherlands has a few thousand points; far more means a broken answer. */
-export const MAX_ROUTE_POINTS = 100_000;
-/** Router points outside this box are not a Dutch route (lon/lat, with a margin for Belgium and Germany). */
-const ROUTE_BOUNDS = { west: 1.5, east: 9.0, south: 49.5, north: 54.5 } as const;
 
-export interface Stop {
-  /** What the user picked: "Almkerk", "Kerkstraat 1, Montfoort". */
-  name: string;
-  lon: number;
-  lat: number;
-}
-
-export interface RouteRequest {
-  from: Stop;
-  to: Stop;
-  mode: VehicleMode;
-  /** Points the route must not pass (each snaps to the road it lies on). */
-  avoid?: readonly LonLat[];
-  alternates?: number;
-}
-
-export interface RouteOption {
-  /** [lon, lat] polyline from start to end. */
-  coords: LonLat[];
-  distanceM: number;
-  durationS: number;
-}
-
-export class RoutingError extends Error {
-  /** 'none' = no route exists between the points (not a technical failure). */
-  readonly kind: 'none' | 'failed';
-
-  constructor(message: string, kind: 'none' | 'failed') {
-    super(message);
-    this.name = 'RoutingError';
-    this.kind = kind;
-  }
-}
+export { RoutingError, type RouteOption, type RouteRequest, type Stop } from './routing-types';
 
 const COSTING: Record<VehicleMode, string> = { auto: 'auto', vracht: 'truck', fiets: 'bicycle' };
 
 /** The `/route` endpoint: `VITE_ROUTING_URL` at build time (empty = unset), else FOSSGIS. */
 export function routingEndpoint(): string {
-  const env = (import.meta as { env?: Record<string, string | undefined> }).env;
-  return env?.VITE_ROUTING_URL?.trim() || DEFAULT_ROUTING_URL;
+  // Spelled out as `import.meta.env.VITE_ROUTING_URL`: Vite replaces exactly that text at build
+  // time (a cast around `import.meta` hid it, and the variable never reached the site). Under
+  // node, in the unit tests, there is no `import.meta.env` at all.
+  const configured = import.meta.env ? (import.meta.env.VITE_ROUTING_URL as string | undefined) : undefined;
+  return configured?.trim() || DEFAULT_ROUTING_URL;
 }
 
-/** Whether the public FOSSGIS server answers: its terms ask for a credit naming it. */
-export function usesFossgis(endpoint = routingEndpoint()): boolean {
-  return endpoint.startsWith('https://valhalla1.openstreetmap.de/');
+export type RoutingProvider = 'fossgis' | 'geoapify' | 'valhalla';
+
+/** Who answers: the card credits them, and each has its own pace and request format. */
+export function routingProvider(endpoint = routingEndpoint()): RoutingProvider {
+  if (isGeoapify(endpoint)) return 'geoapify';
+  return endpoint.startsWith('https://valhalla1.openstreetmap.de/') ? 'fossgis' : 'valhalla';
 }
 
 const round5 = (n: number): number => Math.round(n * 1e5) / 1e5;
@@ -129,8 +104,6 @@ interface ValhallaTrip {
   summary?: { length?: unknown; time?: unknown };
 }
 
-const inBounds = ([lon, lat]: LonLat): boolean => lon >= ROUTE_BOUNDS.west && lon <= ROUTE_BOUNDS.east && lat >= ROUTE_BOUNDS.south && lat <= ROUTE_BOUNDS.north;
-
 function tripOf(trip: ValhallaTrip | undefined): RouteOption | null {
   if (!trip || !Array.isArray(trip.legs)) return null;
   const coords: LonLat[] = [];
@@ -139,7 +112,7 @@ function tripOf(trip: ValhallaTrip | undefined): RouteOption | null {
     const part = decodePolyline6(leg.shape);
     for (let i = coords.length > 0 ? 1 : 0; i < part.length; i++) {
       const c = part[i];
-      if (!c || !inBounds(c) || coords.length >= MAX_ROUTE_POINTS) return null;
+      if (!c || !inRouteBounds(c) || coords.length >= MAX_ROUTE_POINTS) return null;
       coords.push(c);
     }
   }
@@ -173,14 +146,14 @@ let lastAt = Number.NEGATIVE_INFINITY;
 const aborted = (): DOMException => new DOMException('Afgebroken', 'AbortError');
 
 /**
- * Runs `task` after the previous one, at least MIN_REQUEST_GAP_MS after that one started. A task
+ * Runs `task` after the previous one, at least `gapMs` after that one started. A task
  * whose signal is aborted while it waits is dropped without using a slot, so a user clicking
  * through moments does not leave a queue of dead requests to the router.
  */
-function throttled<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+function throttled<T>(task: () => Promise<T>, gapMs: number, signal?: AbortSignal): Promise<T> {
   const run = queue.then(async () => {
     if (signal?.aborted) throw aborted();
-    const wait = lastAt + MIN_REQUEST_GAP_MS - performance.now();
+    const wait = lastAt + gapMs - performance.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
     if (signal?.aborted) throw aborted();
     lastAt = performance.now();
@@ -190,29 +163,46 @@ function throttled<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> 
   return run;
 }
 
+/** One HTTP exchange with the configured router, in its own dialect. */
+async function ask(endpoint: string, req: RouteRequest, signal: AbortSignal): Promise<RouteOption[]> {
+  if (isGeoapify(endpoint)) {
+    const res = await fetch(buildGeoapifyUrl(endpoint, req), { signal });
+    const json: unknown = await res.json().catch(() => null);
+    if (!res.ok) throw geoapifyError(res.status, json);
+    return parseGeoapifyResponse(json);
+  }
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(buildRouteBody(req)),
+    signal,
+  });
+  const json: unknown = await res.json().catch(() => null);
+  if (!res.ok && json === null) throw new RoutingError(`De routeplanner is niet bereikbaar (${res.status}).`, 'failed');
+  return parseRouteResponse(json);
+}
+
 export async function fetchRoutes(req: RouteRequest, signal?: AbortSignal): Promise<RouteOption[]> {
-  return throttled(async () => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    const onAbort = (): void => ctrl.abort();
-    signal?.addEventListener('abort', onAbort);
-    try {
-      const res = await fetch(routingEndpoint(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildRouteBody(req)),
-        signal: ctrl.signal,
-      });
-      const json: unknown = await res.json().catch(() => null);
-      if (!res.ok && json === null) throw new RoutingError(`De routeplanner is niet bereikbaar (${res.status}).`, 'failed');
-      return parseRouteResponse(json);
-    } catch (err) {
-      if (err instanceof RoutingError) throw err;
-      if (signal?.aborted) throw err;
-      throw new RoutingError('De routeplanner is niet bereikbaar. Probeer het zo nog eens.', 'failed');
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-    }
-  }, signal);
+  const endpoint = routingEndpoint();
+  const gap = isGeoapify(endpoint) ? GEOAPIFY_GAP_MS : MIN_REQUEST_GAP_MS;
+  return throttled(
+    async () => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      const onAbort = (): void => ctrl.abort();
+      signal?.addEventListener('abort', onAbort);
+      try {
+        return await ask(endpoint, req, ctrl.signal);
+      } catch (err) {
+        if (err instanceof RoutingError) throw err;
+        if (signal?.aborted) throw err;
+        throw new RoutingError('De routeplanner is niet bereikbaar. Probeer het zo nog eens.', 'failed');
+      } finally {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+      }
+    },
+    gap,
+    signal,
+  );
 }

@@ -283,7 +283,7 @@ onder *More*) → in de zijbalk onder *Security*: **Secrets and variables** → 
 |---|---|
 | `DATA_BASE` | `https://data.<domein>/v1/` — begint met `https://`, eindigt met `/` |
 | `CF_PAGES_PROJECT` | `wegwerk` (§5.1) |
-| `ROUTING_URL` | *optioneel*, leeg laten — alleen nodig als je de routeplanner naar een andere dienst verhuist (§12) |
+| `ROUTING_URL` | *optioneel*: leeg = FOSSGIS; met advertenties de Geoapify-link uit §12 |
 
 Een typefout in een naam is de meest voorkomende fout: de *Data*-workflow zegt dan "not
 configured yet: missing secret(s) …" en noemt de ontbrekende naam.
@@ -429,18 +429,33 @@ daarvoor niets in te stellen. Hun voorwaarden (www.fossgis.de → *OSM-Server* �
   geen wezenlijk onderdeel van de site is.
 
 **Wanneer moet je verhuizen?** Zodra de advertenties aan gaan (§10), of zodra de routeplanner
-dagelijks door honderden mensen gebruikt wordt. Dat kan zonder programmeur:
+dagelijks door honderden mensen gebruikt wordt. De site kan dan zonder programmeur over naar
+**Geoapify**: gratis tot 3.000 routevragen per dag (één route plannen kost er 1 tot 3), en ook
+voor commercieel gebruik toegestaan.
 
-1. Neem een account bij een dienst die dezelfde routetaal spreekt ("Valhalla"), bijvoorbeeld
-   Stadia Maps (stadiamaps.com, heeft een betaald pakket voor commercieel gebruik). Je krijgt
-   een API-sleutel.
-2. GitHub → *Settings* → *Secrets and variables* → *Actions* → tabblad **Variables** → variabele
-   `ROUTING_URL` met als waarde het route-adres van die dienst inclusief sleutel, bij Stadia
-   `https://api.stadiamaps.com/route/v1?api_key=<jouw sleutel>`.
-3. *Actions* → *Deploy* → **Run workflow**. Na een paar minuten gebruikt de site de nieuwe dienst.
+1. Maak een gratis account op **myprojects.geoapify.com** (plan *Free*, geen creditcard nodig).
+2. Maak daar een **project** aan, bijvoorbeeld "Wegwerk". Je krijgt een **API key**: een lange
+   reeks letters en cijfers.
+3. **Beperk de sleutel tot je eigen site.** De sleutel komt in de code van de website te staan,
+   zodat iedereen hem kan zien; dat is bij kaartdiensten normaal. Stel daarom bij de sleutel in
+   dat hij alleen werkt vanaf je eigen website: bij de API key → beperkingen (*restrictions*) →
+   toegestane websites/origins → `https://www.wegwerkzaamhedennederland.nl`. Een ander kan je
+   sleutel dan niet op zijn eigen site gebruiken.
+4. GitHub → *Settings* → *Secrets and variables* → *Actions* → tabblad **Variables** → **New
+   repository variable** → *Name* `ROUTING_URL`, *Value*
+   `https://api.geoapify.com/v1/routing?apiKey=<jouw sleutel>` (zonder de punthaken).
+5. *Actions* → *Deploy* → **Run workflow**. Na een paar minuten gebruikt de site Geoapify; onder
+   elke routekaart staat dan "Powered by Geoapify".
 
-Leeg maken van `ROUTING_URL` en opnieuw *Deploy* draaien zet hem terug op FOSSGIS.
+Verschil met FOSSGIS: Geoapify geeft geen alternatieve routes. Je ziet dus de snelste route, en
+alleen als die dicht is ook de route eromheen. Leeg maken van `ROUTING_URL` en opnieuw *Deploy*
+draaien zet de site terug op FOSSGIS. (Een andere dienst die de routetaal "Valhalla" spreekt,
+zoals Stadia Maps, werkt ook: dan zet je hun route-adres met sleutel in `ROUTING_URL`.)
 
-**Problemen.** "De routeplanner is niet bereikbaar" betekent dat de routedienst niet antwoordt
-(FOSSGIS garandeert niets; meestal is het na een paar minuten over). Blijft het, of blokkeert
-FOSSGIS de site, verhuis dan zoals hierboven.
+**Problemen.**
+
+| Melding op de routekaart | Oorzaak | Oplossing |
+|---|---|---|
+| "De routeplanner is niet bereikbaar" | de routedienst antwoordt niet | meestal na een paar minuten over; blijft het, verhuis (hierboven) |
+| "De routeplanner weigert de sleutel van deze site" | Geoapify-sleutel verkeerd overgenomen, ingetrokken, of de beperking (stap 3) noemt een ander webadres | sleutel en beperking nakijken, `ROUTING_URL` bijwerken, *Deploy* opnieuw |
+| "De routeplanner is even te druk" | te veel vragen tegelijk, of de 3.000 per dag zijn op | wacht tot morgen; gebeurt het vaak, neem een betaald Geoapify-pakket |

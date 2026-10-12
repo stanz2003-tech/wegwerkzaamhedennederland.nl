@@ -101,3 +101,4 @@ export const routing = await load('data/routing.ts');
 export const routePlan = await load('data/route-plan.ts');
 export const routeCard = await load('ui/route-card.ts');
 export const routeView = await load('ui/route-view.ts');
+export const routingGeoapify = await load('data/routing-geoapify.ts');

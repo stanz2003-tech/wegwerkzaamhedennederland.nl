@@ -9,7 +9,7 @@
 import type { Answer } from '../data/answer';
 import type { BesideNote } from '../data/route-plan';
 import type { LonLat } from '../data/route-match';
-import { usesFossgis, type RouteOption, type Stop } from '../data/routing';
+import { routingProvider, type RouteOption, type Stop } from '../data/routing';
 import { VERDICT_META, type VehicleMode, type VerdictLevel } from '../data/verdict';
 import { esc, fmtTime } from './format';
 import { ICONS } from './icons';
@@ -129,7 +129,12 @@ function exitButton(): string {
 }
 
 function credit(): string {
-  return `<p class="route-card__credit">Route: <a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener">Valhalla</a>${usesFossgis() ? ' via FOSSGIS' : ''} · kaartdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-bijdragers (ODbL) · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">fout in de kaart melden</a></p>`;
+  const provider = routingProvider();
+  const router =
+    provider === 'geoapify'
+      ? '<a href="https://www.geoapify.com/" target="_blank" rel="noopener">Powered by Geoapify</a>'
+      : `<a href="https://valhalla.github.io/valhalla/" target="_blank" rel="noopener">Valhalla</a>${provider === 'fossgis' ? ' via FOSSGIS' : ''}`;
+  return `<p class="route-card__credit">Route: ${router} · kaartdata © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-bijdragers (ODbL) · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">fout in de kaart melden</a></p>`;
 }
 
 function choiceRow(c: RouteChoice, i: number, m: Extract<RouteCardModel, { status: 'ready' }>): string {
