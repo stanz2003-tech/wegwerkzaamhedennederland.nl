@@ -30,7 +30,7 @@ De verkeersinformatie en de kaart komen van de volgende bronnen. De bronvermeldi
 
 - **Kaartsoftware:** MapLibre GL JS, BSD-3-Clause — © MapLibre contributors; bevat code van mapbox-gl-js v1.13 © 2020 Mapbox. [https://maplibre.org](https://maplibre.org)
 - **Iconen:** [Lucide](https://lucide.dev), ISC-licentie.
-- **Lettertypen:** Overpass (Red Hat) en IBM Plex Sans en IBM Plex Mono (IBM), beide onder de SIL Open Font License 1.1, geleverd via Google Fonts.
+- **Lettertypen:** Overpass (Red Hat) en IBM Plex Sans en IBM Plex Mono (IBM), beide onder de SIL Open Font License 1.1 ([licentie](/fonts/OFL.txt)). We serveren ze zelf, zodat je browser daarvoor geen verbinding met Google maakt.
 - **Hosting en distributie:** Cloudflare (Pages en R2). Bezoekersstatistieken, als die worden bijgehouden, via Cloudflare Web Analytics, dat geen cookies plaatst en geen bezoekers volgt; zie de [privacyverklaring](/privacy/).
 - **Advertenties:** Google AdSense, alleen op de tekstpagina's en alleen met toestemming voor gepersonaliseerde advertenties; zie het [cookiebeleid](/cookies/).
 

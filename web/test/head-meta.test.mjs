@@ -53,3 +53,16 @@ test('favicons, manifest and logo are linked and shipped', () => {
   const files = ['favicon.ico', 'apple-touch-icon.png', 'logo.png', ...manifest.icons.map((i) => i.src.slice(1))];
   for (const f of files) assert.ok(readFileSync(resolve(WEB_ROOT, 'public', f)).length > 0, `public/${f} is empty`);
 });
+
+// Loading fonts from fonts.googleapis.com sends every visitor's IP address to Google, which a
+// German court held to breach the GDPR. The fonts are self-hosted from /fonts/ instead.
+test('fonts are self-hosted: no Google Fonts requests from any page head', () => {
+  const head = readFileSync(resolve(WEB_ROOT, 'templates/_head.html'), 'utf8');
+  for (const doc of [html, head]) assert.doesNotMatch(doc, /fonts\.(googleapis|gstatic)\.com/);
+  const fontsCss = readFileSync(resolve(WEB_ROOT, 'src/styles/fonts.css'), 'utf8');
+  const files = [...fontsCss.matchAll(/url\(\/fonts\/([^)]+)\)/g)].map((m) => m[1]);
+  assert.ok(files.length >= 6, 'fonts.css declares too few font files');
+  for (const f of files) assert.ok(readFileSync(resolve(WEB_ROOT, 'public/fonts', f)).length > 1000, `public/fonts/${f} missing`);
+  const preload = html.match(/<link rel="preload" href="\/fonts\/([^"]+)"/)?.[1];
+  assert.ok(preload && files.includes(preload), 'the preloaded font must be one fonts.css uses');
+});

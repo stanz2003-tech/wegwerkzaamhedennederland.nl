@@ -1,4 +1,5 @@
 /* base.css — reset, typography, focus, utilities. Imports the tokens. */
+@import './fonts.css';
 @import './tokens.css';
 
 *,
