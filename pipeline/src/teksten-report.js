@@ -13,6 +13,8 @@ const SHOWN_PER_KIND = 10;
 
 /** What each check means, in the order the report lists them. */
 export const KINDS = Object.freeze({
+  correctie: 'Door ons gecorrigeerd (pipeline/static/correcties.json)',
+  'correctie-verlopen': 'Correctie vervallen: de wegbeheerder heeft de melding aangepast — haal hem uit correcties.json',
   'gevolg-dicht': 'Dicht omdat de wegbeheerder "weg dicht" kiest, zonder afsluiting in de gegevens',
   'tekst-dicht': 'Dicht omdat de tekst het zegt ("De A15 is afgesloten"), zonder afsluiting in de gegevens',
   'tekst-fietspad': 'Dicht voor auto\'s, maar de tekst noemt alleen een fiets- of voetpad',

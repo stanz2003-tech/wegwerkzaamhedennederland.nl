@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridgeBook, loadRegistry } from './bridges.js';
 import { annotateConsistency } from './consistency.js';
+import { createCorrections, loadCorrections } from './corrections.js';
 import { dedupeDoublePublications, spread } from './dedup.js';
 import { fetchFeed, openLocalFile, readEtags, writeEtags } from './fetch.js';
 import { createGeocoder, DEFAULT_GEOCODE_MAX } from './geocode.js';
@@ -51,6 +52,7 @@ const LIVE_CATS = new Set(['file', 'incident', 'brug']);
  * @property {string=} registryPath
  * @property {string=} plaatsenPath
  * @property {string=} wegenPath
+ * @property {string=} correctionsPath     pipeline/static/correcties.json by default
  * @property {ReturnType<typeof createLogger>=} log
  */
 
@@ -92,7 +94,8 @@ export async function runPipeline(options) {
   const totals = { dropped: 0, duplicates: 0, skipped: {} };
   /** @type {Record<string, number>} */
   const unknownTypes = {};
-  const ctx = { vild, nowMs, provOfGemeente };
+  const corrections = createCorrections(loadCorrections(options.correctionsPath));
+  const ctx = { vild, nowMs, provOfGemeente, corrections };
 
   for (const def of defs) {
     const result = await ingestSource(def, {
@@ -170,7 +173,10 @@ export async function runPipeline(options) {
 
   // Does what the site says agree with what the publisher wrote? Runs on the final verdicts.
   const consistency = annotateConsistency(deduped.items);
-  log.info('consistency check', consistency.counts);
+  const corrected = corrections.stats();
+  // A correction whose melding changed no longer applies; it shows up in the report to be removed.
+  if (corrected.expired.length > 0) consistency.counts['correctie-verlopen'] = corrected.expired.length;
+  log.info('consistency check', { ...consistency.counts, corrected: corrected.applied.length, expired: corrected.expired });
 
   const actueel = deduped.items.filter((i) => i.state === 'active' && !LIVE_CATS.has(i.cat));
   const live = deduped.items.filter((i) => LIVE_CATS.has(i.cat));
@@ -246,7 +252,9 @@ function handleSituation(situation, role, ctx, stage) {
     for (const note of bridgeNotesOf(situation, false)) stage.bridgeNotes.push(note);
     return;
   }
-  const result = buildItem(situation, role, ctx);
+  // Hand corrections (pipeline/static/correcties.json) are applied to the parsed situation itself.
+  const corrected = ctx.corrections ? ctx.corrections.apply(situation) : { situation };
+  const result = buildItem(corrected.situation, role, ctx);
   stage.dropped += result.dropped;
   for (const type of result.unknown) stage.unknown[type] = (stage.unknown[type] ?? 0) + 1;
   if (result.skip) {
@@ -254,6 +262,7 @@ function handleSituation(situation, role, ctx, stage) {
     return;
   }
   const item = /** @type {import('./item.js').Item} */ (result.item);
+  if (corrected.reden) item.correction = corrected.reden;
   stage.items.push(item);
   if (item.cat === 'brug' && role === 'live') {
     for (const note of bridgeNotesOf(situation, true)) stage.bridgeNotes.push(note);

@@ -64,7 +64,7 @@ de-duplication. See pipeline/README.md "Consistency check".
 | Field | Meaning |
 |---|---|
 | `ItemDetail.gevolg` | Melvin's "gevolg voor het verkeer" label verbatim ("Weg dicht in beide richtingen", "Geen gevolgen voor verkeer", …). `imp` reads "weg dicht in beide richtingen" as at least `dicht` and "weg dicht in een richting" as at least `rijbaan`; it never lightens a verdict or narrows a vehicle list. |
-| `ItemDetail.chk` | `{ c, q? }[]`: `gevolg-dicht` / `tekst-dicht` (verdict read from the label / a sentence "… is afgesloten" plus a detour, `q` = those words), `tekst-fietspad` (closed for cars while the text only names a cycle/foot path), `gevolg-geen`, `gevolg-langzaam` (closed while the label says otherwise). The web explains each one (`web/src/ui/check-notes.ts`); unknown codes are ignored. |
+| `ItemDetail.chk` | `{ c, q? }[]`: `correctie` (Wegwerk corrected the publisher's data by hand, `pipeline/static/correcties.json`, `q` = why), `gevolg-dicht` / `tekst-dicht` (verdict read from the label / a sentence "… is afgesloten" plus a detour, `q` = those words), `tekst-fietspad` (closed for cars while the text only names a cycle/foot path), `gevolg-geen`, `gevolg-langzaam` (closed while the label says otherwise). The web explains each one (`web/src/ui/check-notes.ts`); unknown codes are ignored. |
 | `Meta.qa` | Count per check code, including checks the site does not show (`gevolg-fiets`, `hinderklasse`, `snelheid`). |
 
 The web build knows which `Meta.version` it was written for (`web/src/data/version.ts`); a tab

@@ -37,6 +37,12 @@ const quote = (q: string | undefined): string => (q ? `‘${q}’` : 'iets ander
 
 function noteOf(check: ConsistencyCheck, veh: readonly Vehicle[] | null | undefined): CheckNote | null {
   switch (check.c) {
+    case 'correctie':
+      return {
+        kind: 'reason',
+        title: 'Door Wegwerk gecorrigeerd',
+        text: `${check.q ?? ''} Past de wegbeheerder de melding aan, dan vervalt deze correctie vanzelf.`.trim(),
+      };
     case 'gevolg-dicht':
       return {
         kind: 'reason',

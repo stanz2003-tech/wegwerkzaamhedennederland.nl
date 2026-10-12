@@ -240,9 +240,10 @@ export interface ItemDetail {
  * `gevolg-dicht` / `tekst-dicht`: the verdict comes from the publisher's label or sentence (`q`),
  * there is no closure record. `tekst-fietspad`: closed for cars while the text (`q`) only names a
  * cycle or foot path. `gevolg-geen` / `gevolg-langzaam`: closed while the label (`q`) says "Geen
- * gevolgen voor verkeer" / "Beperking voor langzaam verkeer".
+ * gevolgen voor verkeer" / "Beperking voor langzaam verkeer". `correctie`: Wegwerk corrected the
+ * publisher's data by hand (pipeline/static/correcties.json), `q` = why.
  */
-export type ConsistencyCode = 'gevolg-dicht' | 'tekst-dicht' | 'tekst-fietspad' | 'gevolg-geen' | 'gevolg-langzaam';
+export type ConsistencyCode = 'correctie' | 'gevolg-dicht' | 'tekst-dicht' | 'tekst-fietspad' | 'gevolg-geen' | 'gevolg-langzaam';
 export interface ConsistencyCheck {
   c: ConsistencyCode;
   /** The publisher's words the check is about, verbatim. */

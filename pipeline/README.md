@@ -304,6 +304,16 @@ Two things follow from that, measured on the feeds of 2026-10-12 17:15
 
 `node bin/check-teksten.js [--data <url-or-dir>] [--alles]` prints the same in
 Dutch for the published data (default the live R2 data), with a link per item.
+**Hand corrections** (`src/corrections.js`, `static/correcties.json`): for a
+melding whose own text and data plainly disagree in a way that matters to
+drivers, a correction rewrites the vehicle list of its closure records
+(`van` → `naar`) before `buildItem()`. It is pinned to the situation `id`
+and version (`ver`) and to the exact `van` list; when either changes it does
+nothing and is counted as `correctie-verlopen`. Applied ones get the visible
+check `correctie` with the reason. First use: the Merwedebrug cycle path
+(AND01_C1020D9C…, `car` → `bicycle`); on the 2026-10-12 replay it changed that
+one item and nothing else.
+
 Melvin's bare record labels ("Omleiding 1", "Beperking 2") no longer end up
 as the description (`src/merge.js`).
 

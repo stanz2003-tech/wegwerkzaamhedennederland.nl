@@ -28,6 +28,13 @@ describe('checkNotes', () => {
     assert.match(text.text, /‘De A15 is afgesloten tussen Gorinchem en Deil’/);
   });
 
+  it('says when Wegwerk corrected the data, and that the correction expires with the melding', () => {
+    const [note] = checkNotes.checkNotes([{ c: 'correctie', q: 'Wij hebben de afsluiting op fietsers gezet.' }], ['bicycle']);
+    assert.equal(note.kind, 'reason');
+    assert.equal(note.title, 'Door Wegwerk gecorrigeerd');
+    assert.match(note.text, /^Wij hebben de afsluiting op fietsers gezet. Past de wegbeheerder de melding aan, dan vervalt deze correctie vanzelf.$/);
+  });
+
   it('notes the contradicting labels and skips unknown codes and missing input', () => {
     const notes = checkNotes.checkNotes(
       [

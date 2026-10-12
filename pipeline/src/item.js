@@ -30,6 +30,7 @@ import { buildTitle, TITLE_MAX } from './title.js';
  * @property {Record<string, unknown>} props     ItemProperties (filled by finalizeItem)
  * @property {Record<string, unknown>} detail    ItemDetail (filled by finalizeItem)
  * @property {object} raw                        internal inputs for finalizeItem
+ * @property {string=} correction               why a hand correction (src/corrections.js) was applied
  * @property {object=} qa                        texts for the consistency check (src/consistency.js), dropped there
  */
 
@@ -38,6 +39,7 @@ import { buildTitle, TITLE_MAX } from './title.js';
  * @property {import('./vild.js').Vild} vild
  * @property {number} nowMs
  * @property {(gemeente: string) => { prov: string, provCode: string } | undefined=} provOfGemeente
+ * @property {ReturnType<typeof import('./corrections.js').createCorrections>=} corrections   applied in pipeline.js
  */
 
 /**

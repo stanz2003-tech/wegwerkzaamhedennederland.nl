@@ -1,0 +1,13 @@
+{
+  "uitleg": "Correcties door Wegwerk op gegevens van een wegbeheerder. Elke correctie geldt alleen voor deze versie (ver) van deze melding (id) en alleen als de afsluiting nog 'van' zegt; past de wegbeheerder de melding aan, dan vervalt de correctie vanzelf. Zie pipeline/src/corrections.js en docs/handleiding.md §13.",
+  "correcties": [
+    {
+      "id": "AND01_C1020D9C0FA84C228DBBA388E93364CB",
+      "ver": "2026-05-14T19:00:22Z",
+      "van": ["car"],
+      "naar": ["bicycle"],
+      "reden": "Waterschap Rivierenland heeft deze afsluiting ingevuld als ‘dicht voor auto’s’, maar schrijft zelf ‘afsluiting fietspad Merwedebrug westzijde’ en leidt alleen fietsers om. Auto’s kunnen over de A27-brug (max 70 km/u, vrachtverkeer verboden). Wij hebben de afsluiting daarom op fietsers gezet.",
+      "door": "Stan, 2026-10-12"
+    }
+  ]
+}

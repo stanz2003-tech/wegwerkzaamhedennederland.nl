@@ -92,3 +92,11 @@ test('a verdict raised later by a related closure record is not explained as rea
 test('"afsluiting van de weg en het fietspad" is a road closure, not a cycle-path conflict', () => {
   assert.deepEqual(checkItem({ imp: 'dicht', texts: ['Afsluiting van de weg en het fietspad i.v.m. riolering.'] }), []);
 });
+
+test('a hand-corrected item says so first, and its old conflict is gone', () => {
+  const reden = 'Wij hebben de afsluiting op fietsers gezet.';
+  const item = { id: 'm', props: { id: 'm', imp: 'dicht', veh: ['bicycle'] }, detail: { id: 'm' }, correction: reden, qa: { texts: [MERWEDEBRUG] } };
+  const report = annotateConsistency([item]);
+  assert.deepEqual(item.detail.chk, [{ c: 'correctie', q: reden }]);
+  assert.equal(report.counts.correctie, 1);
+});

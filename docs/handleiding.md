@@ -488,3 +488,11 @@ node pipeline/bin/check-teksten.js
 Je krijgt per soort tegenstrijdigheid het aantal en de eerste tien meldingen, elk met een link naar
 de site. Met `--alles` erachter zie je ze allemaal. Wil je een wegbeheerder op een fout wijzen,
 dan staat zijn naam onderaan de melding op de site ("Bron: …").
+
+**Zelf een melding rechtzetten.** Is een melding duidelijk verkeerd ingevuld en maakt dat uit voor
+automobilisten, dan kan Wegwerk hem zelf corrigeren in `pipeline/static/correcties.json` (vraag het
+Claude; er staat er nu één in: de Merwedebrug). Zo'n correctie geldt alleen voor die ene versie van
+die ene melding. Past de wegbeheerder de melding later aan, dan doet de correctie niets meer en
+toont de site weer gewoon wat de wegbeheerder meldt; in het rapport hierboven staat hij dan onder
+"Correctie vervallen", zodat je hem kunt opruimen. Op de site staat bij een gecorrigeerde melding
+altijd *Door Wegwerk gecorrigeerd* met de reden.

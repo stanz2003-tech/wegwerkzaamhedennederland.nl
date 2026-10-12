@@ -15,6 +15,7 @@
  *
  * | Code              | Shown | When                                                                          |
  * |-------------------|-------|-------------------------------------------------------------------------------|
+ * | `correctie`       | yes   | a hand correction (src/corrections.js) was applied; `q` = its reason          |
  * | `gevolg-dicht`    | yes   | the verdict comes from Melvin's label, not from a closure record               |
  * | `tekst-dicht`     | yes   | the verdict comes from a sentence like "De A15 is afgesloten" plus a detour     |
  * | `tekst-fietspad`  | yes   | closed for cars, while the text only names a cycle/foot path as closed          |
@@ -27,7 +28,7 @@
 
 import { closedByText, sentencesOf } from './impact.js';
 
-/** @typedef {'gevolg-dicht'|'tekst-dicht'|'tekst-fietspad'|'gevolg-geen'|'gevolg-langzaam'|'gevolg-fiets'|'hinderklasse'|'snelheid'} CheckCode */
+/** @typedef {'correctie'|'gevolg-dicht'|'tekst-dicht'|'tekst-fietspad'|'gevolg-geen'|'gevolg-langzaam'|'gevolg-fiets'|'hinderklasse'|'snelheid'} CheckCode */
 /** @typedef {{ c: CheckCode, q?: string }} Check */
 /** @typedef {{ key: string, text: string }} Gevolg */
 
@@ -43,7 +44,7 @@ import { closedByText, sentencesOf } from './impact.js';
  */
 
 /** @type {ReadonlySet<CheckCode>} */
-export const VISIBLE_CHECKS = new Set(['gevolg-dicht', 'tekst-dicht', 'tekst-fietspad', 'gevolg-geen', 'gevolg-langzaam']);
+export const VISIBLE_CHECKS = new Set(['correctie', 'gevolg-dicht', 'tekst-dicht', 'tekst-fietspad', 'gevolg-geen', 'gevolg-langzaam']);
 
 /** Melvin's six "gevolg voor het verkeer" labels, heaviest first (title.js demotes the same six). */
 const GEVOLG_LABELS = [
@@ -134,7 +135,8 @@ export function annotateConsistency(items) {
     const qa = /** @type {{ texts: (string|undefined)[], gevolg?: Gevolg, by?: 'gevolg'|'tekst', imp?: string } | undefined} */ (item.qa);
     if (!qa) continue;
     const p = item.props;
-    const checks = checkItem({
+    const checks = item.correction ? [{ c: /** @type {CheckCode} */ ('correctie'), q: item.correction }] : [];
+    checks.push(...checkItem({
       imp: /** @type {string} */ (p.imp),
       veh: /** @type {string[] | undefined} */ (p.veh),
       hind: /** @type {string | undefined} */ (p.hind),
@@ -143,7 +145,7 @@ export function annotateConsistency(items) {
       by: qa.imp === p.imp ? qa.by : undefined,
       gevolg: qa.gevolg,
       texts: qa.texts,
-    });
+    }));
     for (const { c } of checks) {
       counts[c] = (counts[c] ?? 0) + 1;
       (ids[c] ??= []).push(item.id);
