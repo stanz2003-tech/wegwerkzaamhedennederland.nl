@@ -378,6 +378,14 @@ advertentieblokken aan en zet hun ids in `ads.slots`. Ga naar **Privacy & messag
 Nederlands, met de knop **"Niet akkoord"/"Do not consent"** ingeschakeld, en publiceer. Uitbetaling
 vanaf €70; zie `docs/onderzoek.md` §6.4 voor KvK en btw.
 
+10.3 **IndexNow (automatisch, niets te doen).** Elke ochtend meldt de workflow *IndexNow* nieuwe
+pagina's en weg- en gemeentepagina's met gewijzigde werkzaamheden bij Bing en de andere
+IndexNow-zoekmachines (Yandex, Seznam, Naver). Google doet niet mee; die leest de sitemap. De sleutel
+staat in `web/site.config.json` (`indexnow.key`) en als `/<sleutel>.txt` op de site — die is openbaar
+bedoeld. Wordt een run rood, dan meldt de job wat IndexNow terugzei; de volgende run probeert alles
+opnieuw. Bijgehouden wat al gemeld is: `infra/indexnow-state.json` (commits
+`chore(indexnow): update state`).
+
 ---
 
 ## 11. Problemen oplossen (voor wie verder kijkt)

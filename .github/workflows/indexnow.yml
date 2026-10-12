@@ -1,0 +1,71 @@
+# Once a day: report new and changed pages to IndexNow (Bing and the other IndexNow engines),
+# so nobody has to paste URLs into Bing Webmaster Tools. Google does not use IndexNow; it reads
+# the sitemap. What "changed" means and why the state file exists: infra/indexnow.mjs.
+name: IndexNow
+
+on:
+  schedule:
+    # Daily, after the morning planning updates; GitHub may start it late or skip a day, which
+    # is harmless because the next run compares against the last *successful* one.
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: indexnow
+  cancel-in-progress: false
+
+permissions:
+  contents: write # commit infra/indexnow-state.json
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  indexnow:
+    name: Report changed pages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATA_BASE: ${{ vars.DATA_BASE }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Report to IndexNow
+        run: node infra/indexnow.mjs | tee indexnow-summary.txt
+
+      - name: Commit state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add infra/indexnow-state.json
+          if git diff --cached --quiet; then
+            echo "State unchanged; nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore(indexnow): update state [skip ci]"
+          for attempt in 1 2 3; do
+            git push origin "HEAD:${{ github.ref_name }}" && exit 0
+            echo "Push failed (attempt $attempt); rebasing on the remote branch and retrying."
+            git pull --rebase origin "${{ github.ref_name }}"
+          done
+          echo "::error::Could not push the IndexNow state; the next run will report the same pages again."
+          exit 1
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### IndexNow"
+            echo '```'
+            cat indexnow-summary.txt 2>/dev/null || echo "(did not run)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
