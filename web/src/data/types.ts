@@ -152,6 +152,18 @@ export interface ItemDetail {
   /** Detour description (reroutingItineraryDescription). */
   detour?: string;
   /**
+   * Melvin's "gevolg voor het verkeer" as the publisher chose it ("Weg dicht in beide richtingen",
+   * "Geen gevolgen voor verkeer" …). Often the only comment, and dropped from the title in favour
+   * of the street, so this is the one place the site shows it.
+   */
+  gevolg?: string;
+  /**
+   * Where the verdict and the publisher's own words disagree, or where the verdict was read from
+   * those words instead of a measure record (pipeline/src/consistency.js). The site explains each
+   * one; the verdict itself is never softened by it. Absent when everything agrees.
+   */
+  chk?: ConsistencyCheck[];
+  /**
    * The blocks in which the measure applies, ISO pairs, sorted, non-overlapping; present only when
    * the measure has gaps. Since v4 built from every DATEX record's own validity (v3 read the main
    * record only), so these are the stretches of `tl` merged regardless of impact. An end of '' is
@@ -222,6 +234,19 @@ export interface ItemDetail {
   detourGeom?: [number, number][];
   /** Last change of the situation, ISO 8601 UTC. */
   upd: string;
+}
+
+/**
+ * `gevolg-dicht` / `tekst-dicht`: the verdict comes from the publisher's label or sentence (`q`),
+ * there is no closure record. `tekst-fietspad`: closed for cars while the text (`q`) only names a
+ * cycle or foot path. `gevolg-geen` / `gevolg-langzaam`: closed while the label (`q`) says "Geen
+ * gevolgen voor verkeer" / "Beperking voor langzaam verkeer".
+ */
+export type ConsistencyCode = 'gevolg-dicht' | 'tekst-dicht' | 'tekst-fietspad' | 'gevolg-geen' | 'gevolg-langzaam';
+export interface ConsistencyCheck {
+  c: ConsistencyCode;
+  /** The publisher's words the check is about, verbatim. */
+  q?: string;
 }
 
 export type DetailShard = Record<string, ItemDetail>;

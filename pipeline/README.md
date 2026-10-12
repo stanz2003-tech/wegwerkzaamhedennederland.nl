@@ -35,8 +35,10 @@ bin/run.js                CLI: flags → runPipeline(), one summary line, exit c
     ├── src/slug.js            slugify(), identical to the frontend implementation
     ├── src/bridges.js         bridge registry lookup, naming rules, VILD merge, openings, seen ids
     ├── src/dedup.js           folds the RWS/Melvin double publication into one item
+    ├── src/consistency.js     verdict vs the publisher's own words → detail.chk, meta.qa
     └── src/log.js             timestamped structured logging on stderr
 bin/check-direction.js    checks the AlertC from → to direction on real feed files (see "Direction")
+bin/check-teksten.js      Dutch report of the consistency check on published data (see "Consistency check")
 ```
 
 ### Data flow of one run
@@ -260,6 +262,50 @@ car 298, moped 195, lorry 105, bus 27, agricultural 14, other 3 (914 of them
 common combinations are single groups, `car+bicycle` 19 and `bicycle+moped`
 10). `per` 1,198, `spd` 3,234 (30 km/h 1,706, 70 755, 50 455, 10 235), `lc`
 712 (1 lane 487, 2 lanes 174, 3 lanes 48, 4 lanes 3).
+
+## Consistency check (`src/consistency.js`, 2026-10-12)
+
+The verdict above comes from the measure records. Melvin situations also carry
+the publisher's "gevolg voor het verkeer" drop-down ("Weg dicht in beide
+richtingen", one of six labels, see `src/title.js`) and free text. Where they
+disagree a visitor sees "Weg dicht" over a text about a cycle path (the
+Merwedebrug at Gorinchem) or "doorrijden mogelijk" over "Weg is hier
+afgesloten" (Teding van Berkhoutlaan, Delft) and stops trusting the site.
+
+Two things follow from that, measured on the feeds of 2026-10-12 17:15
+(11,732 items, offline replay of old vs new code):
+
+1. **The label and "is afgesloten" make a verdict heavier, never lighter**
+   (`src/impact.js`). "Weg dicht in beide richtingen" → at least `dicht`, "weg
+   dicht in een richting" → at least `rijbaan`, unless the closure records
+   restrict vehicles (then "weg" is the cycle path). "<weg> is afgesloten" plus a
+   detour reads like "is dicht", except after a lane, ramp, path or car park or
+   in "afgesloten voor vrachtverkeer"; "in beide richtingen" makes it `dicht`
+   on an A/N road too. Result: 529 items heavier (hinder → dicht 239, rijbaan →
+   dicht 145, hinder → rijbaan 124, other 21), **none lighter**. The A15
+   Gorinchem–Deil night closures and 483 Melvin items no longer say "doorrijden
+   mogelijk".
+2. **Everything else is explained, not changed.** Reading the text the other
+   way (cycle path → not for cars) was removed on 2026-09-21 because it told
+   drivers they could pass closed streets. Instead `annotateConsistency()` runs
+   after roll-up and de-duplication and writes the checks the site shows to
+   `detail.chk`; all counts go to `meta.qa` and the log line `consistency check`.
+
+| Code | Shown | Count 2026-10-12 | When |
+|---|---|---|---|
+| `gevolg-dicht` | yes | 483 | verdict from the label, no closure record |
+| `tekst-dicht` | yes | 137 | verdict from "… is dicht / is afgesloten" plus a detour |
+| `tekst-fietspad` | yes | 34 | closed for cars, the text only names a cycle/foot path |
+| `gevolg-geen` | yes | 61 | closed, label "Geen gevolgen voor verkeer" |
+| `gevolg-langzaam` | yes | 76 | closed for cars, label "Beperking voor langzaam verkeer" |
+| `gevolg-fiets` | no | 172 | label "weg dicht", closure only for bicycles/mopeds (checked: closed cycle paths) |
+| `hinderklasse` | no | 3,796 | closed with hindrance class D/E; the detail hides that row under a closure |
+| `snelheid` | no | 5 | the text names a speed the records do not publish |
+
+`node bin/check-teksten.js [--data <url-or-dir>] [--alles]` prints the same in
+Dutch for the published data (default the live R2 data), with a link per item.
+Melvin's bare record labels ("Omleiding 1", "Beperking 2") no longer end up
+as the description (`src/merge.js`).
 
 ## Detour geometry (`src/detour.js`)
 

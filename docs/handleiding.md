@@ -460,3 +460,31 @@ zoals Stadia Maps, werkt ook: dan zet je hun route-adres met sleutel in `ROUTING
 | "De routeplanner is niet bereikbaar" | de routedienst antwoordt niet | meestal na een paar minuten over; blijft het, verhuis (hierboven) |
 | "De routeplanner weigert de sleutel van deze site" | Geoapify-sleutel verkeerd overgenomen, ingetrokken, of de beperking (stap 3) noemt een ander webadres | sleutel en beperking nakijken, `ROUTING_URL` bijwerken, *Deploy* opnieuw |
 | "De routeplanner is even te druk" | te veel vragen tegelijk, of de 3.000 per dag zijn op | wacht tot morgen; gebeurt het vaak, neem een betaald Geoapify-pakket |
+
+---
+
+## 13. Klopt wat er op de site staat? De teksten-check
+
+De site zet elke melding om in één oordeel ("Weg dicht", "Doorrijden mogelijk" …). Dat oordeel komt
+uit de gegevens die de wegbeheerder invult. Dezelfde wegbeheerder schrijft er vaak ook een tekst
+bij, of kiest in zijn systeem een "gevolg voor het verkeer" (bijvoorbeeld *Weg dicht in beide
+richtingen*). Soms spreken die twee elkaar tegen. Bij elke run vergelijkt de site ze:
+
+- **Zegt de wegbeheerder dat de weg dicht is, maar staat er geen afsluiting in de gegevens?** Dan
+  toont de site "Weg dicht", met de uitleg *Waarom dicht?* en de woorden van de wegbeheerder.
+  Een melding wordt zo alleen strenger, nooit milder: de site zegt nooit ten onrechte dat je erdoor
+  kunt.
+- **Spreken tekst en gegevens elkaar op een andere manier tegen?** Bijvoorbeeld bij de Merwedebrug
+  in Gorinchem: de tekst zegt "afsluiting fietspad westzijde", de gegevens zeggen "dicht voor
+  auto's". Dan blijft het oordeel staan, maar staat er een gele melding *Melding spreekt zichzelf
+  tegen* met de tekst van de wegbeheerder erbij. Alleen de wegbeheerder kan de gegevens rechtzetten.
+
+**Zelf kijken welke meldingen het betreft.** Op een computer met de code (zie §1) draai je:
+
+```
+node pipeline/bin/check-teksten.js
+```
+
+Je krijgt per soort tegenstrijdigheid het aantal en de eerste tien meldingen, elk met een link naar
+de site. Met `--alles` erachter zie je ze allemaal. Wil je een wegbeheerder op een fout wijzen,
+dan staat zijn naam onderaan de melding op de site ("Bron: …").

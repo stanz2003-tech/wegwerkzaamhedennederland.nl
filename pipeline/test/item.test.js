@@ -131,3 +131,25 @@ test('RWS title and from/to follow the direction of travel: real A27 twin closur
   const [sStart, sEnd] = [south.geometry.coordinates[0], south.geometry.coordinates.at(-1)];
   assert.ok(sStart[1] > sEnd[1], 'southbound line starts at Avelingen (north)');
 });
+
+test('Melvin\'s "Weg dicht in beide richtingen" without a closure record closes the street and is kept for the site (NDW03_615169, Delft)', async () => {
+  // Arrange: the real Zwolle record, reduced to what the Delft situation publishes — a works record
+  // with Melvin's label and a speed limit, no closure record.
+  const [situation] = await parseSnippet(fixture('afsl.xml'));
+  const [rec] = situation.recs;
+  situation.recs = [
+    { ...rec, type: 'MaintenanceWorks', lane: undefined, comments: [{ type: 'warning', text: 'Weg dicht in beide richtingen' }, { type: 'other', text: 'Werkvakken max 40 meter' }] },
+    { ...rec, id: `${rec.id}_S`, type: 'SpeedManagement', lane: undefined, speed: 30, comments: [] },
+  ];
+  const built = buildItem(situation, 'planning', { vild: NO_VILD, nowMs: NOW_MS });
+  assert.ok(built.item);
+
+  // Act
+  const item = finalizeItem(built.item, GEO, NOW_MS);
+
+  // Assert
+  assert.equal(item.props.imp, 'dicht');
+  assert.equal(item.detail.gevolg, 'Weg dicht in beide richtingen');
+  assert.deepEqual(item.qa?.gevolg, { key: 'weg dicht in beide richtingen', text: 'Weg dicht in beide richtingen' });
+  assert.equal(item.qa?.by, 'gevolg');
+});

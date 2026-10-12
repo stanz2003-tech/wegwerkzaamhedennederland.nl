@@ -10,6 +10,11 @@ import { mainRecord } from './classify.js';
 import { detourGeomOf } from './detour.js';
 
 const MAX_DESC = 2000;
+/**
+ * Melvin names every detour and restriction record "Omleiding 1", "Beperking 2". Under
+ * "Toelichting" such a label was all a visitor got for the Merwedebrug (2026-10-12).
+ */
+const BARE_LABEL_RE = /^(?:omleiding|beperking|afsluiting)(?:\s*\d+[a-z]?)?\.?$/i;
 const MAX_PERIODS_KEPT = 400;
 
 /**
@@ -125,7 +130,7 @@ function joinComments(recs, title) {
     for (const c of r.comments ?? []) {
       if (c.type === 'internalNote') continue;
       const t = clean(c.text);
-      if (!t || t === title || seen.has(t)) continue;
+      if (!t || t === title || seen.has(t) || BARE_LABEL_RE.test(t)) continue;
       seen.add(t);
       parts.push(t);
     }

@@ -197,3 +197,17 @@ test('clean strips HTML, decodes entities, collapses whitespace, caps descriptio
   assert.equal(long.desc?.length, 2000);
   assert.ok(long.desc?.endsWith('…'));
 });
+
+test('bare numbered labels ("Omleiding 1", "Beperking 2") are not a description', () => {
+  const s = {
+    id: 'M',
+    recs: [
+      { id: 'M_1', type: 'MaintenanceWorks', comments: [{ type: 'warning', text: 'Langdurige afsluiting fietspad Merwedebrug westzijde.' }], locs: [] },
+      { id: 'M_2', type: 'ReroutingManagement', comments: [{ type: 'other', text: 'Omleiding 1' }], locs: [] },
+      { id: 'M_3', type: 'ReroutingManagement', comments: [{ type: 'other', text: 'Beperking 2' }, { type: 'other', text: 'Omleiding Schelluinen' }], locs: [] },
+    ],
+  };
+  const m = mergeSituation(s);
+  assert.equal(m.comment, 'Langdurige afsluiting fietspad Merwedebrug westzijde.');
+  assert.equal(m.desc, 'Omleiding Schelluinen');
+});

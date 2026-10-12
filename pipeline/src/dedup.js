@@ -266,7 +266,7 @@ function provenTwin(actual, byBase, byId, consumed) {
 // Filling it from the planning twin narrowed a live closure to "alleen fietsers" — the same false
 // "Geldt niet voor auto's" the vehicle fallback in impact.js was removed for.
 const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov', 'spd', 'lc']);
-const ABSORB_DETAIL = Object.freeze(['desc', 'detour', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
+const ABSORB_DETAIL = Object.freeze(['desc', 'gevolg', 'detour', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
 /**
  * When a measure applies (contract v4), together with `props.per`. Never taken over from the
  * planning twin: the survivor is the actual measure from the live feed, which is in force now.

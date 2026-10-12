@@ -18,6 +18,13 @@
  * | `geen`     | delay band `negligible` and none of the above; events without any traffic measure       |
  * | `onbekend` | nothing above applies                                                                   |
  *
+ * Read from the publisher's words, and only ever making the verdict heavier (`by` in the result):
+ *   - "<weg> is dicht" / "<weg> is afgesloten" next to a detour record: `rijbaan` on A/N (`dicht`
+ *     with "in beide richtingen"), `dicht` elsewhere — `by: 'tekst'`;
+ *   - Melvin's label "Weg dicht in beide richtingen" → at least `dicht`, "Weg dicht in een
+ *     richting" → at least `rijbaan`, unless the closure records restrict vehicles — `by: 'gevolg'`.
+ * Disagreements the other way are explained on the site, not acted on (src/consistency.js).
+ *
  * `veh` is the union of `forVehiclesWithCharacteristicsOf` over the records
  * that produced the winning verdict — but only when every one of those records
  * restricts vehicles: one unrestricted `roadClosed` next to a `roadClosed` for
@@ -64,9 +71,15 @@
  * @property {{ closed?: number }=} lanes                 merged lanes
  * @property {number=} speed                              merged temporary speed limit
  * @property {(string | undefined)[]=} texts              comment / description, for the path check
+ * @property {string=} gevolg                             Melvin's "gevolg voor het verkeer" label, lower case
+ *                                                        (`gevolgOf()` in src/consistency.js)
  */
 
-/** @typedef {{ imp: Impact, veh?: Vehicle[], per?: true, spd?: number, lc?: number }} ImpactResult */
+/**
+ * `by` says the verdict was not read from a measure record: `gevolg` = Melvin's dropdown,
+ * `tekst` = a sentence like "De A15 is afgesloten" next to a detour. The site explains those.
+ * @typedef {{ imp: Impact, veh?: Vehicle[], by?: 'gevolg'|'tekst', per?: true, spd?: number, lc?: number }} ImpactResult
+ */
 
 const DUAL_CARRIAGEWAY_ROAD_TYPES = new Set(['A', 'N']);
 const HINDER_LANE_TYPES = new Set([
@@ -87,8 +100,25 @@ const LIVE_HINDER_CATS = new Set(['file', 'incident']);
  * mogelijk" under the words "De A2 is dicht".
  *
  * The negative lookahead is not decoration: in Dutch "is dicht bij Hank" means "is NEAR Hank".
+ * "Afgesloten" is read the same way ("De A15 is afgesloten tussen Gorinchem en Deil", 2026-10-12:
+ * six RWS night closures read "doorrijden mogelijk"), but only when the words before it are not a
+ * lane, a ramp, a path or a car park — those leave the road usable — and not when it is "afgesloten
+ * voor vrachtverkeer", which is about one kind of traffic. "Is dicht" keeps its reading of
+ * 2026-09 unchanged ("De A2 tunnelbuis vanuit Eindhoven is dicht" = rijbaan).
  */
 const CLOSED_BY_TEXT_RE = /\b(?:is|zijn)\s+dicht\b(?!\s*bij\b)/i;
+const AFGESLOTEN_RE = /\b(?:is|zijn)\s+afgesloten\b(?!\s+voor\s+(?!(?:al(?:le|l)?\s+(?:het\s+)?|het\s+)?(?:doorgaand\s+)?verkeer\b))/i;
+const NOT_THE_ROAD_RE =
+  /\b(?:rijstro(?:ok|ken)|op-?\s*en\s*afrit|oprit(?:ten)?|afrit(?:ten)?|toerit|fiets\w*|voet\w*|trottoir|stoep|parkeer\w*|carpool\w*|verzorgingsplaats|vluchtstrook|spitsstrook|plusstrook|wisselbaan|busbaan)\b/i;
+
+const BOTH_WAYS_RE = /\bbeide\s+richtingen\b/i;
+
+/** Melvin's dropdown labels that state a closure, and the verdict they stand for. */
+const GEVOLG_VERDICT = Object.freeze({
+  'weg dicht in beide richtingen': 'dicht',
+  'weg dicht in een richting': 'rijbaan',
+});
+const WEAKER_THAN_RIJBAAN = new Set(['hinder', 'geen', 'onbekend']);
 
 /** Delay bands in increasing order of hindrance. */
 const DELAY_ORDER = [
@@ -129,18 +159,24 @@ export function impactOf(recs, ctx) {
   let imp;
   /** @type {ImpactRecord[]} */
   let winning;
+  /** @type {ImpactResult['by']} */
+  let by;
+  /** @type {string | undefined} */
+  let sentence;
   if (closedRecs.length > 0 || ctx.cat === 'brug') {
     imp = 'dicht';
     winning = closedRecs;
   } else if (carriagewayRecs.length > 0) {
     imp = 'rijbaan';
     winning = carriagewayRecs;
-  } else if (rerouteRecs.length > 0 && CLOSED_BY_TEXT_RE.test(textOf(ctx))) {
+  } else if (rerouteRecs.length > 0 && (sentence = closedByText(textOf(ctx)))) {
     // Same reading as `carriagewayClosures`: on a road with two carriageways "de A6 is dicht"
-    // means this carriageway, and the other direction stays open. The detour's vehicle list says
-    // who the detour is for, not who the road is closed to, so it does not narrow this verdict.
-    imp = dual ? 'rijbaan' : 'dicht';
+    // means this carriageway, and the other direction stays open — unless the sentence says "in
+    // beide richtingen". The detour's vehicle list says who the detour is for, not who the road is
+    // closed to, so it does not narrow this verdict.
+    imp = dual && !BOTH_WAYS_RE.test(sentence) ? 'rijbaan' : 'dicht';
     winning = [];
+    by = 'tekst';
   } else if (hinderRecs.length > 0 || LIVE_HINDER_CATS.has(ctx.cat) || (ctx.lanes?.closed ?? 0) > 0 || delayIsHinder(ctx)) {
     imp = 'hinder';
     winning = hinderRecs;
@@ -152,10 +188,24 @@ export function impactOf(recs, ctx) {
     winning = [];
   }
 
+  // Melvin's "gevolg voor het verkeer" is a drop-down the publisher fills in, not prose. On
+  // 2026-10-12 about 140 situations said "Weg dicht in beide richtingen" there without a closure
+  // record (only a detour, a speed limit or nothing) and the site printed "doorrijden mogelijk".
+  // It only ever makes the verdict heavier, and never overrides a vehicle list the records publish:
+  // "weg dicht" over a closure for bicycles is a closed cycle path.
+  const byLabel = GEVOLG_VERDICT[ctx.gevolg ?? ''];
+  const unrestricted = vehiclesOf(winning) === undefined;
+  if ((byLabel && WEAKER_THAN_RIJBAAN.has(imp)) || (byLabel === 'dicht' && imp === 'rijbaan' && unrestricted)) {
+    imp = byLabel;
+    winning = [];
+    by = 'gevolg';
+  }
+
   /** @type {ImpactResult} */
   const out = { imp };
   const veh = vehiclesOf(winning);
   if (veh) out.veh = veh;
+  if (by) out.by = by;
   if (ctx.hasPeriods) out.per = true;
   if (ctx.speed !== undefined && ctx.speed > 0) out.spd = ctx.speed;
   if (ctx.lanes?.closed !== undefined && ctx.lanes.closed > 0) out.lc = ctx.lanes.closed;
@@ -164,7 +214,61 @@ export function impactOf(recs, ctx) {
 
 /** @param {ImpactContext} ctx */
 function textOf(ctx) {
-  return (ctx.texts ?? []).filter(Boolean).join(' ');
+  return (ctx.texts ?? []).filter(Boolean).join('\n');
+}
+
+/**
+ * True when a sentence says the road itself is closed ("De A15 is afgesloten tussen …"). The
+ * words before the verb are its subject: "de rijstrook is afgesloten" is not about the road.
+ * Exported for the consistency check, which quotes the sentence.
+ * @param {string} text
+ * @returns {string | undefined} the sentence
+ */
+export function closedByText(text) {
+  const sentences = sentencesOf(text);
+  // "Is dicht" is read over the whole text, as before 2026-10-12: a line break inside the phrase
+  // ("De A2 is⏎dicht") must not undo it. The sentence is only for the quote.
+  const flat = text.replace(/\s+/g, ' ');
+  const dicht = CLOSED_BY_TEXT_RE.exec(flat);
+  if (dicht) return sentences.find((s) => CLOSED_BY_TEXT_RE.test(s)) ?? flat.slice(Math.max(0, dicht.index - 60), dicht.index + dicht[0].length).trim();
+  return sentences.find((s) => {
+    const m = AFGESLOTEN_RE.exec(s);
+    return m !== null && !NOT_THE_ROAD_RE.test(s.slice(0, m.index));
+  });
+}
+
+/**
+ * Sentences of publisher text, without the closing full stop. A full stop only ends a sentence
+ * before a capital, and not after an abbreviation: "i.v.m. de bouw" and "De rijstrook t.h.v.
+ * Vianen is afgesloten" stay in one piece.
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function sentencesOf(text) {
+  /** @type {string[]} */
+  const out = [];
+  for (const line of text.split(/\n|\s\|\s/)) {
+    let current = '';
+    for (const piece of line.split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý])/)) {
+      if (current && ABBREVIATION_END_RE.test(current)) {
+        current = `${current} ${piece}`;
+      } else {
+        pushSentence(out, current);
+        current = piece;
+      }
+    }
+    pushSentence(out, current);
+  }
+  return out;
+}
+
+/** "t.h.v.", "i.v.m.", "ca.", "nr." at the end of a piece: not the end of a sentence. */
+const ABBREVIATION_END_RE = /(?:^|\s)(?:[a-z]\.(?:[a-z]+\.)+|[a-z]{1,3}\.)$/;
+
+/** @param {string[]} out @param {string} s */
+function pushSentence(out, s) {
+  const t = s.trim().replace(/[.!?]+$/, '');
+  if (t) out.push(t);
 }
 
 /** @param {ImpactRecord} r */

@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridgeBook, loadRegistry } from './bridges.js';
+import { annotateConsistency } from './consistency.js';
 import { dedupeDoublePublications, spread } from './dedup.js';
 import { fetchFeed, openLocalFile, readEtags, writeEtags } from './fetch.js';
 import { createGeocoder, DEFAULT_GEOCODE_MAX } from './geocode.js';
@@ -167,6 +168,10 @@ export async function runPipeline(options) {
     log.debug('merges without an explicit publisher link', { count: deduped.stats.unproven.length, pairs: deduped.stats.unproven.slice(0, 40) });
   }
 
+  // Does what the site says agree with what the publisher wrote? Runs on the final verdicts.
+  const consistency = annotateConsistency(deduped.items);
+  log.info('consistency check', consistency.counts);
+
   const actueel = deduped.items.filter((i) => i.state === 'active' && !LIVE_CATS.has(i.cat));
   const live = deduped.items.filter((i) => LIVE_CATS.has(i.cat));
   const gepland = deduped.items.filter((i) => i.state === 'upcoming');
@@ -185,6 +190,8 @@ export async function runPipeline(options) {
     horizon: { days: UPCOMING_DAYS, until: toMinuteIso(nowMs + UPCOMING_DAYS * 24 * 60 * 60 * 1000) },
     dropped: totals.dropped,
     unknownTypes,
+    // Per check code (src/consistency.js) the number of items where verdict and text disagree.
+    qa: consistency.counts,
     runMs,
     peakRssMb: sampler.peakMb(),
   };

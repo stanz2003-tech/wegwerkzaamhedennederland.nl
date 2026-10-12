@@ -36,6 +36,7 @@ import {
   subLabel,
   vehiclesLabel,
 } from './format';
+import { checkNotes } from './check-notes';
 import { NO_DESCRIPTION } from './copy';
 import { isNow, periodsBlock, phasesBlock, timelineBar, whenBlock } from './detail-when';
 import { ICONS } from './icons';
@@ -79,6 +80,8 @@ function impactRows(p: ItemProperties, d: ItemDetail | null): Row[] {
   const push = (icon: string, label: string, value: string | null): void => {
     if (value) rows.push({ icon, label, value });
   };
+  // Melvin's own "gevolg voor het verkeer", unless it already is the title.
+  if (d?.gevolg && !p.title.toLowerCase().startsWith(d.gevolg.toLowerCase())) push(ICONS.info, 'Volgens wegbeheerder', d.gevolg);
   if (d) {
     push(ICONS.milestone, 'Rijstroken', lanesLabel(d.lanes));
     push(ICONS.gauge, 'Maximumsnelheid', typeof d.speed === 'number' ? `${d.speed} km/u` : null);
@@ -92,7 +95,10 @@ function impactRows(p: ItemProperties, d: ItemDetail | null): Row[] {
     push(ICONS.milestone, 'Rijstroken', typeof p.lc === 'number' ? `${p.lc} ${p.lc === 1 ? 'rijstrook' : 'rijstroken'} dicht` : null);
     push(ICONS.truck, 'Geldt voor', vehiclesLabel(p.veh));
   }
-  push(ICONS.triangleAlert, 'Hinder', hindLabel(p.hind));
+  // "Nauwelijks hinder" under "Weg dicht" read as a contradiction of our own making: the class is
+  // the publisher's estimate for the whole project, the closure is the measure.
+  const closed = p.imp === 'dicht' || p.imp === 'rijbaan';
+  if (!(closed && (p.hind === 'D' || p.hind === 'E'))) push(ICONS.triangleAlert, 'Hinder', hindLabel(p.hind));
   // No "Status: planning" row: the status line already says "Nu actief" or "Start …", and the
   // publisher's planning status contradicted it for works that run right now (taal-6). Only an
   // uncertain melding says so.
@@ -174,6 +180,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   const kicker = win ? `${MODE_FOR[state.mode]} · ${state.whenLabel ?? fmtDayTime(win.from)}` : isNow(at, now) ? '' : `${MODE_FOR[state.mode]} · ${fmtDayTime(at)}`;
   const phrase = win ? phraseIn(item, state.mode, win.from, win.to) : phraseAt(item, state.mode, at);
   const rows = impactRows(p, d);
+  const notes = checkNotes(d?.chk, p.veh);
   const route = routeUrl(state.center);
   const detourCoords = d?.detourGeom && d.detourGeom.length >= 2 ? d.detourGeom : null;
   const detourUrl = detourCoords ? detourMapsUrl(detourCoords) : null;
@@ -219,6 +226,12 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
           <h2 class="detail__title" id="detail-title">${esc(p.title)}</h2>
         </div>
       </header>
+      ${notes
+        .map(
+          (n) =>
+            `<div class="banner ${n.kind === 'conflict' ? 'banner--warn ' : ''}detail__check" role="note">${n.kind === 'conflict' ? ICONS.circleAlert : ICONS.info}<div><p class="banner__title">${esc(n.title)}</p><p class="banner__text">${esc(n.text)}</p></div></div>`,
+        )
+        .join('')}
       ${whenBlock(p, d, now, ref)}
       ${
         detourText

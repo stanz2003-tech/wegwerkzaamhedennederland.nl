@@ -7,6 +7,7 @@
  */
 
 import { classify } from './classify.js';
+import { gevolgOf } from './consistency.js';
 import { buildGeometry, midpoint } from './geometry.js';
 import { impactOf } from './impact.js';
 import { mergeSituation } from './merge.js';
@@ -29,6 +30,7 @@ import { buildTitle, TITLE_MAX } from './title.js';
  * @property {Record<string, unknown>} props     ItemProperties (filled by finalizeItem)
  * @property {Record<string, unknown>} detail    ItemDetail (filled by finalizeItem)
  * @property {object} raw                        internal inputs for finalizeItem
+ * @property {object=} qa                        texts for the consistency check (src/consistency.js), dropped there
  */
 
 /**
@@ -129,6 +131,8 @@ export function finalizeItem(item, geo, nowMs) {
   // The verdict needs the road type (A/N have two carriageways), which is only
   // known here: detectRoad() may rest on the geocoded street name.
   const texts = [merged.comment, merged.desc, merged.causeDesc];
+  // Melvin's "gevolg voor het verkeer" drop-down: often the title comment, which `desc` leaves out.
+  const gevolg = gevolgOf([merged.comment, merged.desc]);
   const impact = impactOf(merged.measures, {
     cat: cls.cat,
     roadType: road.roadType,
@@ -136,6 +140,7 @@ export function finalizeItem(item, geo, nowMs) {
     lanes: merged.lanes,
     speed: merged.speed,
     texts,
+    gevolg: gevolg?.key,
   });
   // Contract v4: the verdict per stretch of time, from the records that apply during it. For the
   // ~98% of situations whose measures all share the main window this yields exactly the v3 result;
@@ -162,6 +167,8 @@ export function finalizeItem(item, geo, nowMs) {
         lanes: lanesClosedOf(measures),
         speed: minSpeedOf(measures),
         texts,
+        // The label sits on the main record, like the delay band.
+        gevolg: active.some((r) => r.isMain) ? gevolg?.key : undefined,
       });
       return v.veh ? { imp: v.imp, veh: v.veh } : { imp: v.imp };
     },
@@ -202,6 +209,7 @@ export function finalizeItem(item, geo, nowMs) {
     id: item.id,
     desc,
     detour: merged.detour,
+    gevolg: gevolg?.text,
     periods,
     tl: timeline.tl,
     tlTo: timeline.tlTo,
@@ -221,6 +229,10 @@ export function finalizeItem(item, geo, nowMs) {
     detourGeom: merged.detourGeom,
     upd: toMinuteIso(merged.upd) ?? start,
   });
+  // Working copy for the consistency check (src/consistency.js), which runs once the verdict is
+  // final — after roll-up and de-duplication — and drops it again.
+  // `imp` is the verdict `by` explains; roll-up or de-duplication may still raise it.
+  item.qa = compact({ texts, gevolg, by: impact.by, imp: verdict.imp });
   delete item.raw;
   return item;
 }

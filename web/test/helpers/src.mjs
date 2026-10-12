@@ -67,6 +67,7 @@ export const answer = await load('data/answer.ts');
 export const entityFile = await load('data/entity-file.ts');
 export const listItem = await load('ui/list-item.ts');
 export const uiDetail = await load('ui/detail.ts');
+export const checkNotes = await load('ui/check-notes.ts');
 export const uiSearch = await load('ui/search.ts');
 export const mapLayers = await load('map/layers.ts');
 export const roadState = await load('ui/road-state.ts');
