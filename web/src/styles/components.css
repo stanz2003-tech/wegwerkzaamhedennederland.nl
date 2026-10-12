@@ -941,6 +941,16 @@
 /* ------------------------------------------------------------------ ad slots */
 .ad-slot { height: 0; overflow: hidden; margin: 0; }
 .ad-slot.is-enabled { margin: var(--s-6) 0; background: var(--surface-2); border-radius: var(--r-2); }
+.ad-slot { --ad-label-h: 20px; }
+.ad-slot__label {
+  display: block;
+  height: var(--ad-label-h);
+  padding: 0 var(--s-2);
+  font: 500 0.6875rem/var(--ad-label-h) var(--font-body);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
 
 /* ------------------------------------------------------------------ v3: verdict-first rows */
 .item {

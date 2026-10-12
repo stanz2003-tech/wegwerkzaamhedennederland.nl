@@ -11,6 +11,10 @@ import site from '../../site.config.json';
 type SlotName = 'panel' | 'list' | 'article';
 
 const SLOT_HEIGHT: Record<SlotName, number> = { panel: 250, list: 100, article: 280 };
+/** Reclamecode: ads must be recognisable; AdSense allows only "Advertenties" or "Gesponsorde links". */
+const AD_LABEL = 'Advertenties';
+/** Must match --ad-label-h in components.css; reserved up front so the page does not jump. */
+const LABEL_HEIGHT = 20;
 const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
 
 interface GoogleFc {
@@ -53,9 +57,14 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
   if (el.dataset.adFilled === '1') return;
   el.dataset.adFilled = '1';
   el.classList.add('is-enabled');
-  el.style.height = `${SLOT_HEIGHT[name]}px`;
+  el.style.height = `${SLOT_HEIGHT[name] + LABEL_HEIGHT}px`;
   el.removeAttribute('aria-hidden');
   el.setAttribute('aria-label', 'Advertentie');
+  const label = document.createElement('span');
+  label.className = 'ad-slot__label';
+  label.textContent = AD_LABEL;
+  label.setAttribute('aria-hidden', 'true'); // the slot's aria-label already says it
+  el.appendChild(label);
   const ins = document.createElement('ins');
   ins.className = 'adsbygoogle';
   ins.style.display = 'block';
