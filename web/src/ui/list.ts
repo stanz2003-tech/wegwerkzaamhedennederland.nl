@@ -82,6 +82,8 @@ export interface ListView {
   setItems(items: readonly ListItemModel[], now: number, selectedId: string | null, opts?: ListRenderOptions): void;
   setLoading(): void;
   setError(message: string): void;
+  /** A plain line instead of the list: route mode before its route is known (never "geen meldingen"). */
+  setNotice(text: string): void;
   setSelected(id: string | null): void;
   /** Moves keyboard focus to the first item (used after closing the detail view). */
   focusItem(id: string | null): void;
@@ -257,6 +259,10 @@ export function mountList(root: HTMLElement, cb: ListCallbacks): ListView {
         { length: SKELETON_ROWS },
         () => `<div class="skeleton__row"><span class="skeleton__badge"></span><span class="skeleton__lines"><span></span><span></span><span></span></span></div>`,
       ).join('')}</div><p class="sr-only">Meldingen worden geladen</p>`;
+    },
+    setNotice(text) {
+      root.setAttribute('aria-busy', 'false');
+      root.innerHTML = `<p class="list__notice">${esc(text)}</p>`;
     },
     setError(message) {
       root.setAttribute('aria-busy', 'false');

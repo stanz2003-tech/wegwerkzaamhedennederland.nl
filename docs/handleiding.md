@@ -283,6 +283,7 @@ onder *More*) → in de zijbalk onder *Security*: **Secrets and variables** → 
 |---|---|
 | `DATA_BASE` | `https://data.<domein>/v1/` — begint met `https://`, eindigt met `/` |
 | `CF_PAGES_PROJECT` | `wegwerk` (§5.1) |
+| `ROUTING_URL` | *optioneel*, leeg laten — alleen nodig als je de routeplanner naar een andere dienst verhuist (§12) |
 
 Een typefout in een naam is de meest voorkomende fout: de *Data*-workflow zegt dan "not
 configured yet: missing secret(s) …" en noemt de ontbrekende naam.
@@ -397,3 +398,41 @@ vanaf €70; zie `docs/onderzoek.md` §6.4 voor KvK en btw.
 
 Technische details van de workflows, het uploadscript en het roteren van tokens:
 `infra/README.md`. Achtergrond bij alle keuzes en cijfers: `docs/onderzoek.md`.
+
+---
+
+## 12. De routeplanner: welke routedienst rekent de routes uit?
+
+Op de kaart staat onder "Wanneer?" de knop **Route plannen**. Je vult in waar je vertrekt en waar je
+heen gaat (adres, postcode, straat of plaats), en de site laat zien welke wegwerkzaamheden op die
+route liggen — voor auto, vracht of fiets en voor het gekozen moment. Is de snelste route dicht,
+dan zoekt de site de snelste route eromheen en zet die bovenaan als *aanbevolen*. Met **Open in
+Google Maps** rijd je die route met je navigatie.
+
+De adressen komen van PDOK (de overheid, gratis, geen account). De route zelf wordt uitgerekend
+door een **routedienst**. Standaard is dat de gratis openbare server van FOSSGIS
+(`valhalla1.openstreetmap.de`), een Duitse vereniging die OpenStreetMap ondersteunt. Je hoeft
+daarvoor niets in te stellen. Hun voorwaarden (www.fossgis.de → *OSM-Server* → *Nutzungsbedingungen*):
+
+- maximaal één routevraag per seconde — de site wacht daar zelf op;
+- een bronvermelding met een link "fout in de kaart melden" — staat onder elke routekaart;
+- een e-mailadres van de beheerder op de site — staat op de pagina's *Colofon* en *Contact*;
+- **niet** voor een site met veel bezoekers, en commercieel gebruik alleen als de routeplanner
+  geen wezenlijk onderdeel van de site is.
+
+**Wanneer moet je verhuizen?** Zodra de advertenties aan gaan (§10), of zodra de routeplanner
+dagelijks door honderden mensen gebruikt wordt. Dat kan zonder programmeur:
+
+1. Neem een account bij een dienst die dezelfde routetaal spreekt ("Valhalla"), bijvoorbeeld
+   Stadia Maps (stadiamaps.com, heeft een betaald pakket voor commercieel gebruik). Je krijgt
+   een API-sleutel.
+2. GitHub → *Settings* → *Secrets and variables* → *Actions* → tabblad **Variables** → variabele
+   `ROUTING_URL` met als waarde het route-adres van die dienst inclusief sleutel, bij Stadia
+   `https://api.stadiamaps.com/route/v1?api_key=<jouw sleutel>`.
+3. *Actions* → *Deploy* → **Run workflow**. Na een paar minuten gebruikt de site de nieuwe dienst.
+
+Leeg maken van `ROUTING_URL` en opnieuw *Deploy* draaien zet hem terug op FOSSGIS.
+
+**Problemen.** "De routeplanner is niet bereikbaar" betekent dat de routedienst niet antwoordt
+(FOSSGIS garandeert niets; meestal is het na een paar minuten over). Blijft het, of blokkeert
+FOSSGIS de site, verhuis dan zoals hierboven.

@@ -114,12 +114,14 @@ export function searchLocal(items: readonly IndexItem[], query: string, limit = 
 const LOCATIESERVER = 'https://api.pdok.nl/bzk/locatieserver/search/v3_1';
 
 /** PDOK types per suggest call: places and streets are asked separately (see search.ts). */
-export type PlaceTypes = 'places' | 'streets' | 'towns';
+export type PlaceTypes = 'places' | 'streets' | 'towns' | 'stops';
 const TYPE_FILTER: Record<PlaceTypes, string> = {
   places: 'type:(woonplaats OR gemeente OR provincie)',
   streets: 'type:weg',
   // The typo retry: only what can be a place mode.
   towns: 'type:(woonplaats OR gemeente)',
+  // A start or destination of the route planner: an address, a postcode, a street or a place.
+  stops: 'type:(adres OR postcode OR weg OR woonplaats OR gemeente)',
 };
 const SUGGEST_FIELDS = 'id,type,weergavenaam,woonplaatsnaam,gemeentenaam,provincienaam';
 

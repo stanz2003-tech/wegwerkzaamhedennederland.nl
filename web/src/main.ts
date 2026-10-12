@@ -20,6 +20,7 @@ import './styles/base.css';
 import './styles/components.css';
 import './styles/answer-card.css';
 import './styles/place-search.css';
+import './styles/route.css';
 import './styles/chrome.css';
 // map.css + the MapLibre stylesheet come in via src/map/map.ts.
 import './styles/panel.css';
@@ -29,12 +30,12 @@ import './styles/app.css';
 import site from '../site.config.json';
 import { clearDetailCache } from './data/detail';
 import { matchesRoad } from './data/entity';
-import { bboxIntersects, bboxOf, countByCategory, dedupeById, type BBox, type SortId } from './data/filter';
+import { bboxIntersects, bboxOf, countByCategory, type BBox, type SortId } from './data/filter';
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
 import { entityPagesNow } from './data/entity-pages';
-import { DataLoadError, loadGepland, loadLiveRefresh, loadStartData } from './data/load';
+import { DataLoadError, loadLiveRefresh, loadStartData } from './data/load';
 import { DEFAULT_TIME_WINDOW, toMs } from './data/time';
-import type { Category, ItemFeature, Meta } from './data/types';
+import type { Category, ItemFeature } from './data/types';
 import { normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type HistoryMarker, type UrlState } from './data/url-state';
 import { verdictFor } from './data/verdict';
 import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
@@ -58,6 +59,8 @@ import { dayWindowOf, type PanelAnswerEls } from './ui/panel-answer';
 import { pickOfUrl } from './ui/date-pick';
 import { mountSearch } from './ui/search';
 import { QUIETLY, createPlaceController, type LeaveOptions } from './ui/place-controller';
+import { createRouteController } from './ui/route-controller';
+import { createMapData } from './ui/map-data';
 import { placeMatcher, placeSubject, resolvePlace } from './ui/place-mode';
 import { currentTheme, onThemeChange, prefersReducedMotion } from './ui/theme';
 import { showToast } from './ui/toast';
@@ -93,14 +96,11 @@ if (!window.location.search.includes('v=')) {
 let sort: SortId = 'impact';
 /** "Alleen wat voor … geldt": hide the items that do not apply to the vehicle mode. */
 let hideNvt = true;
-let actueel: ItemFeature[] = [];
-let live: ItemFeature[] = [];
-let gepland: ItemFeature[] = [];
-let geplandLoad: Promise<void> | null = null;
-let geplandLoaded = false;
-let meta: Meta | null = null;
-let byId = new Map<string, ItemFeature>();
-let lastRefresh = 0;
+const data = createMapData({
+  needsGepland: () => needsGepland(),
+  onGepland: () => render(),
+  onGeplandError: () => showToast('De geplande werkzaamheden konden niet worden geladen.', 'error'),
+});
 let dataOk = false;
 let map: AppMap | null = null;
 let localItems: Promise<readonly IndexItem[]> | null = null;
@@ -129,6 +129,7 @@ const staleEl = el<HTMLElement>('[data-stale]');
 const hiddenBtn = el<HTMLButtonElement>('[data-hidden]');
 const closedRoadsEl = el<HTMLElement>('[data-closed-roads]');
 const listHeading = el<HTMLElement>('#list-heading');
+const routeSlot = el<HTMLElement>('[data-route]');
 const answerEls: PanelAnswerEls = { panel: panelEl, answer: answerEl, summary: summaryEl, hiddenBtn };
 
 /** The data state everywhere it shows: the topbar pill, the banner above the answer, the card. */
@@ -146,12 +147,11 @@ function catSet(): Set<Category> | null {
 }
 
 function needsGepland(now = Date.now()): boolean {
-  return needsGeplandFor(url, now);
+  return needsGeplandFor(url, now) || url.route !== null; // a trip can meet work that starts on the way
 }
 
-function allItems(): ItemFeature[] {
-  return dedupeById(needsGepland() ? [...live, ...actueel, ...gepland] : [...live, ...actueel]);
-}
+const allItems = (): ItemFeature[] => data.items();
+const ensureGepland = (): Promise<void> => data.ensureGepland();
 
 function mapBounds(): BBox | null {
   return map ? map.getBBox() : null;
@@ -201,20 +201,21 @@ let lastAnswerText = '';
 function render(): void {
   const now = Date.now();
   const at = momentAt(now);
-  const dayWin = dayWindowOf(url, now);
   const items = allItems();
   const cats = catSet();
 
-  // 1. time, 2. road or place mode, 3. free text, 4. vehicle relevance, 5. categories.
+  // 1. time, 2. route (judged over the whole trip), road or place, 3. text, 4. relevance, 5. categories.
+  const route = routes.selection(now);
+  const dayWin = route?.window ?? dayWindowOf(url, now);
   const place = places.active();
   const inPlace = place ? placeMatcher(place, entityPagesNow()) : null;
-  const { base, roadAll, placeAll } = selectForQuestion(items, url, inPlace, now);
+  const { base, roadAll, placeAll } = route ? { base: route.base, roadAll: [], placeAll: [] } : selectForQuestion(items, url, inPlace, now);
   const judged = judge(base, url.mode, at, dayWin);
   const relevant = hideNvt ? judged.filter((j) => j.level !== 'nvt') : judged;
   chips.setCounts(countByCategory(relevant.map((j) => j.f)));
   const forMap = cats ? relevant.filter((j) => cats.has(j.f.properties.cat)) : relevant;
 
-  const mapKey = `${at}|${url.time}|${url.day ?? ''}|${url.part ?? ''}|${url.cats?.join(',') ?? '*'}|${url.query}|${url.mode}|${hideNvt}|${url.road ?? ''}|${place?.slug ?? ''}|${forMap.length}|${items.length}`;
+  const mapKey = `${at}|${url.time}|${url.day ?? ''}|${url.part ?? ''}|${url.cats?.join(',') ?? '*'}|${url.query}|${url.mode}|${hideNvt}|${url.road ?? ''}|${place?.slug ?? ''}|${route?.key ?? ''}|${forMap.length}|${items.length}`;
   if (mapKey !== lastMapKey) {
     lastMapKey = mapKey;
     map?.setItems(forMap.map(withVerdict));
@@ -224,16 +225,17 @@ function render(): void {
   // Outside road mode the list follows the viewport; in road mode it is the whole road, and with
   // a text filter it is every match: "Almkerk" typed with the camera on Amsterdam must not answer
   // "In beeld: geen meldingen" while Almkerk has a closure (zoek-3).
-  const bounds = url.road || url.query || place ? null : mapBounds();
+  const bounds = url.road || url.query || place || route ? null : mapBounds();
   const inView = bounds ? forMap.filter((j) => bboxIntersects(bboxOf(j.f.geometry) ?? bounds, bounds)) : forMap;
-  const ordered = orderForList(inView, sort, map?.getCenter() ?? null, now, url.road);
+  const ordered = route && sort === 'impact' ? route.order(inView.map((j) => j.f)) : orderForList(inView, sort, map?.getCenter() ?? null, now, url.road);
   const models = ordered.slice(0, LIST_MAX).map(modelFromFeature);
-  list.setItems(models, now, detail.selected()?.properties.id ?? null, {
+  if (route?.pending) route.pending === 'loading' ? list.setLoading() : list.setNotice('Zonder route weten we nog niet wat erop ligt.');
+  else list.setItems(models, now, detail.selected()?.properties.id ?? null, {
     mode: url.mode,
     at,
     ...(dayWin ? { window: dayWin } : {}),
     total: ordered.length,
-    ...(place || url.road ? { emptyIn: place ? `in ${placeSubject(place)}` : `op de ${url.road}` } : {}),
+    ...(route ? { emptyIn: 'op je route' } : place || url.road ? { emptyIn: place ? `in ${placeSubject(place)}` : `op de ${url.road}` } : {}),
     ...(url.query ? { emptyQuery: url.query, ...(ordered.length === 0 ? places.didYouMeanOpt(url.query) : {}) } : {}),
   });
 
@@ -262,7 +264,8 @@ function render(): void {
     onNow: () => backToNow(),
   });
   layout.setFilters({ cats, hideNvt, hidden: answers.hidden });
-  lastAnswerText = answers.text;
+  lastAnswerText = routes.paint(now) ?? answers.text;
+  routes.fitOnce();
 
   if (pendingRoadFit && map && url.road && forMap.length > 0) {
     pendingRoadFit = false;
@@ -293,9 +296,10 @@ function showFatal(message: string): void {
  */
 function announceAnswer(): void {
   if (!dataOk) return;
-  if (needsGepland() && !geplandLoaded && geplandLoad) {
+  const geplandLoad = data.geplandPending();
+  if (needsGepland() && !data.geplandLoaded() && geplandLoad) {
     void geplandLoad.then(() => {
-      if (geplandLoaded) announce(lastAnswerText);
+      if (data.geplandLoaded()) announce(lastAnswerText);
     });
     return;
   }
@@ -309,20 +313,20 @@ function announceAnswer(): void {
  * (place mode, owner decision 3): on a phone the sheet goes back to half, also from the full
  * sheet the search box opened, so the place shows on the map above the answer.
  */
-function showAnswer(withMap = false): void {
+function showAnswer(withMap = false, card: HTMLElement = answerEl): void {
   // On a short phone the half sheet is all sticky header: open it fully so the answer shows.
   const short = panel.isMobile() && window.innerHeight < SHORT_VIEWPORT_PX;
   if (withMap && panel.isMobile() && !short) panel.snap('half');
   else panel.ensureAtLeast(short ? 'full' : 'half');
-  answerEl.querySelector<HTMLElement>('.answer__headline')?.focus({ preventScroll: true });
-  panel.scrollTo(answerEl);
+  card.querySelector<HTMLElement>('.answer__headline')?.focus({ preventScroll: true });
+  panel.scrollTo(card);
   announceAnswer();
 }
 
 function enterRoad(road: string, fit = true, push = true): void {
   const key = normalizeRoadParam(road) ?? road.trim().toUpperCase();
   if (!key) return;
-  url = { ...url, road: key, place: null, query: '' };
+  url = { ...url, road: key, place: null, query: '', route: null };
   pendingQueryFit = false;
   search.setQuery(key);
   if (detail.selected()) selectItem(null, false);
@@ -369,12 +373,33 @@ const places = createPlaceController({
   peek: () => panel.snap('peek'),
 });
 
+const routes = createRouteController(
+  {
+    url: () => url,
+    setUrl: (next) => (url = next),
+    render,
+    syncUrl,
+    map: () => map,
+    items: () => data.everything(),
+    dataVersion: () => `${data.lastRefresh()}|${data.geplandLoaded()}`,
+    ensureGepland: () => ensureGepland().then(() => data.geplandLoaded()),
+    clearSearch: () => search.setQuery(''),
+    deselect: () => detail.selected() && selectItem(null, false),
+    showAnswer: (withMap) => showAnswer(withMap, routeSlot),
+    afterLeave,
+    dataAsOf: (now) => staleDataLabel(liveStatus, now),
+    dataOk: () => dataOk,
+    expand: (target) => (panel.isMobile() ? panel.snap('full') : panel.ensureAtLeast('half'), panel.scrollTo(target)),
+  },
+  { panel: panelEl, slot: routeSlot },
+);
+
 /* ------------------------------------------------------------------ detail view */
 
 const detail = createDetailController({
   url: () => url,
   setUrl: (next) => (url = next),
-  item: (id) => byId.get(id) ?? null,
+  item: (id) => data.byId(id) ?? null,
   map: () => map,
   syncUrl,
   enterRoad: (road) => enterRoad(road),
@@ -525,7 +550,7 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
       return [] as readonly IndexItem[];
     })),
   onPickItem: (hit) => {
-    if (byId.has(hit.id)) {
+    if (data.byId(hit.id)) {
       selectItem(hit.id);
       return;
     }
@@ -542,8 +567,8 @@ const search = mountSearch(el<HTMLElement>('[data-search]'), {
       places.exit();
       return;
     }
-    // A typed text filter replaces place mode: one subject at a time.
-    url = { ...url, query: q, place: q ? null : url.place };
+    // A typed text filter replaces place and route mode: one subject at a time.
+    url = { ...url, query: q, place: q ? null : url.place, route: q ? null : url.route };
     pendingQueryFit = q !== '';
     render();
     syncUrl();
@@ -568,30 +593,10 @@ wireUitlegLinks(reducedMotion);
 
 /* ------------------------------------------------------------------ data */
 
-async function ensureGepland(): Promise<void> {
-  if (geplandLoad) return geplandLoad;
-  geplandLoad = loadGepland()
-    .then((items) => {
-      gepland = items;
-      geplandLoaded = true;
-      index();
-      render();
-    })
-    .catch(() => {
-      geplandLoad = null;
-      showToast('De geplande werkzaamheden konden niet worden geladen.', 'error');
-    });
-  return geplandLoad;
-}
-
-function index(): void {
-  byId = new Map(allItems().map((f) => [f.properties.id, f]));
-}
-
 /** Loads the item behind `?id=` even when it is not in the active set. `push`: picked by the user. */
 async function resolveDeepLink(id: string, push = false): Promise<void> {
-  if (!byId.has(id) && !geplandLoad) await ensureGepland();
-  const feature = byId.get(id);
+  if (!data.byId(id) && !data.geplandPending()) await ensureGepland();
+  const feature = data.byId(id);
   if (!feature) {
     showToast('Deze melding staat niet meer in de actuele gegevens.', 'error');
     url = { ...url, id: null };
@@ -635,22 +640,18 @@ async function start(retry = false): Promise<void> {
     setLive({ kind: 'loading' });
   }
   try {
-    const data = await loadStartData();
+    const loaded = await loadStartData();
     dataOk = true;
-    meta = data.meta;
-    actueel = data.actueel;
-    live = data.live;
-    lastRefresh = Date.now();
-    index();
+    data.setStart(loaded);
     clearMapNotice(mapErrorEl);
-    setLive(liveStatusFromMeta(data.meta));
+    setLive(liveStatusFromMeta(loaded.meta));
     when.setHorizon(horizonMs());
-    renderUpdatedLine(data.meta);
+    renderUpdatedLine(loaded.meta);
     if (needsGepland()) void ensureGepland();
     if (url.road) pendingRoadFit = true;
     if (url.place) places.wantFit();
     render();
-    for (const warning of data.warnings) {
+    for (const warning of loaded.warnings) {
       showToast(`Onderdeel niet geladen: ${warning}`, 'error');
     }
     if (url.id) void resolveDeepLink(url.id);
@@ -665,21 +666,19 @@ async function refresh(): Promise<void> {
   if (document.visibilityState !== 'visible') return;
   try {
     const next = await loadLiveRefresh();
-    meta = next.meta;
-    live = next.live;
-    lastRefresh = Date.now();
     clearDetailCache();
-    index();
+    data.setLive(next);
     setLive(liveStatusFromMeta(next.meta));
     when.setHorizon(horizonMs());
     when.refresh();
     renderUpdatedLine(next.meta);
     render();
     const open = detail.selected();
-    if (open && !byId.has(open.properties.id)) selectItem(null);
+    if (open && !data.byId(open.properties.id)) selectItem(null);
   } catch {
     // One failed refresh is not stale data: judge the age of what we have, so the warning appears
     // once it is really older than STALE_AFTER_MINUTES (owner decision: 30 minutes).
+    const meta = data.meta();
     if (meta) {
       setLive(liveStatusFromMeta(meta));
       render();
@@ -699,7 +698,7 @@ function frameCountry(): void {
 async function boot(): Promise<void> {
   list.setLoading();
   // Data and basemap load in parallel: the list must never wait for PDOK.
-  const data = start();
+  const started = start();
   map = await AppMap.create({
     container: mapEl,
     theme: currentTheme(),
@@ -712,7 +711,7 @@ async function boot(): Promise<void> {
       onHover: () => undefined,
       onMoveEnd: () => {
         // Road mode and a text filter list everything they match, wherever the camera is.
-        if (!url.road && !url.query && !places.active()) render();
+        if (!url.road && !url.query && !places.active() && !routes.active()) render();
         syncUrl();
       },
       onBasemap: (kind) => {
@@ -731,7 +730,7 @@ async function boot(): Promise<void> {
   // free. On desktop that is the default zoom re-centred next to the panel (the BRT tiles only
   // carry water and terrain fills from zoom 7, so we do not zoom out below it); on a phone the
   // sheet covers half the stage, so there we fit the whole country into what is left.
-  if (map && url.center === null && url.zoom === null && !url.road && !url.place) {
+  if (map && url.center === null && url.zoom === null && !url.road && !url.place && !url.route) {
     if (panel.isMobile()) {
       map.setMinZoom(MOBILE_MIN_ZOOM);
       frameCountry();
@@ -740,7 +739,7 @@ async function boot(): Promise<void> {
     } else map.flyTo(NL_CENTER, NL_ZOOM);
   }
   onThemeChange((theme) => void map?.setTheme(theme));
-  await data;
+  await started;
   // Only re-render when the data actually arrived: after a failure the list must keep the
   // error banner with its retry button instead of falling back to the empty state.
   if (map && dataOk) {
@@ -773,7 +772,7 @@ document.addEventListener('keydown', (e) => {
 
 window.setInterval(() => void refresh(), REFRESH_MS);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && Date.now() - lastRefresh > REFRESH_MS) void refresh();
+  if (document.visibilityState === 'visible' && Date.now() - data.lastRefresh() > REFRESH_MS) void refresh();
 });
 /**
  * The back (and forward) button: restores the subject (road or place), the text filter and the
@@ -786,6 +785,7 @@ window.addEventListener('popstate', () => {
   const samePlace = next.place && before.place?.kind === next.place.kind && before.place.slug === next.place.slug;
   const place = next.place ? (samePlace ? before.place : resolvePlace(next.place, entityPagesNow())) : null;
   url = { ...url, road: next.road, place, query: next.query, id: next.id };
+  routes.restore(next.route);
   search.setQuery(url.road ?? place?.name ?? url.query);
   pendingRoadFit = url.road !== null && url.road !== before.road;
   if (place !== null && !samePlace) places.wantFit();

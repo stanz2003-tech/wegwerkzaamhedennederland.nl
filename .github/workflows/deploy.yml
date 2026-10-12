@@ -65,6 +65,7 @@ jobs:
       - name: Build site
         env:
           VITE_DATA_BASE: ${{ vars.DATA_BASE }}
+          VITE_ROUTING_URL: ${{ vars.ROUTING_URL }}
         run: npm run build -w @wegwerk/web
 
       - name: Ensure the Pages project exists

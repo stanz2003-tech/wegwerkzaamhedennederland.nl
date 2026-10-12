@@ -1,6 +1,8 @@
 /**
  * URL state: `?cat=werk,afsluiting&t=7d&z=9.2&c=5.29,52.13&id=<id>&q=<search>&v=fiets`, plus
- * one subject: `weg=a27`, or `plaats=almkerk` / `gemeente=altena`.
+ * one subject: `weg=a27`, or `plaats=almkerk` / `gemeente=altena`, or a route
+ * `van=4.95830,51.77172,Almkerk&naar=4.95300,52.04500,Montfoort` (lon,lat,name; the name may hold
+ * commas). A route wins over road and place.
  *
  * `t` carries either a time window (`nu|vandaag|weekend|7d|30d`) or an exact moment as a
  * `datetime-local` value in Europe/Amsterdam (`t=2026-09-20T14:00`, the "Op datum…" chip).
@@ -10,6 +12,7 @@
  * `v` is the vehicle mode the verdicts are computed for (default `auto`, then not written).
  * Parsing/serialising are pure; reading/writing the address bar are thin wrappers.
  */
+import type { Stop } from './routing';
 import type { Category } from './types';
 import { CATEGORIES } from './types';
 import { DEFAULT_TIME_WINDOW, isDateKey, isDayPart, isTimeWindowId, zonedParts, zonedToMs, type DayPart, type TimeWindowId } from './time';
@@ -38,6 +41,13 @@ export interface UrlState {
    * name comes from the entity-page manifest (data/entity-pages.ts), so `name` is '' until then.
    */
   place: PlaceRef | null;
+  /** Route mode (`?van=…&naar=…`): only the items on the route, with the route card on top. */
+  route: RouteStops | null;
+}
+
+export interface RouteStops {
+  from: Stop;
+  to: Stop;
 }
 
 export interface PlaceRef {
@@ -61,6 +71,7 @@ export const DEFAULT_URL_STATE: UrlState = {
   mode: DEFAULT_VEHICLE_MODE,
   road: null,
   place: null,
+  route: null,
 };
 
 const ROAD_RE = /^([ANSE])\s*0*(\d{1,3})$/i;
@@ -83,6 +94,43 @@ export function parsePlaceParam(params: URLSearchParams): PlaceRef | null {
   const gemeente = params.get('gemeente')?.trim().toLowerCase() ?? '';
   if (gemeente && gemeente.length <= 80 && SLUG_RE.test(gemeente)) return { kind: 'gemeente', slug: gemeente, name: '' };
   return null;
+}
+
+/** Loose bounds around the Netherlands: a route stop outside them is a typo or a forged link. */
+const STOP_BOUNDS = { west: 2.5, east: 7.6, south: 50.5, north: 53.8 } as const;
+const MAX_STOP_NAME = 80;
+/**
+ * What a place or address name can hold. The name comes from a link anyone can craft and is shown
+ * in the card's question, so anything else (":", "@", digits-only phone numbers stay possible but
+ * short) is dropped: escaping stops scripts, this keeps a forged link from writing a message.
+ */
+const STOP_NAME_DROP = /[^\p{L}\p{M}\d .,'()/&-]/gu;
+
+/** Whether a point lies in or near the Netherlands. */
+export function inStopBounds(lon: number, lat: number): boolean {
+  return lon >= STOP_BOUNDS.west && lon <= STOP_BOUNDS.east && lat >= STOP_BOUNDS.south && lat <= STOP_BOUNDS.north;
+}
+
+/** `4.95830,51.77172,Almkerk` → a stop; null when malformed or far outside the Netherlands. */
+export function parseStopParam(raw: string | null | undefined): Stop | null {
+  if (!raw) return null;
+  const m = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*(?:,(.*))?$/.exec(raw);
+  if (!m) return null;
+  const lon = Number(m[1]);
+  const lat = Number(m[2]);
+  if (!inStopBounds(lon, lat)) return null;
+  const name = (m[3] ?? '').replace(STOP_NAME_DROP, '').replace(/\s+/g, ' ').trim().slice(0, MAX_STOP_NAME);
+  return { lon, lat, name: name || `${lat.toFixed(4)}, ${lon.toFixed(4)}` };
+}
+
+export function formatStopParam(stop: Stop): string {
+  return `${stop.lon.toFixed(5)},${stop.lat.toFixed(5)},${stop.name}`;
+}
+
+function parseRouteParams(params: URLSearchParams): RouteStops | null {
+  const from = parseStopParam(params.get('van'));
+  const to = parseStopParam(params.get('naar'));
+  return from && to ? { from, to } : null;
 }
 
 const CATEGORY_SET = new Set<string>(CATEGORIES);
@@ -143,6 +191,7 @@ export function parseUrlState(search: string): UrlState {
   const dag = params.get('dag');
   const day = moment === null && isDateKey(dag) ? dag : null;
   const deel = params.get('deel');
+  const route = parseRouteParams(params);
   return {
     cats: parseCats(params.get('cat')),
     time: t && isTimeWindowId(t) ? t : DEFAULT_TIME_WINDOW,
@@ -152,11 +201,13 @@ export function parseUrlState(search: string): UrlState {
     zoom,
     center,
     id: id && id.length <= 200 ? id : null,
-    query: (params.get('q') ?? '').slice(0, 100),
+    // A route is the subject: a text filter next to it would empty the list ("niets met …").
+    query: route ? '' : (params.get('q') ?? '').slice(0, 100),
     mode: isVehicleMode(v) ? v : DEFAULT_VEHICLE_MODE,
-    road,
-    // Road mode wins: one answer card, one subject.
-    place: road ? null : parsePlaceParam(params),
+    // One subject: a route, else a road, else a place.
+    road: route ? null : road,
+    place: route || road ? null : parsePlaceParam(params),
+    route,
   };
 }
 
@@ -172,7 +223,10 @@ export function serializeUrlState(state: UrlState): string {
   if (state.id) params.set('id', state.id);
   if (state.query) params.set('q', state.query);
   if (state.mode !== DEFAULT_VEHICLE_MODE) params.set('v', state.mode);
-  if (state.road) params.set('weg', state.road.toLowerCase());
+  if (state.route) {
+    params.set('van', formatStopParam(state.route.from));
+    params.set('naar', formatStopParam(state.route.to));
+  } else if (state.road) params.set('weg', state.road.toLowerCase());
   else if (state.place) params.set(state.place.kind === 'gemeente' ? 'gemeente' : 'plaats', state.place.slug);
   // Keep commas and colons readable in the address bar.
   return params.toString().replace(/%2C/g, ',').replace(/%3A/g, ':');

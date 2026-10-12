@@ -25,6 +25,10 @@ De kaart toont de **geplande periode** die de wegbeheerder heeft opgegeven. Aann
 
 Dat verschilt per soort melding. Het **actuele beeld** — files, incidenten, brugopeningen en de rijstrookafzettingen op de rijkswegen — halen we elke **{{refreshMinutes}} minuten** opnieuw op bij het Nationaal Dataportaal Wegverkeer (NDW). De **planning** van wegwerkzaamheden komt uit een feed die NDW ongeveer elk kwartier vernieuwt, en die we dus ook ongeveer elke {{planningMinutes}} minuten verwerken. Het tijdstip van de laatste update staat bovenaan de kaart en op elke pagina. Daarnaast speelt mee hoe snel de wegbeheerder een wijziging zelf invoert; bij grote projecten kan dat dagen duren.
 
+## Kan ik zien of er wegwerkzaamheden op mijn route liggen?
+
+Ja. Druk op de kaart op **Route plannen** en vul in waar je vertrekt en waar je heen gaat: een adres, een postcode, een straat of een plaats. Wegwerk zoekt de snelste route en laat alleen de werkzaamheden, afsluitingen en files zien die óp die route liggen, voor auto, vrachtverkeer of fiets en voor het moment dat je kiest. Werk op de andere rijbaan telt niet mee. Is de snelste route ergens dicht, dan zoeken we de snelste route eromheen en zetten die bovenaan; met **Open in Google Maps** neem je die route mee naar je navigatie. De reistijd is zonder file en zonder vertraging door werk: Google Maps rekent daar met de actuele drukte.
+
 ## Wat is het verschil tussen "werkzaamheden" en een "afsluiting"?
 
 Bij **werkzaamheden** kun je meestal wel doorrijden, maar met hinder: een of meer rijstroken zijn dicht, de rijstroken zijn smaller, er geldt een lagere maximumsnelheid of het verkeer wordt over de andere rijbaan geleid. Bij een **afsluiting** is de weg, de rijbaan, de op- of afrit of de tunnelbuis helemaal dicht en moet je omrijden. Op de kaart zijn afsluitingen rood-wit gestreept, werkzaamheden oranje. Een grote afsluiting heeft bijna altijd een omleiding.

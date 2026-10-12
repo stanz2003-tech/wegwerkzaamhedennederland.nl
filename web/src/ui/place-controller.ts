@@ -69,7 +69,7 @@ export function createPlaceController(host: PlaceHost): PlaceController {
   };
 
   const enter = (place: PlaceRef, fit: boolean): void => {
-    host.setUrl({ ...host.url(), place, road: null, query: '' });
+    host.setUrl({ ...host.url(), place, road: null, query: '', route: null });
     pendingFit = fit;
     host.setQuery(place.name);
     host.deselect();
