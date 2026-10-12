@@ -6,12 +6,12 @@ description: Hoe Wegwerk met persoonsgegevens omgaat: wat we verwerken, op welke
 heading: Privacyverklaring
 kicker: Juridisch
 lead: Wegwerk verzamelt zo weinig mogelijk gegevens. Je hebt geen account nodig, we vragen alleen om je locatie als je zelf op "Vertrek vanaf mijn locatie" drukt, en advertentiecookies plaatsen we alleen als je daar toestemming voor geeft. Hieronder staat precies wat we wel verwerken en waarom.
-updated: 2026-10-11
+updated: 2026-10-12
 ---
 
 ## 1. Wie is verantwoordelijk?
 
-De verwerkingsverantwoordelijke voor {{site.longName}} ({{site.url}}) is **{{site.owner.name}}**, gevestigd te {{site.owner.city}}. Je bereikt ons via [{{site.contactEmail}}](mailto:{{site.contactEmail}}). We hebben geen functionaris voor gegevensbescherming; daar zijn we niet toe verplicht en de omvang van de verwerkingen rechtvaardigt dat niet.
+De verwerkingsverantwoordelijke voor {{site.longName}} ({{site.url}}) is de uitgever van Wegwerk, een particulier initiatief. Je bereikt ons via [{{site.contactEmail}}](mailto:{{site.contactEmail}}). We hebben geen functionaris voor gegevensbescherming; daar zijn we niet toe verplicht en de omvang van de verwerkingen rechtvaardigt dat niet.
 
 ## 2. Welke gegevens verwerken we, waarom en hoe lang?
 

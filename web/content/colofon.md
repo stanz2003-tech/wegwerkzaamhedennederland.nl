@@ -6,12 +6,12 @@ description: Wie Wegwerk uitgeeft en welke bronnen en software erin zitten: open
 heading: Colofon
 kicker: Over deze site
 lead: Wegwerk is gebouwd op open data en open source. Hieronder staat wie de site uitgeeft en welke bronnen, software en diensten erin zitten, met de voorgeschreven bronvermelding.
-updated: 2026-09-08
+updated: 2026-10-12
 ---
 
 ## Uitgever
 
-{{site.longName}} ({{site.name}}, {{site.url}}) wordt gemaakt en uitgegeven door **{{site.owner.name}}**, gevestigd te {{site.owner.city}}. Je bereikt de uitgever via [{{site.contactEmail}}](mailto:{{site.contactEmail}}); zie ook de [contactpagina](/contact/). Zodra de site is ingeschreven bij de Kamer van Koophandel staan hier het KvK- en btw-nummer.
+De uitgever van {{site.longName}} ({{site.name}}, {{site.url}}) is bereikbaar via [{{site.contactEmail}}](mailto:{{site.contactEmail}}); zie ook de [contactpagina](/contact/). Zodra de site is ingeschreven bij de Kamer van Koophandel staan hier het KvK- en btw-nummer.
 
 Wegwerk is een particulier initiatief en geen officiële website van Rijkswaterstaat, NDW, een provincie of een gemeente. Lees ook de [disclaimer](/disclaimer/).
 
@@ -40,4 +40,4 @@ Wegwerk is een statische website zonder database of gebruikersaccounts. Een auto
 
 ## Auteursrecht
 
-De teksten, de vormgeving en de broncode van Wegwerk zijn © {{year}} {{site.owner.name}}, tenzij anders vermeld. De onderliggende verkeersgegevens zijn open data van NDW en de wegbeheerders en zijn niet van Wegwerk; wil je ze zelf gebruiken, haal ze dan op bij [opendata.ndw.nu](https://opendata.ndw.nu). Linken naar Wegwerk mag altijd; het insluiten van de kaart is toegestaan met zichtbare bronvermelding.
+De teksten, de vormgeving en de broncode van Wegwerk zijn © {{year}} Wegwerk, tenzij anders vermeld. De onderliggende verkeersgegevens zijn open data van NDW en de wegbeheerders en zijn niet van Wegwerk; wil je ze zelf gebruiken, haal ze dan op bij [opendata.ndw.nu](https://opendata.ndw.nu). Linken naar Wegwerk mag altijd; het insluiten van de kaart is toegestaan met zichtbare bronvermelding.

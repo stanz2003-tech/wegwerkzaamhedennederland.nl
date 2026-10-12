@@ -343,8 +343,9 @@ niet; `Validation floor not met` → NDW leverde te weinig data, wacht op de vol
 
 9.1 Open `web/site.config.json` in een teksteditor (Kladblok werkt; let op de aanhalingstekens
 en komma's). Vul in: `url` → `https://www.<domein>` (zonder slash aan het eind),
-`contactEmail`, `owner.name` (jouw naam of bedrijfsnaam), `owner.city`; `owner.kvk` pas als je
-een KvK-nummer hebt. `dataBase` laat je staan: in productie gebruikt de site de variabele
+`contactEmail`; `owner.kvk` en `owner.btw` pas als je een KvK-nummer hebt. Je naam en woonplaats
+staan bewust nergens op de site (sinds 2026-10-12); de pagina's spreken van "de uitgever van
+Wegwerk". `dataBase` laat je staan: in productie gebruikt de site de variabele
 `DATA_BASE`.
 
 9.2 Open de pagina's in `web/content/` (`over.md`, `contact.md`, `privacy.md`, `cookies.md`,

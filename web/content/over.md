@@ -6,7 +6,7 @@ description: Wat Wegwerk is, waar de gegevens over werkzaamheden, afsluitingen e
 heading: Over Wegwerk
 kicker: Over deze site
 lead: Wegwerk zet alle wegwerkzaamheden, afsluitingen, omleidingen, files en incidenten van Nederland op één kaart. Gratis, zonder account en zonder app, met open data van de Nederlandse wegbeheerders.
-updated: 2026-09-08
+updated: 2026-10-12
 ---
 
 ## Wat is Wegwerk?
@@ -43,4 +43,4 @@ Wegwerk is een particulier initiatief en **geen officiële website** van Rijkswa
 
 ## Wie maakt Wegwerk?
 
-Wegwerk wordt gemaakt en onderhouden door {{site.owner.name}}. Vragen, opmerkingen of een fout gezien? Kijk op de [contactpagina](/contact/). Fouten in de verkeersinformatie zelf meld je het snelst bij de wegbeheerder; ook dat staat daar uitgelegd.
+Wegwerk wordt onafhankelijk gemaakt en onderhouden, los van de wegbeheerders. Vragen, opmerkingen of een fout gezien? Kijk op de [contactpagina](/contact/). Fouten in de verkeersinformatie zelf meld je het snelst bij de wegbeheerder; ook dat staat daar uitgelegd.

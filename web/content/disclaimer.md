@@ -6,7 +6,7 @@ description: De verkeersinformatie komt ongewijzigd van wegbeheerders via NDW en
 heading: Disclaimer
 kicker: Juridisch
 lead: Wegwerk toont open data van de Nederlandse wegbeheerders zonder redactionele controle. Gebruik de kaart om je te informeren en volg onderweg altijd de borden, de aanwijzingen van verkeersregelaars en de officiële kanalen van de wegbeheerder.
-updated: 2026-09-08
+updated: 2026-10-12
 ---
 
 ## Herkomst en verwerking van de gegevens
@@ -21,7 +21,7 @@ Raadpleeg voor je vertrekt en onderweg altijd de **actuele bebording ter plaatse
 
 ## Aansprakelijkheid
 
-{{site.owner.name}} spant zich in om de gegevens juist en actueel over te nemen, maar geeft geen garantie op de juistheid, volledigheid of actualiteit van de getoonde informatie. {{site.owner.name}} aanvaardt geen aansprakelijkheid voor schade die voortvloeit uit het gebruik van of het vertrouwen op deze informatie, uit het tijdelijk niet beschikbaar zijn van de website, of uit de inhoud van websites waarnaar wordt gelinkt, behoudens opzet of bewuste roekeloosheid.
+Wegwerk spant zich in om de gegevens juist en actueel over te nemen, maar geeft geen garantie op de juistheid, volledigheid of actualiteit van de getoonde informatie. Wegwerk aanvaardt geen aansprakelijkheid voor schade die voortvloeit uit het gebruik van of het vertrouwen op deze informatie, uit het tijdelijk niet beschikbaar zijn van de website, of uit de inhoud van websites waarnaar wordt gelinkt, behoudens opzet of bewuste roekeloosheid.
 
 ## Geen officiële website
 
@@ -40,7 +40,7 @@ Deze website bevat links naar websites van derden en, na toestemming, advertenti
 
 ## Intellectueel eigendom
 
-De vormgeving, teksten en broncode van Wegwerk zijn eigendom van {{site.owner.name}}, tenzij anders vermeld. Linken naar Wegwerk en het insluiten van de kaart met zichtbare bronvermelding is toegestaan. De onderliggende verkeersgegevens zijn open data en zijn niet van Wegwerk; haal ze voor eigen gebruik op bij NDW.
+De vormgeving, teksten en broncode van Wegwerk zijn eigendom van de uitgever van Wegwerk, tenzij anders vermeld. Linken naar Wegwerk en het insluiten van de kaart met zichtbare bronvermelding is toegestaan. De onderliggende verkeersgegevens zijn open data en zijn niet van Wegwerk; haal ze voor eigen gebruik op bij NDW.
 
 ## Wijzigingen
 
