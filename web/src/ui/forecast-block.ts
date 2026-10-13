@@ -14,6 +14,7 @@ import { horizonMs } from '../data/horizon';
 import { dayWindow, localDateKey, windowFromNow, type DayPart } from '../data/time';
 import type { VehicleMode } from '../data/verdict';
 import { announce } from './announce';
+import { releaseForecastSlot } from './forecast-slot';
 import { answerAnnouncement, renderAnswerCard, type AnswerCardModel } from './answer-card';
 import { mountDatePick, pickHintKind, whenHint, type DatePick } from './date-pick';
 import { mountForecastStrip, type StripChoice } from './forecast-strip';
@@ -139,6 +140,7 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
       <p class="when__hint forecast__hint" id="fc-hint" hidden></p>
       <p class="when__horizon forecast__horizon" id="fc-horizon" hidden></p>
     </div>`;
+  releaseForecastSlot(root);
   const modeEl = root.querySelector<HTMLElement>('[data-fc-mode]');
   const answerEl = root.querySelector<HTMLElement>('[data-fc-answer]');
   const stripEl = root.querySelector<HTMLElement>('[data-fc-strip]');

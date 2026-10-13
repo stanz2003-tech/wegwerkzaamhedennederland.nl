@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { answerCard, entity, entityGeometry, entityList, filter, forecast, mapLink, panelAnswer, time, urlState } from './helpers/src.mjs';
+import { answerCard, entity, entityGeometry, entityList, filter, forecast, forecastSlot, mapLink, panelAnswer, time, urlState } from './helpers/src.mjs';
 
 const { compareImpact, compareStart, splitForEntity, mapFeatures } = entity;
 const { hasLineGeometry, neededCollections, pickByIds } = entityGeometry;
@@ -295,5 +295,67 @@ describe('mode and moment travel between map and entity pages (zoek-10, zoek-6)'
     const linked = answerCard.renderAnswerCard({ ...base, pageHref: '/weg/a27/', pageLabel: 'Per dag vooruitkijken op de A27 →' });
     assert.ok(linked.includes(`>${answerCard.cardHeadline(base)}</h2>`));
     assert.ok(linked.includes('answer--rijbaan'));
+  });
+});
+
+describe('the forecast block keeps its place while the data loads (CLS)', () => {
+  // The block is 400–950 px tall and used to appear from nothing ~1 s after the first paint,
+  // pushing the map and the list a whole screen down (Cloudflare: CLS "poor" for 22 % of visits).
+  const read = (rel) => readFileSync(new URL(rel, import.meta.url), 'utf8');
+
+  for (const name of ['road.html', 'place.html']) {
+    it(`${name}: the forecast slot is reserved in the static HTML`, () => {
+      const html = read(`../templates/${name}`);
+      const slot = html.slice(html.indexOf('<section class="entity-forecast"'), html.indexOf('</section>', html.indexOf('<section class="entity-forecast"')));
+      assert.match(slot, /id="entity-forecast" data-pending aria-label=/);
+      assert.match(slot, /<div class="forecast-pending" aria-hidden="true">/);
+      // Screen readers hear that the answer is coming instead of an empty region.
+      assert.match(slot, /<p class="sr-only">Het antwoord wordt geladen\.<\/p>/);
+    });
+  }
+
+  it('reserves a height per layout and hides the slot without JavaScript', () => {
+    const css = read('../src/styles/pages.css');
+    assert.match(css, /\.entity-forecast\[data-pending\]\s*\{[^}]*min-height:\s*var\(--forecast-reserve\)/);
+    assert.match(css, /--forecast-reserve:\s*\d+px/);
+    // If the page script never runs, the skeleton collapses on its own.
+    assert.match(css, /\.entity-forecast\[data-pending\]\s*\{[^}]*animation-name:\s*forecast-give-up/);
+    assert.match(read('../templates/_head.html'), /<noscript><style>\.entity-forecast\[data-pending\]\s*\{\s*display:\s*none;?\s*\}<\/style><\/noscript>/);
+  });
+
+  it('the block releases its slot as soon as it has written its markup', () => {
+    const src = read('../src/ui/forecast-block.ts');
+    const markup = src.indexOf("root.innerHTML = `<div class=\"forecast__mode\"");
+    const release = src.indexOf('releaseForecastSlot(root);');
+    assert.ok(markup > 0 && release > markup, 'releaseForecastSlot(root) must follow the block markup');
+    assert.ok(release - markup < 800, 'and come right after it, before the controls are mounted');
+  });
+
+  /** Just enough of an element for the helper. */
+  function fakeSlot(hasPlaceholder) {
+    const attrs = new Set(['data-pending']);
+    let children = hasPlaceholder ? ['placeholder'] : ['block'];
+    return {
+      attrs,
+      get children() { return children; },
+      removeAttribute: (a) => attrs.delete(a),
+      querySelector: (sel) => (sel === '.forecast-pending' && children.includes('placeholder') ? {} : null),
+      replaceChildren: () => { children = []; },
+    };
+  }
+
+  it('releasing a mounted slot drops the reservation and keeps the block', () => {
+    const el = fakeSlot(false);
+    forecastSlot.releaseForecastSlot(el);
+    assert.deepEqual([...el.attrs], []);
+    assert.deepEqual(el.children, ['block']);
+  });
+
+  it('releasing a slot that never got its block empties it, so :empty hides it', () => {
+    const el = fakeSlot(true);
+    forecastSlot.releaseForecastSlot(el);
+    assert.deepEqual([...el.attrs], []);
+    assert.deepEqual(el.children, []);
+    assert.doesNotThrow(() => forecastSlot.releaseForecastSlot(null));
   });
 });

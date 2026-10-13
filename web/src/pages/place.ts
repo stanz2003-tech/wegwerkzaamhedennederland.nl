@@ -24,6 +24,7 @@ import { slugify } from '../data/types';
 import { readUrlState } from '../data/url-state';
 import { renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
 import { bodyAttr, bootPage, dataAsOfLabel, stampUpdated } from '../ui/page-boot';
+import { releaseForecastSlot } from '../ui/forecast-slot';
 import { loadEntitySource, runEntityPage, sourceFromIndex, type EntitySource } from './entity-page';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
@@ -104,4 +105,5 @@ async function main(): Promise<void> {
   });
 }
 
-void main();
+// Whatever happened, the reserved forecast slot must not stay a skeleton.
+void main().finally(() => releaseForecastSlot(forecastEl));

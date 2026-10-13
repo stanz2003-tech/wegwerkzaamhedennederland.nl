@@ -76,6 +76,7 @@ export const mapLink = await load('ui/map-link.ts');
 export const topbar = await load('ui/topbar.ts');
 export const staleBanner = await load('ui/stale-banner.ts');
 export const answerCard = await load('ui/answer-card.ts');
+export const forecastSlot = await load('ui/forecast-slot.ts');
 export const panelAnswer = await load('ui/panel-answer.ts');
 export const announce = await load('ui/announce.ts');
 export const uiList = await load('ui/list.ts');

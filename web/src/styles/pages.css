@@ -244,6 +244,51 @@
 /* Without JavaScript the forecast block stays empty and must not leave a gap. */
 .entity-forecast:empty { display: none; }
 
+/* Until the data is in, the slot holds a skeleton of a typical block's height (ui/forecast-slot.ts):
+   the block (400–950 px) used to appear from nothing and push the map and list a screen down.
+   The reserve sits under most real heights, so the block grows into content below the fold
+   instead of pulling it up; without JavaScript _head.html hides the slot. */
+.entity-forecast {
+  --forecast-reserve: 560px;
+}
+
+@media (min-width: 769px) {
+  .entity-forecast { --forecast-reserve: 760px; }
+}
+
+.entity-forecast[data-pending] {
+  min-height: var(--forecast-reserve);
+  margin: 0 0 var(--s-6);
+  overflow: hidden;
+  /* Safety net: if the page script never runs (blocked or failed chunk), collapse the skeleton
+     instead of leaving a shimmering gap for good. A timer, not motion (zero duration), so it
+     must also apply under prefers-reduced-motion: reduce. */
+  animation-name: forecast-give-up;
+  animation-delay: 12s;
+  animation-fill-mode: forwards;
+}
+
+@keyframes forecast-give-up {
+  to { min-height: 0; height: 0; margin: 0; }
+}
+
+.forecast-pending {
+  display: grid;
+  grid-template-rows: 52px 240px 1fr;
+  gap: var(--s-3);
+  min-height: var(--forecast-reserve);
+}
+
+.forecast-pending span {
+  border-radius: var(--r-2);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--border) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .forecast-pending span { animation: shimmer 1.4s linear infinite; }
+}
+
 /* Facts (bridge) */
 .entity-facts {
   display: grid;
