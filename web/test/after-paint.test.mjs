@@ -15,9 +15,15 @@ function fakeTimers(hidden = false) {
     frames,
     tasks,
     requestFrame: (cb) => frames.push(cb),
-    setTimeout: (cb) => tasks.push(cb),
+    setTimeout: (cb, ms) => tasks.push({ cb, ms }),
     hidden: () => hidden,
-    flush: (queue) => queue.splice(0).forEach((cb) => cb()),
+    flushFrames: () => frames.splice(0).forEach((cb) => cb()),
+    /** Runs the queued tasks, or only those queued with `ms`. */
+    flushTasks: (ms) => {
+      const due = tasks.filter((t) => ms === undefined || t.ms === ms);
+      for (const t of due) tasks.splice(tasks.indexOf(t), 1);
+      due.forEach((t) => t.cb());
+    },
   };
 }
 
@@ -29,11 +35,13 @@ describe('paint first, then the heavy work (ui/after-paint.ts)', () => {
     s.schedule(() => ran.push('render'));
     assert.deepEqual(ran, [], 'nothing heavy inside the tap');
     assert.equal(s.pending(), true);
-    t.flush(t.frames);
+    t.flushFrames();
     assert.deepEqual(ran, [], 'not in the frame callback either: that would delay the paint');
-    t.flush(t.tasks);
+    t.flushTasks(0);
     assert.deepEqual(ran, ['render']);
     assert.equal(s.pending(), false);
+    t.flushTasks();
+    assert.deepEqual(ran, ['render'], 'the fallback timer then finds nothing to do');
   });
 
   it('collapses taps before the frame into the last one', () => {
@@ -44,12 +52,12 @@ describe('paint first, then the heavy work (ui/after-paint.ts)', () => {
     s.schedule(() => ran.push('morgen'));
     s.schedule(() => ran.push('weekend'));
     assert.equal(t.frames.length, 1, 'one frame requested');
-    t.flush(t.frames);
-    t.flush(t.tasks);
+    t.flushFrames();
+    t.flushTasks();
     assert.deepEqual(ran, ['weekend']);
     s.schedule(() => ran.push('nu'));
-    t.flush(t.frames);
-    t.flush(t.tasks);
+    t.flushFrames();
+    t.flushTasks();
     assert.deepEqual(ran, ['weekend', 'nu'], 'a later tap gets its own repaint');
   });
 
@@ -59,8 +67,37 @@ describe('paint first, then the heavy work (ui/after-paint.ts)', () => {
     let ran = false;
     s.schedule(() => (ran = true));
     assert.equal(t.frames.length, 0);
-    t.flush(t.tasks);
+    t.flushTasks();
     assert.equal(ran, true);
+  });
+
+  it('still runs when a page says it is visible but no frame comes (the answer never stays dimmed)', () => {
+    const t = fakeTimers();
+    const s = afterPaint.createPaintScheduler(t);
+    let ran = false;
+    s.schedule(() => (ran = true));
+    t.flushTasks(afterPaint.FRAME_FALLBACK_MS);
+    assert.equal(ran, true, 'no frame at all: the fallback timer runs the job');
+    assert.ok(afterPaint.FRAME_FALLBACK_MS >= 50 && afterPaint.FRAME_FALLBACK_MS <= 200, 'well after a due frame, well before a reader notices');
+  });
+
+  it('a late callback of an earlier wait never runs a newer job before its own frame', () => {
+    const t = fakeTimers();
+    const s = afterPaint.createPaintScheduler(t);
+    const ran = [];
+    s.schedule(() => ran.push('first'));
+    t.flushTasks(afterPaint.FRAME_FALLBACK_MS); // no frame came: the fallback ran it
+    assert.deepEqual(ran, ['first']);
+    s.schedule(() => ran.push('second'));
+    const [oldFrame, newFrame] = t.frames.splice(0);
+    oldFrame(); // the first wait's frame arrives late
+    t.flushTasks(0);
+    assert.deepEqual(ran, ['first'], 'the old wait does not run the new job before its frame');
+    newFrame();
+    t.flushTasks(0);
+    assert.deepEqual(ran, ['first', 'second']);
+    t.flushTasks();
+    assert.deepEqual(ran, ['first', 'second'], 'and runs only once');
   });
 });
 
