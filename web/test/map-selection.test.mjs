@@ -8,7 +8,8 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { forecast, mapSelection, panelAnswer, time, urlState, verdict } from './helpers/src.mjs';
 
-const { judge, orderForList, selectForQuestion, needsGepland, inTime } = mapSelection;
+const { judge, orderForList, selectForQuestion, needsGepland, inTime, withVerdict } = mapSelection;
+const layers = await import(new URL('../src/map/layers.ts', import.meta.url).href);
 const { DEFAULT_URL_STATE } = urlState;
 const rank = (level) => verdict.VERDICT_SEVERITY.indexOf(level);
 const actueel = JSON.parse(readFileSync(new URL('../fixtures/data/werk-actueel.geojson', import.meta.url), 'utf8')).features;
@@ -83,5 +84,31 @@ describe('map selection (ui/map-selection.ts)', () => {
       assert.deepEqual(got, want, JSON.stringify({ time: q.time, moment: q.moment, day: q.day, part: q.part }));
       assert.ok(all.every((f) => inTime(f.properties, q, NOW) === reference(f.properties, q, NOW)));
     }
+  });
+
+  it('hands the map only what its layers paint with, and every property they read', () => {
+    // MapLibre copies every property to its worker on each chip tap; a slim feature keeps that
+    // copy small. A layer that starts reading another property must fail here, not paint grey.
+    const read = new Set();
+    const walk = (x) => {
+      if (!Array.isArray(x)) return x && typeof x === 'object' ? Object.values(x).forEach(walk) : undefined;
+      if (x[0] === 'get' && typeof x[1] === 'string') read.add(x[1]);
+      x.forEach(walk);
+    };
+    for (const theme of ['light', 'dark']) walk(layers.overlayLayers({ theme, labelFont: ['x'], cluster: true }));
+    walk(layers.CLUSTER_PROPERTIES);
+    const clusterOnly = new Set(['point_count', 'point_count_abbreviated', 'worst']);
+    const judged = judge(items, 'auto', NOW, null);
+    for (const j of judged) {
+      const f = withVerdict(j);
+      const keys = Object.keys(f.properties);
+      for (const key of read) if (!clusterOnly.has(key) && key !== 'sub') assert.ok(keys.includes(key), `${key} missing on ${j.f.properties.id}`);
+      assert.ok(keys.every((k) => ['id', 'cat', 'sev', 'v', 'sub'].includes(k)), keys.join());
+      assert.equal(f.id, j.f.properties.id);
+      assert.equal(f.properties.v, j.level);
+      assert.equal(f.properties.sub, j.f.properties.sub);
+      assert.equal(f.geometry, j.f.geometry);
+    }
+    assert.deepEqual([...read].filter((k) => !clusterOnly.has(k)).sort(), ['cat', 'sev', 'sub', 'v']);
   });
 });

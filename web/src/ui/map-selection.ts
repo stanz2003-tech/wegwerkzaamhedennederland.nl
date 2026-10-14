@@ -87,9 +87,17 @@ export function judge(features: readonly ItemFeature[], mode: VehicleMode, at: n
   return features.map((f) => ({ f, level: verdictFor(f.properties, mode, window ? { window } : { now: at }).level }));
 }
 
-/** The feature the map draws: the item plus its verdict level (`v`) for the paint expressions. */
+/**
+ * The feature the map draws: the geometry plus only what map/layers.ts paints with (`cat`, `sub`,
+ * `sev` and the verdict level `v`) and the `id` its feature-state and taps use. MapLibre copies
+ * every property to its worker on each change; the ~16 of a full item made that copy the
+ * slowest part of a tap on a time chip or vehicle button (INP). The list and the answer keep
+ * the full items.
+ */
 export function withVerdict(j: Judged): ItemFeature {
-  return { ...j.f, properties: { ...j.f.properties, v: j.level } as ItemFeature['properties'] };
+  const p = j.f.properties;
+  const properties = { id: p.id, cat: p.cat, sev: p.sev, v: j.level, ...(p.sub === undefined ? {} : { sub: p.sub }) };
+  return { type: 'Feature', id: p.id, geometry: j.f.geometry, properties: properties as unknown as ItemProperties };
 }
 
 /**
