@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fixtureFiles, loadFixtureData, readJson } from './helpers/fixtures.mjs';
-import { answer as answerMod, answerCard } from './helpers/src.mjs';
+import { answer as answerMod, answerCard, filter, forecast, time, verdict } from './helpers/src.mjs';
 
 const { answerFor, areaSentence, hiddenSentence, itemName, itemSection, placeLabel, specificLine } = answerMod;
 
@@ -337,5 +337,55 @@ describe('stale data in the answer card (mobiel-8, taal-10)', () => {
     assert.doesNotMatch(later, /gegevens van/);
     const fresh = answerCard.renderAnswerCard({ road: 'A2', whenLabel: 'nu', mode: 'auto', answer: a, total: 2 });
     assert.doesNotMatch(fresh, /gegevens van/);
+  });
+});
+
+describe('answerOrder with each start parsed once (INP)', () => {
+  // The original comparator, which parsed the start dates and scored both items on every
+  // comparison. The faster order must be the same item for item.
+  const startMs = (p) => {
+    const s = time.toMs(p.start);
+    return Number.isNaN(s) ? Number.POSITIVE_INFINITY : s;
+  };
+  const byImpact = (a, b, now) =>
+    filter.impactScore(b, now) - filter.impactScore(a, now) ||
+    filter.CATEGORY_PRIORITY[a.cat] - filter.CATEGORY_PRIORITY[b.cat] ||
+    startMs(a) - startMs(b) ||
+    a.id.localeCompare(b.id);
+  const reference = (items, when, now) => {
+    const asked = when.kind === 'moment' ? when.at : when.from;
+    const startOf = (x) => {
+      const s = time.toMs(x.item.f.properties.start);
+      return Number.isFinite(s) ? Math.max(s, asked) : asked;
+    };
+    return [...items].sort(
+      (a, b) =>
+        verdict.VERDICT_SEVERITY.indexOf(a.verdict.level) - verdict.VERDICT_SEVERITY.indexOf(b.verdict.level) ||
+        startOf(a) - startOf(b) ||
+        byImpact(a.item.f.properties, b.item.f.properties, now) ||
+        a.item.f.properties.id.localeCompare(b.item.f.properties.id),
+    );
+  };
+
+  it('gives the order of the original comparator on every fixture road and gemeente', () => {
+    const all = fixtureFiles()
+      .filter((f) => /^(roads|gemeenten)\/.+\.json$/.test(f))
+      .flatMap((f) => readJson(f).items);
+    const whens = [
+      nowMoment,
+      { kind: 'moment', at: NOW + 30 * 3600_000 },
+      { kind: 'window', from: NOW, to: NOW + 86_400_000 },
+      { kind: 'window', from: NOW + 2 * 86_400_000, to: NOW + 4 * 86_400_000 },
+    ];
+    let compared = 0;
+    for (const mode of ['auto', 'vracht', 'fiets']) {
+      for (const when of whens) {
+        const sel = forecast.selectWhen(all, mode, when, NOW).items;
+        const ids = (xs) => xs.map((x) => x.item.f.properties.id);
+        assert.deepEqual(ids(answerMod.answerOrder(sel, when, NOW)), ids(reference(sel, when, NOW)), `${mode} ${JSON.stringify(when)}`);
+        compared += sel.length;
+      }
+    }
+    assert.ok(compared > 100, `compared ${compared} items`);
   });
 });

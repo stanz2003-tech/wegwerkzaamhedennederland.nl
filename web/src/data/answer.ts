@@ -204,10 +204,13 @@ function isClosed(x: AnsweredItem): boolean {
  */
 export function answerOrder(items: readonly AnsweredItem[], when: When, now: number): AnsweredItem[] {
   const asked = askedFrom(when);
-  const startOf = (x: AnsweredItem): number => {
+  // Parsed once per item, not on every comparison (thousands of items at national zoom; INP).
+  const starts = new Map<AnsweredItem, number>();
+  for (const x of items) {
     const s = toMs(x.item.f.properties.start);
-    return Number.isFinite(s) ? Math.max(s, asked) : asked;
-  };
+    starts.set(x, Number.isFinite(s) ? Math.max(s, asked) : asked);
+  }
+  const startOf = (x: AnsweredItem): number => starts.get(x) ?? asked;
   return [...items].sort(
     (a, b) =>
       VERDICT_SEVERITY.indexOf(a.verdict.level) - VERDICT_SEVERITY.indexOf(b.verdict.level) ||
