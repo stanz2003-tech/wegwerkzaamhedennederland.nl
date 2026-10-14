@@ -12,7 +12,8 @@
   align-items: center;
   gap: var(--s-3);
   height: var(--topbar-h);
-  padding: 0 var(--s-3) 0 max(var(--s-3), env(safe-area-inset-left));
+  /* Both sides: a phone in landscape has its notch on the left or on the right. */
+  padding: 0 max(var(--s-3), env(safe-area-inset-right)) 0 max(var(--s-3), env(safe-area-inset-left));
   background: var(--chrome);
   color: var(--chrome-text);
   border-bottom: 3px solid transparent;

@@ -349,7 +349,7 @@
   .map .map__uitleg {
     bottom: min(calc(var(--sheet-visible, var(--sheet-peek)) + var(--s-3) + env(safe-area-inset-bottom, 0px)), calc(100% - 132px));
     font-size: var(--text-xs);
-    min-height: 40px;
+    min-height: var(--touch);
     padding: 0 var(--s-3);
   }
 }

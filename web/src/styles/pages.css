@@ -870,7 +870,7 @@
 }
 
 .page .chips .badge {
-  min-height: 40px;
+  min-height: var(--touch);
   min-width: 56px;
   padding: var(--s-2) var(--s-3);
   font-size: var(--text-base);
@@ -983,8 +983,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  min-height: 40px;
+  min-width: var(--touch);
+  min-height: var(--touch);
   border: 1px solid var(--border);
   border-radius: var(--r-1);
   background: var(--surface);

@@ -449,6 +449,12 @@
   transform: translateY(1px);
 }
 
+/* With a finger every button is a full --touch target ("Toon meer" was 40 px); 40 px is kept
+   for a mouse, where the denser lists read better. */
+@media (pointer: coarse) {
+  .btn { min-height: var(--touch); }
+}
+
 .btn--primary {
   background: var(--accent);
   color: var(--accent-ink);
