@@ -8,6 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { readJson } from './helpers/fixtures.mjs';
 import { badge, filter, format, time } from './helpers/src.mjs';
 
 const { durationLabel, statusLine } = format;
@@ -163,6 +164,28 @@ describe('impact ranking', () => {
     assert.ok(compareByImpact(series.properties, plain.properties, NOW) < 0, 'tonight first, now');
     const LATER = Date.parse('2026-11-01T12:00:00Z');
     assert.ok(compareByImpact(series.properties, plain.properties, LATER) > 0, 'the November one first, later');
+  });
+
+  it('sorts the fixture data exactly like the comparator that scored on every comparison', () => {
+    // The original comparator re-parsed and re-scored both items on every call; the cached one
+    // must give the same order for the whole data set at several moments.
+    const startMs = (p) => {
+      const s = time.toMs(p.start);
+      return Number.isNaN(s) ? Number.POSITIVE_INFINITY : s;
+    };
+    const reference = (a, b, now) =>
+      impactScore(b, now) - impactScore(a, now) ||
+      filter.CATEGORY_PRIORITY[a.cat] - filter.CATEGORY_PRIORITY[b.cat] ||
+      startMs(a) - startMs(b) ||
+      a.id.localeCompare(b.id);
+    const all = ['werk-actueel.geojson', 'werk-gepland.geojson', 'live.geojson'].flatMap((f) => readJson(f).features);
+    const ids = (fs) => fs.map((f) => f.properties.id);
+    for (const now of [NOW, NOW + 6 * MS.hour, NOW + 3 * MS.day, NOW + 60 * MS.day]) {
+      const want = [...all].sort((a, b) => reference(a.properties, b.properties, now));
+      assert.deepEqual(ids(sortItems(all, 'impact', null, now)), ids(want), new Date(now).toISOString());
+      const byStart = [...all].sort((a, b) => startMs(a.properties) - startMs(b.properties) || reference(a.properties, b.properties, now));
+      assert.deepEqual(ids(sortItems(all, 'start', null, now)), ids(byStart));
+    }
   });
 
   it('defaults `now` to the current time so existing callers keep working', () => {
