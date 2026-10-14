@@ -13,7 +13,9 @@
  */
 import type {
   ExpressionSpecification,
+  GeoJSONFeatureDiff,
   GeoJSONSource,
+  GeoJSONSourceDiff,
   LayerSpecification,
   Map as MlMap,
   SourceSpecification,
@@ -422,6 +424,68 @@ export function setOverlayData(map: MlMap, data: SplitData): void {
   const points = map.getSource<GeoJSONSource>(SRC_POINTS);
   if (lines) void lines.setData(data.lines);
   if (points) void points.setData(data.points);
+}
+
+/**
+ * Moves both item sources from `prev` (what they hold) to `next`, sending only what changed.
+ * `setData` copies every coordinate of every item to the map's worker on the main thread: most of
+ * a tap on a time chip or vehicle button (INP), while such a tap mostly changes a verdict (`v`)
+ * and shows or hides some items. Falls back to `setData` when a diff cannot be made.
+ */
+export function updateOverlayData(map: MlMap, prev: SplitData, next: SplitData): void {
+  for (const [id, key] of [[SRC_LINES, 'lines'], [SRC_POINTS, 'points']] as const) {
+    const src = map.getSource<GeoJSONSource>(id);
+    if (!src) continue;
+    const diff = featureDiff(prev[key], next[key]);
+    if (diff === null) void src.setData(next[key]);
+    else if (diff !== EMPTY_DIFF) void src.updateData(diff);
+  }
+}
+
+const EMPTY_DIFF: GeoJSONSourceDiff = {};
+
+function byId(c: ItemCollection): Map<string, ItemFeature> | null {
+  const out = new Map<string, ItemFeature>();
+  for (const f of c.features) {
+    if (out.has(f.properties.id)) return null;
+    out.set(f.properties.id, f);
+  }
+  return out;
+}
+
+/**
+ * What turns `prev` into `next`: ids that left, items that came (or whose geometry is another
+ * object: a refresh, sent whole), and per item the properties that changed. `null` when the ids
+ * are not unique (MapLibre then refuses a diff) or when most items come anew; `EMPTY_DIFF`
+ * when nothing changed. Applied in MapLibre's order (remove, add, update) it gives exactly `next`.
+ */
+export function featureDiff(prev: ItemCollection, next: ItemCollection): GeoJSONSourceDiff | null {
+  const before = byId(prev);
+  const after = byId(next);
+  if (!before || !after) return null;
+  const remove = [...before.keys()].filter((id) => !after.has(id));
+  const add: ItemFeature[] = [];
+  const update: GeoJSONFeatureDiff[] = [];
+  for (const [id, f] of after) {
+    const old = before.get(id);
+    if (!old || old.geometry !== f.geometry) {
+      add.push(f);
+      continue;
+    }
+    const was = old.properties as unknown as Record<string, unknown>;
+    const now = f.properties as unknown as Record<string, unknown>;
+    const removeProperties = Object.keys(was).filter((k) => !(k in now));
+    const addOrUpdateProperties = Object.keys(now)
+      .filter((k) => !(k in was) || was[k] !== now[k])
+      .map((key) => ({ key, value: now[key] }));
+    if (removeProperties.length || addOrUpdateProperties.length) {
+      update.push({ id, ...(removeProperties.length ? { removeProperties } : {}), ...(addOrUpdateProperties.length ? { addOrUpdateProperties } : {}) });
+    }
+  }
+  // Adds carry their geometry: when most items come anew (the 90 s refresh), one setData is cheaper.
+  if (add.length > after.size / 2) return null;
+  if (!remove.length && !add.length && !update.length) return EMPTY_DIFF;
+  return { ...(remove.length ? { remove } : {}), ...(add.length ? { add } : {}), ...(update.length ? { update } : {}) };
 }
 
 /** Draws (or clears, with null) the detour polyline of the open detail. */

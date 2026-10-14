@@ -20,7 +20,7 @@ import { bboxOf, padBbox } from '../data/filter';
 import type { ItemFeature } from '../data/types';
 import { attributionOptions, keepAttributionCompact } from './attribution';
 import { isPdokTileFailure, loadBasemap, loadOpenFreeMap, renderStaticFallback, type BasemapKind, type ResolvedBasemap } from './basemap';
-import { HIT_LAYERS, LAYERS, SRC_LINES, SRC_POINTS, ensureOverlay, setDetourData, setOverlayData, splitFeatures, type SplitData } from './layers';
+import { HIT_LAYERS, LAYERS, SRC_LINES, SRC_POINTS, ensureOverlay, setDetourData, setOverlayData, splitFeatures, updateOverlayData, type SplitData } from './layers';
 import { unionBbox } from '../data/filter';
 import { announceMap } from './ready';
 import { ensureRouteOverlay, setRouteData, type RouteDrawing } from './route-layers';
@@ -248,9 +248,10 @@ export class AppMap {
   /* ----------------------------------- data ----------------------------------- */
 
   setItems(items: readonly ItemFeature[]): void {
-    this.data = splitFeatures(items);
+    const next = splitFeatures(items);
     this.sourceOf = new Map(items.map((f) => [f.properties.id, f.geometry.type === 'Point' ? SRC_POINTS : SRC_LINES]));
-    setOverlayData(this.map, this.data);
+    updateOverlayData(this.map, this.data, next);
+    this.data = next;
     this.applySelected();
   }
 

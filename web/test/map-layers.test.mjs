@@ -15,8 +15,9 @@
  * hooks (extensionless relative imports, `?raw` imports) — see test/README.md.
  */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import './helpers/src.mjs';
+import { mapSelection, urlState } from './helpers/src.mjs';
 
 const layers = await import(new URL('../src/map/layers.ts', import.meta.url).href);
 const styleCheck = await import(new URL('../src/map/style-check.ts', import.meta.url).href);
@@ -270,4 +271,81 @@ describe('cluster worst verdict', () => {
       }
     });
   }
+});
+
+describe('sending the map only what changed (featureDiff, INP)', () => {
+  const { featureDiff } = layers;
+  const read = (f) => JSON.parse(readFileSync(new URL(`../fixtures/data/${f}`, import.meta.url), 'utf8')).features;
+  const items = [...read('live.geojson'), ...read('werk-actueel.geojson'), ...read('werk-gepland.geojson')];
+  const NOW = Date.parse('2026-09-23T10:00:00Z');
+
+  /** MapLibre's applySourceDiff: remove, then add (overwrites by id), then property updates. */
+  const apply = (collection, diff) => {
+    const out = new Map(collection.features.map((f) => [f.properties.id, f]));
+    for (const id of diff.remove ?? []) out.delete(id);
+    for (const f of diff.add ?? []) out.set(f.properties.id, f);
+    for (const u of diff.update ?? []) {
+      const old = out.get(u.id);
+      if (!old) continue;
+      const properties = { ...old.properties };
+      for (const k of u.removeProperties ?? []) delete properties[k];
+      for (const { key, value } of u.addOrUpdateProperties ?? []) properties[key] = value;
+      out.set(u.id, { ...old, properties });
+    }
+    return out;
+  };
+  const same = (got, want, label) => {
+    assert.deepEqual([...got.keys()].sort(), want.features.map((f) => f.properties.id).sort(), label);
+    for (const f of want.features) {
+      const g = got.get(f.properties.id);
+      assert.deepEqual(g.properties, f.properties, `${label} ${f.properties.id}`);
+      assert.equal(g.geometry, f.geometry, `${label} ${f.properties.id} geometry`);
+    }
+  };
+  /** What main.ts render() hands the map for one question. */
+  const mapData = (mode, q) => {
+    const { base } = mapSelection.selectForQuestion(items, { ...urlState.DEFAULT_URL_STATE, ...q }, null, NOW);
+    const judged = mapSelection.judge(base, mode, q.moment ?? NOW, null).filter((j) => j.level !== 'nvt');
+    return splitFeatures(judged.map(mapSelection.withVerdict));
+  };
+
+  it('turns every chip and vehicle tap into exactly the next map data', () => {
+    const steps = [];
+    for (const time of ['nu', 'vandaag', 'morgen', 'weekend']) for (const mode of ['auto', 'vracht', 'fiets']) steps.push({ mode, q: { time } });
+    steps.push({ mode: 'auto', q: { moment: NOW + 40 * 3600_000 } }, { mode: 'fiets', q: { time: 'nu' } });
+    let diffs = 0;
+    for (let i = 1; i < steps.length; i++) {
+      const prev = mapData(steps[i - 1].mode, steps[i - 1].q);
+      const next = mapData(steps[i].mode, steps[i].q);
+      for (const key of ['lines', 'points']) {
+        const diff = featureDiff(prev[key], next[key]);
+        const label = `${JSON.stringify(steps[i - 1])} → ${JSON.stringify(steps[i])} ${key}`;
+        if (diff === null) continue; // setData: trivially exact
+        diffs += 1;
+        same(apply(prev[key], diff), next[key], label);
+        for (const f of diff.add ?? []) assert.ok(!prev[key].features.some((p) => p.properties.id === f.properties.id && p.geometry === f.geometry), `${label}: unchanged geometry is not re-sent`);
+      }
+    }
+    assert.ok(diffs > 20, `${diffs} diffs checked`);
+  });
+
+  it('re-sends an item whose geometry is a new object, and drops a property that went away', () => {
+    const a = { type: 'Feature', id: 'x', geometry: { type: 'Point', coordinates: [5, 52] }, properties: { id: 'x', cat: 'werk', sev: 2, v: 'geen', sub: 'roadworks' } };
+    const keep = { type: 'Feature', id: 'k', geometry: { type: 'Point', coordinates: [5, 52] }, properties: { id: 'k', cat: 'werk', sev: 2, v: 'geen' } };
+    const prev = { type: 'FeatureCollection', features: [a, keep] };
+    const moved = { ...a, geometry: { type: 'Point', coordinates: [6, 52] } };
+    assert.deepEqual(featureDiff(prev, { type: 'FeatureCollection', features: [moved, keep] }).add, [moved]);
+    const noSub = { ...a, properties: { id: 'x', cat: 'werk', sev: 2, v: 'dicht' } };
+    const diff = featureDiff(prev, { type: 'FeatureCollection', features: [noSub, keep] });
+    assert.deepEqual(diff, { update: [{ id: 'x', removeProperties: ['sub'], addOrUpdateProperties: [{ key: 'v', value: 'dicht' }] }] });
+    assert.deepEqual(featureDiff(prev, prev), {}, 'nothing to send');
+  });
+
+  it('falls back to a full setData for duplicate ids or when most items are new', () => {
+    const f = (id) => ({ type: 'Feature', id, geometry: { type: 'Point', coordinates: [5, 52] }, properties: { id, cat: 'werk', sev: 1, v: 'geen' } });
+    const fc = (...features) => ({ type: 'FeatureCollection', features });
+    assert.equal(featureDiff(fc(f('a')), fc(f('b'), f('b'))), null, 'duplicate ids');
+    assert.equal(featureDiff(fc(), fc(f('a'), f('b'))), null, 'first fill');
+    assert.equal(featureDiff(fc(f('a'), f('b'), f('c')), fc(f('a'), f('b'), f('c'))), null, 'every geometry a new object: the refresh');
+  });
 });
