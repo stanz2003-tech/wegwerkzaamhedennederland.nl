@@ -83,3 +83,29 @@ describe('main.ts repaints a changed question after the tap has been painted', (
     assert.match(rule[2], /opacity:\s*0\.\d+/);
   });
 });
+
+describe('no full repaint inside a tap that does not change the answer', () => {
+  const block = (src, start) => {
+    const i = src.indexOf(start);
+    assert.ok(i >= 0, start);
+    return src.slice(i, src.indexOf('\n  }', i));
+  };
+
+  it('"Route plannen" opens and closes its form by repainting only its own slot', () => {
+    const src = readFileSync(new URL('../src/ui/route-controller.ts', import.meta.url), 'utf8');
+    for (const fn of ['function openForm(', 'function closeForm(']) {
+      const body = block(src, fn);
+      assert.doesNotMatch(body, /host\.render\(/, fn);
+      assert.match(body, /paintSlot\(\)/, fn);
+    }
+  });
+
+  it('moveend (fired inside the map frame and on every sheet resize) repaints the list after that frame', () => {
+    const src = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+    const moveEnd = src.slice(src.indexOf('onMoveEnd:'), src.indexOf('onBasemap:'));
+    assert.match(moveEnd, /afterMove\.schedule\(render\)/);
+    assert.doesNotMatch(moveEnd, /\brender\(\)/);
+    assert.match(src, /const afterMove = createPaintScheduler\(\)/, 'its own queue, so a pan never drops a question change');
+  });
+});
+

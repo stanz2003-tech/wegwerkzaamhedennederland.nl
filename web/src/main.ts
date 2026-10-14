@@ -439,6 +439,8 @@ const layout = mountPanelLayout(
 );
 
 const afterPaint = createPaintScheduler();
+/** Its own queue: a moveend must never swallow a pending question change. */
+const afterMove = createPaintScheduler();
 
 /** The answer, list and detail on screen belong to the previous question (see questionChanged). */
 function setUpdating(on: boolean): void {
@@ -729,7 +731,9 @@ async function boot(): Promise<void> {
       onHover: () => undefined,
       onMoveEnd: () => {
         // Road mode and a text filter list everything they match, wherever the camera is.
-        if (!url.road && !url.query && !places.active() && !routes.active()) render();
+        // MapLibre fires moveend inside its own frame (and on every resize of the sheet): the
+        // list follows once that frame is painted, not inside it (INP).
+        if (!url.road && !url.query && !places.active() && !routes.active()) afterMove.schedule(render);
         syncUrl();
       },
       onBasemap: (kind) => {

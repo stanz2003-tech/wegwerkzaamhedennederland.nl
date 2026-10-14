@@ -166,10 +166,18 @@ export function createRouteController(host: RouteHost, els: { panel: HTMLElement
     onCancel: () => closeForm(),
   });
 
+  /**
+   * Opening or closing the form changes only this slot: repaint the slot, not the whole page.
+   * A full render here (list, answer, map) made the tap on "Route plannen" slow (INP).
+   */
+  function paintSlot(): void {
+    api.paint(Date.now());
+  }
+
   function closeForm(): void {
     formOpen = false;
     toggle.setAttribute('aria-expanded', 'false');
-    host.render();
+    paintSlot();
     if (!stops()) toggle.focus();
     else cardEl.querySelector<HTMLElement>('.answer__headline')?.focus();
   }
@@ -178,7 +186,7 @@ export function createRouteController(host: RouteHost, els: { panel: HTMLElement
     formOpen = true;
     toggle.setAttribute('aria-expanded', 'true');
     form.set(stops());
-    host.render();
+    paintSlot();
     host.expand(formEl);
     form.focus();
   }
@@ -383,7 +391,7 @@ export function createRouteController(host: RouteHost, els: { panel: HTMLElement
     }
   });
 
-  return {
+  const api: RouteController = {
     active: () => stops() !== null,
 
     selection(now) {
@@ -443,4 +451,5 @@ export function createRouteController(host: RouteHost, els: { panel: HTMLElement
     exit,
     open: openForm,
   };
+  return api;
 }
