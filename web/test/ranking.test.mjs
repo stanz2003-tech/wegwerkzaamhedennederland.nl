@@ -156,6 +156,15 @@ describe('impact ranking', () => {
     assert.deepEqual(sortItems([late, early], 'start', null, NOW).map((f) => f.properties.id), ['vroeg', 'laat']);
   });
 
+  it('re-scores the same item for another `now` (the per-item score is cached per moment)', () => {
+    // Same objects compared at two moments: the cache must not carry the first score over.
+    const series = feature({ id: 'serie', cat: 'afsluiting', sev: 2, start: '2026-09-09T20:00:00Z', end: '2026-09-10T04:00:00Z' });
+    const plain = feature({ id: 'gewoon', cat: 'afsluiting', sev: 2, start: '2026-11-01T20:00:00Z', end: '2026-11-02T04:00:00Z' });
+    assert.ok(compareByImpact(series.properties, plain.properties, NOW) < 0, 'tonight first, now');
+    const LATER = Date.parse('2026-11-01T12:00:00Z');
+    assert.ok(compareByImpact(series.properties, plain.properties, LATER) > 0, 'the November one first, later');
+  });
+
   it('defaults `now` to the current time so existing callers keep working', () => {
     assert.equal(sortItems([feature({ id: 'a' })], 'impact', null).length, 1);
   });

@@ -235,12 +235,36 @@ export function impactScore(p: Pick<ImpactFields, 'sev' | 'start' | 'end'>, now:
   return p.sev * IMPACT_WEIGHTS.severity + changeBonus(p, now) - longRunPenalty(p, now);
 }
 
+interface ImpactKey {
+  now: number;
+  score: number;
+  start: number;
+}
+
+/**
+ * The score and start of an item for one `now`, computed once per item instead of on every
+ * comparison: sorting ~12,000 map items called `Date.parse` millions of times and took ~300 ms
+ * on every tap of a time chip or vehicle button (INP). Keyed by the (immutable) properties
+ * object, so the order is exactly the one the plain comparator gives.
+ */
+const impactKeys = new WeakMap<ImpactFields, ImpactKey>();
+
+function impactKey(p: ImpactFields, now: number): ImpactKey {
+  const hit = impactKeys.get(p);
+  if (hit && hit.now === now) return hit;
+  const key: ImpactKey = { now, score: impactScore(p, now), start: startMs(p) };
+  impactKeys.set(p, key);
+  return key;
+}
+
 /** Comparator for the default order: score desc, then category, then start, then id. */
 export function compareByImpact(a: ImpactFields, b: ImpactFields, now: number): number {
+  const ka = impactKey(a, now);
+  const kb = impactKey(b, now);
   return (
-    impactScore(b, now) - impactScore(a, now) ||
+    kb.score - ka.score ||
     CATEGORY_PRIORITY[a.cat] - CATEGORY_PRIORITY[b.cat] ||
-    startMs(a) - startMs(b) ||
+    ka.start - kb.start ||
     a.id.localeCompare(b.id)
   );
 }
