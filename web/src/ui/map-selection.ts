@@ -9,7 +9,7 @@
 import { matchesRoad, orderAlongRoad } from '../data/entity';
 import { matchesQuery, midpointOf, sortItems, type SortId } from '../data/filter';
 import { liveAppliesAt } from '../data/forecast';
-import { isActiveAt, matchesTimeWindow, overlapsWindow } from '../data/time';
+import { isActiveAt, overlapsWindow, timeWindowTest } from '../data/time';
 import type { ItemFeature, ItemProperties } from '../data/types';
 import type { UrlState } from '../data/url-state';
 import { VERDICT_SEVERITY, verdictFor, type VehicleMode, type VerdictLevel } from '../data/verdict';
@@ -31,10 +31,16 @@ export function needsGepland(q: TimeQuestion, now: number): boolean {
  * live-snapshot rule) — so the list holds exactly the items the answer card weighed.
  */
 export function inTime(p: ItemProperties, q: TimeQuestion, now: number): boolean {
-  if (q.moment !== null) return isActiveAt(p, q.moment) && liveAppliesAt(p, q.moment, now);
+  return inTimeTest(q, now)(p);
+}
+
+/** `inTime` for many items: the asked window is worked out once, not per item. */
+export function inTimeTest(q: TimeQuestion, now: number): (p: ItemProperties) => boolean {
+  const moment = q.moment;
+  if (moment !== null) return (p) => isActiveAt(p, moment) && liveAppliesAt(p, moment, now);
   const day = dayWindowOf(q, now);
-  if (day) return overlapsWindow(p, day.from, day.to) && liveAppliesAt(p, day.from, now);
-  return matchesTimeWindow(p, q.time, now);
+  if (day) return (p) => overlapsWindow(p, day.from, day.to) && liveAppliesAt(p, day.from, now);
+  return timeWindowTest(q.time, now);
 }
 
 export interface Selection {
@@ -54,7 +60,8 @@ export function selectForQuestion(
   now: number,
 ): Selection {
   const road = q.road;
-  let base = items.filter((f) => inTime(f.properties, q, now));
+  const asked = inTimeTest(q, now);
+  let base = items.filter((f) => asked(f.properties));
   if (road) base = base.filter((f) => matchesRoad(f.properties.road, road));
   if (inPlace) base = base.filter((f) => inPlace(f.properties));
   if (q.query) base = base.filter((f) => matchesQuery(f.properties, q.query));

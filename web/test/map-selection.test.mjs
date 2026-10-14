@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
-import { mapSelection, urlState, verdict } from './helpers/src.mjs';
+import { forecast, mapSelection, panelAnswer, time, urlState, verdict } from './helpers/src.mjs';
 
 const { judge, orderForList, selectForQuestion, needsGepland, inTime } = mapSelection;
 const { DEFAULT_URL_STATE } = urlState;
@@ -56,5 +56,32 @@ describe('map selection (ui/map-selection.ts)', () => {
     assert.equal(needsGepland({ ...DEFAULT_URL_STATE, day: '2026-09-30' }, NOW), true);
     const item = items[0].properties;
     assert.equal(typeof inTime(item, { ...DEFAULT_URL_STATE }, NOW), 'boolean');
+  });
+
+  it('the time filter worked out once per question selects exactly what the per-item check does', () => {
+    // The original per-item form of inTime: the window recomputed for every item (slow, ~300 ms
+    // over the full data set on every tap of a time chip). The hoisted form must agree item by item.
+    const reference = (p, q, now) => {
+      if (q.moment !== null) return time.isActiveAt(p, q.moment) && forecast.liveAppliesAt(p, q.moment, now);
+      const day = panelAnswer.dayWindowOf(q, now);
+      if (day) return time.overlapsWindow(p, day.from, day.to) && forecast.liveAppliesAt(p, day.from, now);
+      if (q.time === 'nu') return time.isActiveAt(p, now);
+      const { from, to } = time.timeWindowRange(q.time, now);
+      return time.overlapsWindow(p, from, to);
+    };
+    const gepland = JSON.parse(readFileSync(new URL('../fixtures/data/werk-gepland.geojson', import.meta.url), 'utf8')).features;
+    const all = [...items, ...gepland];
+    const questions = [
+      ...['nu', 'vandaag', 'morgen', 'weekend'].map((t) => ({ ...DEFAULT_URL_STATE, time: t })),
+      { ...DEFAULT_URL_STATE, moment: NOW + 30 * 3600_000 },
+      { ...DEFAULT_URL_STATE, day: '2026-09-25', part: null },
+      { ...DEFAULT_URL_STATE, day: '2026-09-25', part: 'nacht' },
+    ];
+    for (const q of questions) {
+      const want = all.filter((f) => reference(f.properties, q, NOW)).map((f) => f.properties.id);
+      const got = selectForQuestion(all, q, null, NOW).base.map((f) => f.properties.id);
+      assert.deepEqual(got, want, JSON.stringify({ time: q.time, moment: q.moment, day: q.day, part: q.part }));
+      assert.ok(all.every((f) => inTime(f.properties, q, NOW) === reference(f.properties, q, NOW)));
+    }
   });
 });

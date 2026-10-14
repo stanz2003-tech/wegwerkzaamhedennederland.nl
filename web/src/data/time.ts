@@ -265,9 +265,18 @@ export function timeWindowRange(id: TimeWindowId, now: number): { from: number; 
 
 /** Does the item match the selected time chip at `now`? */
 export function matchesTimeWindow(p: TimeSpan, id: TimeWindowId, now: number): boolean {
-  if (id === 'nu') return isActiveAt(p, now);
+  return timeWindowTest(id, now)(p);
+}
+
+/**
+ * `matchesTimeWindow` for many items: the window is worked out once. Its Europe/Amsterdam day
+ * bounds go through Intl, and doing that per item cost ~300 ms over the ~12,000 map items on
+ * every tap of Vandaag, Morgen or Dit weekend (INP).
+ */
+export function timeWindowTest(id: TimeWindowId, now: number): (p: TimeSpan) => boolean {
+  if (id === 'nu') return (p) => isActiveAt(p, now);
   const { from, to } = timeWindowRange(id, now);
-  return overlapsWindow(p, from, to);
+  return (p) => overlapsWindow(p, from, to);
 }
 
 /* ------------------------------------------------------------------------ */
