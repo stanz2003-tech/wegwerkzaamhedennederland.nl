@@ -133,6 +133,13 @@
   margin: var(--s-3) var(--s-4) 0;
 }
 
+/* Between a tap on a time chip or vehicle button and the repaint for it (main.ts questionChanged,
+   a frame on a laptop, longer on a slow phone): what is on screen still answers the old
+   question, so it steps back instead of reading as the answer to the new one. */
+.panel.is-updating :is(.panel__route, .panel__answer, .panel__bar, .panel__roads, .panel__body) {
+  opacity: 0.45;
+}
+
 .panel__bar {
   display: flex;
   align-items: center;

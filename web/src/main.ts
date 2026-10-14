@@ -67,6 +67,7 @@ import { showToast } from './ui/toast';
 import { renderStaleBanner } from './ui/stale-banner';
 import { liveStatusFromMeta, mountTopbar, staleDataLabel, type LiveStatus } from './ui/topbar';
 import { mountWhenControl } from './ui/when-control';
+import { createPaintScheduler } from './ui/after-paint';
 import { horizonMs } from './data/horizon';
 
 const REFRESH_MS = 90_000;
@@ -437,16 +438,33 @@ const layout = mountPanelLayout(
   { onBack: () => detail.close(), onShare: () => void detail.share() },
 );
 
+const afterPaint = createPaintScheduler();
+
+/** The answer, list and detail on screen belong to the previous question (see questionChanged). */
+function setUpdating(on: boolean): void {
+  panelEl.classList.toggle('is-updating', on);
+  for (const region of [answerEl, listEl, detailEl]) region.toggleAttribute('aria-busy', on);
+}
+
 /**
  * After the user changed the question (vehicle, moment, day): load what it needs, repaint list,
- * map and detail, write the URL and speak the new answer.
+ * map and detail, write the URL and speak the new answer. The repaint waits until the tapped
+ * chip or button has been painted (ui/after-paint.ts, INP); until then the old answer is dimmed
+ * and busy, so it is never read as the answer to the new question.
  */
 function questionChanged(): void {
   if (needsGepland()) void ensureGepland();
-  render();
-  if (detail.selected()) paintDetail();
-  syncUrl();
-  announceAnswer();
+  setUpdating(true);
+  afterPaint.schedule(() => {
+    try {
+      render();
+      if (detail.selected()) paintDetail();
+    } finally {
+      setUpdating(false);
+    }
+    syncUrl();
+    announceAnswer();
+  });
 }
 
 const modeSelect = mountModeSelect(el<HTMLElement>('[data-mode]'), url.mode, (mode) => {
