@@ -39,7 +39,10 @@ export interface Answer {
   subline: string;
   /** At most `MAX_SPECIFICS` short lines, worst first. */
   specifics: string[];
-  /** Distinct lines left out of `specifics` ("+ nog 4 plekken, zie de lijst"). */
+  /**
+   * Distinct lines left out of `specifics` (the route card's "+ nog 4 plekken op je route"). It
+   * depends on how much detail the items carry, so the answer card counts `items` instead.
+   */
   moreCount: number;
   /** Relevant items, worst first, in the deterministic answer order (see `answerOrder`). */
   items: AnsweredItem[];

@@ -316,6 +316,44 @@ describe('beyond the horizon (vooruit-5)', () => {
   });
 });
 
+describe('the card points to the list with the number of meldingen, with or without detail (review 2026-10-16)', () => {
+  const subject = { kind: 'road', name: 'A2' };
+  const at = Date.parse('2026-10-16T20:00:00Z');
+  const when = { kind: 'moment', at };
+  const feat = (id, props, d = null) => ({
+    f: { type: 'Feature', geometry: { type: 'Point', coordinates: [5.8, 51] }, properties: { id, cat: 'werk', sev: 3, src: 's', road: 'A2', title: 'A2', imp: 'hinder', start: '2026-10-16T06:00:00Z', end: '2026-10-20T06:00:00Z', ...props } },
+    d,
+  });
+  // The road page has the detail of every item; the map has none (d: null). Without it two
+  // stretches near Born are both "Bij Born" — one line — so the old "+ nog N plekken" differed.
+  const page = [
+    feat('w1', { imp: 'dicht', woonplaats: 'Weert' }, { from: 'Budel', to: 'Weert' }),
+    feat('b1', { woonplaats: 'Born' }, { from: 'Sint Joost', to: 'Urmond' }),
+    feat('b2', { woonplaats: 'Born' }, { from: 'Urmond', to: 'Het Vonderen' }),
+    feat('u1', { woonplaats: 'Utrecht' }),
+    feat('e1', { woonplaats: 'Everdingen' }),
+  ];
+  const map = page.map((x) => ({ ...x, d: null }));
+  const more = (answer) => {
+    const html = answerCard.renderAnswerCard({ road: 'A2', whenLabel: 'nu', mode: 'auto', answer, total: answer.items.length });
+    return /<p class="answer__more">[\s\S]*?<\/p>/.exec(html)?.[0] ?? '';
+  };
+
+  it('map and road page say the same number for the same items, and it is the number of meldingen', () => {
+    const onMap = answerFor(map, 'auto', when, subject, at);
+    const onPage = answerFor(page, 'auto', when, subject, at);
+    assert.notEqual(onMap.moreCount, onPage.moreCount, 'the distinct lines differ with the detail: the cause of the review finding');
+    assert.match(more(onMap), /Alle 5 meldingen in de lijst/);
+    assert.equal(more(onPage), more(onMap));
+    assert.doesNotMatch(more(onPage), /plek/);
+  });
+
+  it('no list link while the card can name every melding', () => {
+    assert.equal(more(answerFor(page.slice(0, 3), 'auto', when, subject, at)), '');
+    assert.equal(more(answerFor(map.slice(0, 3), 'auto', when, subject, at)), '');
+  });
+});
+
 describe('text filter prefix (zoek-3)', () => {
   it('areaSentence says what it is about', () => {
     const empty = answerFor([], 'auto', nowMoment, { kind: 'gebied', name: '' });

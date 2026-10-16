@@ -4,7 +4,7 @@
  * prominent "× Alle wegen" that leaves road mode. Also used as the headline of /weg/<slug>/, and
  * in place mode on the map ("Kan ik door Almkerk?", "× Alle plaatsen", a link to the place page).
  */
-import { BEYOND_HORIZON_HEADLINE, horizonDateLabel, type Answer } from '../data/answer';
+import { BEYOND_HORIZON_HEADLINE, MAX_SPECIFICS, horizonDateLabel, type Answer } from '../data/answer';
 import type { RoadType } from '../data/types';
 import { VERDICT_META, type VehicleMode, type VerdictLevel } from '../data/verdict';
 import { roadBadge } from './badge';
@@ -120,15 +120,20 @@ function timeLine(a: Answer): string {
 }
 
 /**
- * "+ nog 4 plekken, zie de lijst ↓" when the specifics left closures out (overzicht-9): three
- * lines while fourteen spots are closed read as "only here". On the map the link uses the panel's
- * skip-link handling (data-skip, ui/panel-layout.ts); on a road or place page it is a plain jump.
+ * "Alle 18 meldingen in de lijst ↓" when the card cannot name them all (overzicht-9): three lines
+ * while fourteen spots are closed read as "only here". The number is that of the meldingen the
+ * answer weighed — on the map the "18 meldingen op de A2" right under the card. It used to be
+ * the distinct lines left out ("+ nog 12 plekken"), and those depend on how much detail a view
+ * has: the road page tells "Sint Joost–Urmond" from "Urmond–Het Vonderen" where the map has "Bij
+ * Born" twice, so the two said 12 and 15 for the same meldingen (review 2026-10-16).
+ * On the map the link uses the panel's skip-link handling (data-skip, ui/panel-layout.ts); on a
+ * road or place page it is a plain jump.
  */
 function moreLine(m: AnswerCardModel): string {
-  const more = m.answer.moreCount ?? 0;
-  if (more <= 0) return '';
+  const total = m.answer.items?.length ?? 0;
+  if (total <= MAX_SPECIFICS) return '';
   const href = m.exit === false ? '#entity-list' : '#list-heading';
-  return `<p class="answer__more"><a href="${href}"${m.exit === false ? '' : ' data-skip'}>+ nog ${more} ${more === 1 ? 'plek' : 'plekken'}, zie de lijst <span aria-hidden="true">↓</span></a></p>`;
+  return `<p class="answer__more"><a href="${href}"${m.exit === false ? '' : ' data-skip'}>Alle ${total} meldingen in de lijst <span aria-hidden="true">↓</span></a></p>`;
 }
 
 export function renderAnswerCard(m: AnswerCardModel): string {
