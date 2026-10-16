@@ -28,6 +28,25 @@ describe('checkNotes', () => {
     assert.match(text.text, /‘De A15 is afgesloten tussen Gorinchem en Deil’/);
   });
 
+  it('explains a closure the label made count for cars, naming who the publisher listed (2026-10-16)', () => {
+    const [note] = checkNotes.checkNotes(
+      [{ c: 'gevolg-auto', q: 'Weg dicht in beide richtingen', v: ['lorry', 'bicycle', 'moped', 'bus', 'agricultural'] }],
+      null,
+    );
+    assert.equal(note.kind, 'conflict');
+    assert.match(note.text, /‘Weg dicht in beide richtingen’/);
+    assert.match(note.text, /alleen voor vrachtverkeer, fietsers, brommers, bussen en landbouwverkeer\./);
+    assert.match(note.text, /ook voor auto’s dicht/);
+  });
+
+  it('explains why a melding with one working period reads closed until its end (2026-10-16)', () => {
+    const [note] = checkNotes.checkNotes([{ c: 'gevolg-periode', q: 'Weg dicht in beide richtingen' }], null);
+    assert.equal(note.kind, 'reason');
+    assert.equal(note.title, 'Waarom dicht tot het einde?');
+    assert.match(note.text, /maar één werkperiode/);
+    assert.match(note.text, /‘Weg dicht in beide richtingen’/);
+  });
+
   it('says when Wegwerk corrected the data, and that the correction expires with the melding', () => {
     const [note] = checkNotes.checkNotes([{ c: 'correctie', q: 'Wij hebben de afsluiting op fietsers gezet.' }], ['bicycle']);
     assert.equal(note.kind, 'reason');

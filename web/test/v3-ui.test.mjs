@@ -103,7 +103,7 @@ describe('verdict-first list row', () => {
   it('renders as a link on the generated pages and reads a v2 feature as onbekend', () => {
     const html = renderListItem(modelFromProps({ ...props, imp: undefined }), NOW, { href: '/?id=x1' });
     assert.ok(html.startsWith('<a class="item"'));
-    assert.ok(html.includes('Gevolgen niet gemeld'));
+    assert.ok(html.includes('Gevolgen onduidelijk'));
     assert.equal(sectionOf({ title: 'Los', road: null }), 'Los');
   });
 });

@@ -49,6 +49,18 @@ function noteOf(check: ConsistencyCheck, veh: readonly Vehicle[] | null | undefi
         title: 'Waarom dicht?',
         text: `De wegbeheerder meldt als gevolg ${quote(check.q)}, maar zet geen afsluiting in de gegevens. We gaan uit van wat de wegbeheerder meldt.`,
       };
+    case 'gevolg-auto':
+      return {
+        kind: 'conflict',
+        title: 'Melding spreekt zichzelf tegen',
+        text: `De wegbeheerder kiest als gevolg ${quote(check.q)}, maar zet de afsluiting in de gegevens alleen ${audience(check.v)}. De rest van de melding wijst erop dat de weg ook voor auto’s dicht is, dus dat tonen we. ${ON_SITE}`,
+      };
+    case 'gevolg-periode':
+      return {
+        kind: 'reason',
+        title: 'Waarom dicht tot het einde?',
+        text: `De wegbeheerder geeft maar één werkperiode op en meldt als gevolg ${quote(check.q)}. We gaan ervan uit dat de weg daarna dicht blijft tot het einde van de melding. ${ON_SITE}`,
+      };
     case 'tekst-dicht':
       return {
         kind: 'reason',

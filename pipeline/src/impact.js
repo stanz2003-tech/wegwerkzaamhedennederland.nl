@@ -22,7 +22,9 @@
  *   - "<weg> is dicht" / "<weg> is afgesloten" next to a detour record: `rijbaan` on A/N (`dicht`
  *     with "in beide richtingen"), `dicht` elsewhere — `by: 'tekst'`;
  *   - Melvin's label "Weg dicht in beide richtingen" → at least `dicht`, "Weg dicht in een
- *     richting" → at least `rijbaan`, unless the closure records restrict vehicles — `by: 'gevolg'`.
+ *     richting" → at least `rijbaan`, unless the closure records restrict vehicles — `by: 'gevolg'`;
+ *   - that label over a closure whose vehicle list leaves out cars, when the list is not credible
+ *     (`listLeavesOutCars`): the closure counts for everyone — `overruled` keeps the list.
  * Disagreements the other way are explained on the site, not acted on (src/consistency.js).
  *
  * `veh` is the union of `forVehiclesWithCharacteristicsOf` over the records
@@ -73,12 +75,15 @@
  * @property {(string | undefined)[]=} texts              comment / description, for the path check
  * @property {string=} gevolg                             Melvin's "gevolg voor het verkeer" label, lower case
  *                                                        (`gevolgOf()` in src/consistency.js)
+ * @property {ImpactRecord[]=} allRecords                 every record of the situation, also those not in
+ *                                                        force in this stretch (the detour check reads them)
  */
 
 /**
  * `by` says the verdict was not read from a measure record: `gevolg` = Melvin's dropdown,
  * `tekst` = a sentence like "De A15 is afgesloten" next to a detour. The site explains those.
- * @typedef {{ imp: Impact, veh?: Vehicle[], by?: 'gevolg'|'tekst', per?: true, spd?: number, lc?: number }} ImpactResult
+ * `overruled` is the closure's own vehicle list when the label made it count for everyone.
+ * @typedef {{ imp: Impact, veh?: Vehicle[], by?: 'gevolg'|'tekst', overruled?: Vehicle[], per?: true, spd?: number, lc?: number }} ImpactResult
  */
 
 const DUAL_CARRIAGEWAY_ROAD_TYPES = new Set(['A', 'N']);
@@ -119,6 +124,15 @@ const GEVOLG_VERDICT = Object.freeze({
   'weg dicht in een richting': 'rijbaan',
 });
 const WEAKER_THAN_RIJBAAN = new Set(['hinder', 'geen', 'onbekend']);
+
+/**
+ * True when Melvin's label (lower case, `gevolgOf()`) says the road is closed in one or both
+ * directions.
+ * @param {string | undefined} gevolg
+ */
+export function labelClosesRoad(gevolg) {
+  return GEVOLG_VERDICT[gevolg ?? ''] !== undefined;
+}
 
 /** Delay bands in increasing order of hindrance. */
 const DELAY_ORDER = [
@@ -191,10 +205,15 @@ export function impactOf(recs, ctx) {
   // Melvin's "gevolg voor het verkeer" is a drop-down the publisher fills in, not prose. On
   // 2026-10-12 about 140 situations said "Weg dicht in beide richtingen" there without a closure
   // record (only a detour, a speed limit or nothing) and the site printed "doorrijden mogelijk".
-  // It only ever makes the verdict heavier, and never overrides a vehicle list the records publish:
-  // "weg dicht" over a closure for bicycles is a closed cycle path.
+  // It only ever makes the verdict heavier. Over a closure with a vehicle list it usually means
+  // that list ("weg dicht" over a closure for bicycles is a closed cycle path), except when the list
+  // itself is not credible (`listLeavesOutCars`): then the closure counts for everyone.
   const byLabel = GEVOLG_VERDICT[ctx.gevolg ?? ''];
-  const unrestricted = vehiclesOf(winning) === undefined;
+  const listed = vehiclesOf(winning);
+  // Only a closure's list: a lane closure for some vehicles is not what the label overrules.
+  const closing = imp === 'dicht' || imp === 'rijbaan';
+  const overruled = byLabel && closing && listed && listLeavesOutCars(listed, ctx.allRecords ?? recs) ? listed : undefined;
+  const unrestricted = listed === undefined || overruled !== undefined;
   if ((byLabel && WEAKER_THAN_RIJBAAN.has(imp)) || (byLabel === 'dicht' && imp === 'rijbaan' && unrestricted)) {
     imp = byLabel;
     winning = [];
@@ -203,9 +222,10 @@ export function impactOf(recs, ctx) {
 
   /** @type {ImpactResult} */
   const out = { imp };
-  const veh = vehiclesOf(winning);
+  const veh = overruled ? undefined : vehiclesOf(winning);
   if (veh) out.veh = veh;
   if (by) out.by = by;
+  if (overruled) out.overruled = overruled;
   if (ctx.hasPeriods) out.per = true;
   if (ctx.speed !== undefined && ctx.speed > 0) out.spd = ctx.speed;
   if (ctx.lanes?.closed !== undefined && ctx.lanes.closed > 0) out.lc = ctx.lanes.closed;
@@ -310,6 +330,31 @@ function vehiclesOf(winning) {
   const restricted = winning.filter((r) => r.vehicles && r.vehicles.length > 0);
   if (restricted.length === 0) return undefined;
   return restricted.length === winning.length ? unionOf(restricted) : undefined;
+}
+
+const HEAVY_GROUPS = new Set(['lorry', 'bus']);
+const SLOW_GROUPS = new Set(['bicycle', 'moped']);
+
+/**
+ * True when a closure's vehicle list that leaves out cars cannot be what the publisher meant, given
+ * that Melvin's label says "weg dicht". Two signs, each enough (review 2026-10-16, the 95 situations
+ * whose label said "weg dicht" over a list without cars):
+ *   - the list bans heavy traffic AND bicycles or mopeds: works that let only cars through do not
+ *     exist ("Mijnsherenlaan": lorries, buses, tractors, mopeds and bicycles — asphalting);
+ *   - the situation sends ALL traffic along a detour (a ReroutingManagement record without a
+ *     vehicle list) while the closure names only some ("Johan Willem Frisostraat": bicycles).
+ * The real cycle-path closures and lorry bans under the same label fail both: a cycle path bans
+ * bicycles and mopeds (sometimes tractors) and diverts cyclists; a lorry ban diverts lorries.
+ * The detour counts when the situation has one at all, not only in this stretch: a detour with a
+ * shorter window must not flip the verdict back and forth over time.
+ * @param {Vehicle[]} listed   the closure's vehicle groups
+ * @param {ImpactRecord[]} recs every record of the situation
+ */
+function listLeavesOutCars(listed, recs) {
+  if (listed.includes('car')) return false;
+  const heavyAndSlow = listed.some((v) => HEAVY_GROUPS.has(v)) && listed.some((v) => SLOW_GROUPS.has(v));
+  const detourForAll = recs.some((r) => r.type === 'ReroutingManagement' && !(r.vehicles && r.vehicles.length > 0));
+  return heavyAndSlow || detourForAll;
 }
 
 /** @param {ImpactRecord[]} recs @returns {Vehicle[]} */

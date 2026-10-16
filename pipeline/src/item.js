@@ -9,7 +9,7 @@
 import { classify } from './classify.js';
 import { gevolgOf } from './consistency.js';
 import { buildGeometry, midpoint } from './geometry.js';
-import { impactOf } from './impact.js';
+import { impactOf, labelClosesRoad } from './impact.js';
 import { mergeSituation } from './merge.js';
 import { detectRoad } from './roads.js';
 import { friendlySource, normalizeProvince } from './sources-friendly.js';
@@ -143,6 +143,7 @@ export function finalizeItem(item, geo, nowMs) {
     speed: merged.speed,
     texts,
     gevolg: gevolg?.key,
+    allRecords: merged.measures,
   });
   // Contract v4: the verdict per stretch of time, from the records that apply during it. For the
   // ~98% of situations whose measures all share the main window this yields exactly the v3 result;
@@ -150,30 +151,45 @@ export function finalizeItem(item, geo, nowMs) {
   // Live items (actueel beeld) get no timeline: what the live feed publishes is in force now. Its
   // validPeriods are the planned slot, and an RWS closure that overran its slot — still in the feed,
   // 'implemented', 'certain' — read "Doorrijden mogelijk" at 18:04 with the slot ending at 18:00.
+  /** @param {import('./timeline.js').TimedRecord[]} active */
+  const judge = (active) => {
+    const measures = active.map((r) => r.m);
+    const v = impactOf(measures, {
+      cat: cls.cat,
+      roadType: road.roadType,
+      // The delay band belongs to the main (or traffic) record: it says nothing about a stretch
+      // in which only a phase record of its own applies.
+      delay: active.some((r) => r.isMain) ? merged.delay : undefined,
+      lanes: lanesClosedOf(measures),
+      speed: minSpeedOf(measures),
+      texts,
+      // The label sits on the main record, like the delay band.
+      gevolg: active.some((r) => r.isMain) ? gevolg?.key : undefined,
+      allRecords: merged.measures,
+    });
+    return v.veh ? { imp: v.imp, veh: v.veh } : { imp: v.imp };
+  };
+  // "Weg dicht" plus one start day and an umbrella (Kerkesteeg, Voorweg): after that day the umbrella
+  // is the closure, not `onbekend` ("Gevolgen onduidelijk"; timeline.js, fillUmbrella). Only a closure for ALL traffic fills
+  // it: the umbrella may sit on a closure for lorries only while the one for cars applied in the
+  // working period alone, and "Geldt niet voor auto's" must never replace "onduidelijk" (review
+  // 2026-10-16). Anything else keeps the stretch `onbekend`.
+  const fillUmbrella = labelClosesRoad(gevolg?.key)
+    ? (/** @type {import('./timeline.js').TimedRecord[]} */ shadowed) => {
+        const v = judge(shadowed);
+        return (v.imp === 'dicht' || v.imp === 'rijbaan') && !v.veh ? v : null;
+      }
+    : undefined;
   const timeline =
     item.role === 'live'
       ? { segments: [] }
       : buildTimeline({
-    records: merged.timed ?? [],
-    itemStart: merged.start,
-    itemEnd: merged.end,
-    nowMs,
-    judge: (active) => {
-      const measures = active.map((r) => r.m);
-      const v = impactOf(measures, {
-        cat: cls.cat,
-        roadType: road.roadType,
-        // The delay band belongs to the main (or traffic) record: it says nothing about a stretch
-        // in which only a phase record of its own applies.
-        delay: active.some((r) => r.isMain) ? merged.delay : undefined,
-        lanes: lanesClosedOf(measures),
-        speed: minSpeedOf(measures),
-        texts,
-        // The label sits on the main record, like the delay band.
-        gevolg: active.some((r) => r.isMain) ? gevolg?.key : undefined,
-      });
-      return v.veh ? { imp: v.imp, veh: v.veh } : { imp: v.imp };
-    },
+          records: merged.timed ?? [],
+          itemStart: merged.start,
+          itemEnd: merged.end,
+          nowMs,
+          judge,
+          fillUmbrella,
         });
   // The item's own verdict (map colour without detail) is the heaviest stretch still ahead — not
   // the verdict of all records at once, which kept painting a street red whose closure had ended.
@@ -234,7 +250,7 @@ export function finalizeItem(item, geo, nowMs) {
   // Working copy for the consistency check (src/consistency.js), which runs once the verdict is
   // final — after roll-up and de-duplication — and drops it again.
   // `imp` is the verdict `by` explains; roll-up or de-duplication may still raise it.
-  item.qa = compact({ texts, gevolg, by: impact.by, imp: verdict.imp });
+  item.qa = compact({ texts, gevolg, by: impact.by, imp: verdict.imp, overruled: impact.overruled, periode: timeline.filled });
   delete item.raw;
   return item;
 }

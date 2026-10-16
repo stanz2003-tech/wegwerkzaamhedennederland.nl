@@ -245,6 +245,46 @@ test('outside the real blocks but inside an umbrella the answer is "onbekend", n
   assert.deepEqual(t.heaviest, { imp: 'dicht' });
 });
 
+test('review 2026-10-16: one working period plus an umbrella — with fillUmbrella the umbrella after it reads as the closure (Voorweg)', () => {
+  // NDW03_629278 Voorweg Oostvoorne: every record has an umbrella 6–30 Oct and one block, 7 Oct 05:00–14:00, and
+  // the label "Weg dicht in beide richtingen". The block is when the closure starts; the site said
+  // "Gevolgen niet gemeld" for the rest of the month. item.js passes fillUmbrella only for that label.
+  const periods = [
+    ['2026-09-20T05:00:00Z', '2026-10-15T15:00:00Z'],
+    ['2026-09-21T05:00:00Z', '2026-09-21T14:00:00Z'],
+  ];
+  const records = [main('2026-09-20T05:00:00Z', '2026-10-15T15:00:00Z', periods), rec(closed(), '2026-09-20T05:00:00Z', '2026-10-15T15:00:00Z', periods)];
+  const input = { records, itemStart: '2026-09-20T05:00:00Z', itemEnd: '2026-10-15T15:00:00Z', nowMs: NOW, judge };
+  const t = buildTimeline({ ...input, fillUmbrella: (shadowed) => judge(shadowed) });
+  const at = (tl, iso) => tl.find((x) => x[0] <= iso && iso < x[1])?.[2];
+  assert.equal(at(t.tl, '2026-09-21T02:00:00Z'), 'onbekend', 'before the working period: still unknown');
+  assert.equal(at(t.tl, '2026-09-21T10:00:00Z'), 'dicht', 'the working period');
+  assert.equal(at(t.tl, '2026-09-25T10:00:00Z'), 'dicht', 'after it, under the umbrella');
+  assert.equal(t.filled, true);
+  // Without fillUmbrella (any other label) the umbrella stays unknown.
+  const plain = buildTimeline(input);
+  assert.equal(at(plain.tl, '2026-09-25T10:00:00Z'), 'onbekend');
+  assert.equal(plain.filled, undefined);
+  // fillUmbrella may decline: then it stays unknown too.
+  assert.equal(at(buildTimeline({ ...input, fillUmbrella: () => null }).tl, '2026-09-25T10:00:00Z'), 'onbekend');
+});
+
+test('review 2026-10-16: with two or more working periods the umbrella between and after them stays unknown, label or not', () => {
+  // Alexander de Grotelaan shape: an envelope around two working days. Filling it would invent a month-long closure,
+  // and with nightly blocks it would close a road in daytime.
+  const periods = [
+    ['2026-09-01T00:00:00Z', '2026-10-02T00:00:00Z'],
+    ['2026-09-22T05:00:00Z', '2026-09-22T14:00:00Z'],
+    ['2026-09-24T05:00:00Z', '2026-09-24T14:00:00Z'],
+  ];
+  const records = [main('2026-09-01T00:00:00Z', '2026-10-02T00:00:00Z', periods), rec(closed(), '2026-09-01T00:00:00Z', '2026-10-02T00:00:00Z', periods)];
+  const t = buildTimeline({ records, itemStart: '2026-09-01T00:00:00Z', itemEnd: '2026-10-02T00:00:00Z', nowMs: NOW, judge, fillUmbrella: (s) => judge(s) });
+  const at = (iso) => t.tl.find((x) => x[0] <= iso && iso < x[1])?.[2];
+  assert.equal(at('2026-09-23T10:00:00Z'), 'onbekend');
+  assert.equal(at('2026-09-28T10:00:00Z'), 'onbekend');
+  assert.equal(t.filled, undefined);
+});
+
 test('the item lives from its own start, not from the start of the main record: the gap before it is published (Mijdrecht)', () => {
   // AND01_1CC7FA8FDAF4475E9BF69554888EFE51: an expired record made the item start in August, the
   // main record only starts 13 October. v4 said "Weg dicht" for the 19 days in which nothing applied.

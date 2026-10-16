@@ -55,7 +55,7 @@ export const VERDICT_META: Record<VerdictLevel, VerdictMeta> = {
   hinder: { label: 'Doorrijden mogelijk', meaning: 'Je kunt er langs, met minder rijstroken, een lagere snelheid of vertraging.', color: '--v-hinder' },
   geen: { label: 'Geen hinder', meaning: 'De melding heeft geen merkbaar gevolg voor het verkeer.', color: '--v-geen' },
   nvt: { label: 'Geldt niet voor jou', meaning: 'De maatregel geldt alleen voor een ander soort verkeer.', color: '--v-nvt' },
-  onbekend: { label: 'Gevolgen niet gemeld', meaning: 'De wegbeheerder heeft niet gezegd of je erdoor kunt. Ga er niet van uit dat het kan.', color: '--v-onbekend' },
+  onbekend: { label: 'Gevolgen onduidelijk', meaning: 'De wegbeheerder meldt niet duidelijk of en wanneer je erdoor kunt. Ga er niet van uit dat het kan.', color: '--v-onbekend' },
 };
 
 /* --------------------------------- vehicles --------------------------------- */

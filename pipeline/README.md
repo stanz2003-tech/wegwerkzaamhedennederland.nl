@@ -294,11 +294,13 @@ Two things follow from that, measured on the feeds of 2026-10-12 17:15
 | Code | Shown | Count 2026-10-12 | When |
 |---|---|---|---|
 | `gevolg-dicht` | yes | 483 | verdict from the label, no closure record |
+| `gevolg-auto` | yes | 7 (2026-10-16) | label "weg dicht" over a closure whose vehicle list leaves out cars while it bans heavy traffic and bicycles/mopeds, or a detour sends all traffic round: the closure counts for everyone; `v` = the published list |
+| `gevolg-periode` | yes | 9 (2026-10-16) | label "weg dicht", one working period and an umbrella period: after that period the umbrella reads as the closure (only when that closure is for all traffic) |
 | `tekst-dicht` | yes | 137 | verdict from "… is dicht / is afgesloten" plus a detour |
 | `tekst-fietspad` | yes | 34 | closed for cars, the text only names a cycle/foot path |
 | `gevolg-geen` | yes | 61 | closed, label "Geen gevolgen voor verkeer" |
 | `gevolg-langzaam` | yes | 76 | closed for cars, label "Beperking voor langzaam verkeer" |
-| `gevolg-fiets` | no | 172 | label "weg dicht", closure only for bicycles/mopeds (checked: closed cycle paths) |
+| `gevolg-fiets` | no | 172 | label "weg dicht", closure list without cars that is not overruled (checked: closed cycle paths, lorry bans) |
 | `hinderklasse` | no | 3,796 | closed with hindrance class D/E; the detail hides that row under a closure |
 | `snelheid` | no | 5 | the text names a speed the records do not publish |
 

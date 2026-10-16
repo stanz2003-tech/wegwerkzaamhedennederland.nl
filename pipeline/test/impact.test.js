@@ -249,6 +249,43 @@ test('the gevolg label never narrows or overrides a closure the records publish'
   assert.deepEqual(impactOf([WORK], { cat: 'werk', delay: 'upToTenMinutes', gevolg: 'snelheidsbeperking' }), { imp: 'hinder' });
 });
 
+test('review 2026-10-16: label "weg dicht" over a closure for every kind of traffic except cars — cars were left out', () => {
+  // NDW03_630241 Mijnsherenlaan Rotterdam (asphalting) and NDW03_623782 Forel Ridderkerk: one roadClosed for
+  // lorries, buses, tractors, mopeds and bicycles, label "Weg dicht in beide richtingen", detour for all traffic.
+  // Works that let only cars through do not exist; the site said "Geldt niet voor auto's".
+  const ctx = { cat: 'werk', roadType: 'lokaal', gevolg: 'weg dicht in beide richtingen' };
+  const allButCars = lane('roadClosed', { vehicles: ['lorry', 'bus', 'agriculturalVehicle', 'moped', 'bicycle'] });
+  assert.deepEqual(impactOf([WORK, allButCars], ctx), { imp: 'dicht', overruled: ['lorry', 'bicycle', 'moped', 'bus', 'agricultural'] });
+  // Heavy traffic plus bicycles is enough; the detour does not have to be there.
+  assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['heavyGoodsVehicle', 'bicycle'] })], ctx), { imp: 'dicht', overruled: ['lorry', 'bicycle'] });
+  // Without the label the published list stands.
+  assert.deepEqual(impactOf([WORK, allButCars], { cat: 'werk', roadType: 'lokaal' }), { imp: 'dicht', veh: ['lorry', 'bicycle', 'moped', 'bus', 'agricultural'] });
+});
+
+test('review 2026-10-16: label "weg dicht" + a cycle-path closure + a detour for ALL traffic → closed for everyone', () => {
+  // NDW03_633892 Johan Willem Frisostraat Krabbendijke: roadClosed for bicycles, two detours without a vehicle list.
+  const ctx = { cat: 'werk', roadType: 'lokaal', gevolg: 'weg dicht in beide richtingen' };
+  const fiets = lane('roadClosed', { vehicles: ['bicycle'] });
+  assert.deepEqual(impactOf([WORK, fiets, reroute(), reroute()], ctx), { imp: 'dicht', overruled: ['bicycle'] });
+  // On a dual carriageway road the overruled carriageway closure counts as both directions, as the label says.
+  const carriageway = lane('carriagewayClosures', { vehicles: ['bicycle'] });
+  assert.deepEqual(impactOf([WORK, carriageway, reroute()], { ...ctx, roadType: 'N' }), { imp: 'dicht', by: 'gevolg', overruled: ['bicycle'] });
+});
+
+test('review 2026-10-16: a real cycle-path closure or lorry ban under the label "weg dicht" keeps its vehicle list', () => {
+  const ctx = { cat: 'werk', roadType: 'lokaal', gevolg: 'weg dicht in beide richtingen' };
+  // Cycle path, with a detour for cyclists (NDW03_538064 Europapad).
+  assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['bicycle'] }), reroute(['bicycle'])], ctx), { imp: 'dicht', veh: ['bicycle'] });
+  // Cycle path that also bans mopeds and tractors (NDW03_580394 Triathlonpad Almere): no heavy traffic in the list.
+  const pad = lane('roadClosed', { vehicles: ['agriculturalVehicle', 'moped', 'bicycle'] });
+  assert.deepEqual(impactOf([WORK, pad, reroute(['bicycle'])], ctx), { imp: 'dicht', veh: ['bicycle', 'moped', 'agricultural'] });
+  // Lorry ban ("Fictieve afsluiting om vrachtwagens tegen te houden", NDW03_612293 Houtsberg).
+  assert.deepEqual(impactOf([WORK, lane('roadClosed', { vehicles: ['lorry'] })], ctx), { imp: 'dicht', veh: ['lorry'] });
+  // Heavy traffic only (NDW03_545958 N296 Roosteren), with a detour for lorries and buses.
+  const zwaar = lane('roadClosed', { vehicles: ['lorry', 'bus', 'agriculturalVehicle'] });
+  assert.deepEqual(impactOf([WORK, zwaar, reroute(['lorry', 'bus'])], ctx), { imp: 'dicht', veh: ['lorry', 'bus', 'agricultural'] });
+});
+
 test('"dicht bij" means NEAR in Dutch and must not read as a closure', () => {
   const texts = ['Werkzaamheden aan de rotonde, de afrit is dicht bij Hank'];
   assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', texts }).imp, 'hinder');
@@ -268,4 +305,16 @@ test('review 2026-10-12: "voor al het verkeer", abbreviations and line breaks', 
   assert.deepEqual(sentencesOf('Afsluiting i.v.m. de bouw. Verkeer t.h.v. Vianen wordt omgeleid.'), ['Afsluiting i.v.m. de bouw', 'Verkeer t.h.v. Vianen wordt omgeleid']);
   // A line break inside "is dicht" keeps the reading it had before (whole text).
   assert.equal(at(['De A2 is\ndicht'], 'A'), 'rijbaan');
+});
+
+test('review 2026-10-16: the label only overrules a closure, and reads the detour over the whole situation', () => {
+  const ctx = { cat: 'werk', roadType: 'lokaal', gevolg: 'weg dicht in beide richtingen' };
+  // A lane closure for lorries and bicycles is no closure: the label raises it, nothing is "overruled".
+  const lanes = { type: 'RoadOrCarriagewayOrLaneManagement', lane: 'laneClosures', vehicles: ['lorry', 'bicycle'] };
+  assert.deepEqual(impactOf([WORK, lanes], ctx), { imp: 'dicht', by: 'gevolg' });
+  // The detour for all traffic applies in another phase than this stretch: the closure still counts for everyone.
+  const fiets = lane('roadClosed', { vehicles: ['bicycle'] });
+  const detour = reroute();
+  assert.deepEqual(impactOf([WORK, fiets], { ...ctx, allRecords: [WORK, fiets, detour] }), { imp: 'dicht', overruled: ['bicycle'] });
+  assert.deepEqual(impactOf([WORK, fiets], ctx), { imp: 'dicht', veh: ['bicycle'] });
 });

@@ -27,6 +27,12 @@
  * and as the real extent of a long closure ("V.a. maandag 10-08 Kerkesteeg afgesloten": one day
  * inside 324). Which one it is cannot be told from the data, so a stretch covered only by an
  * umbrella is published as `onbekend`: never "geen hinder", never an invented seven-month closure.
+ * One exception (`fillUmbrella`, 2026-10-16): when the main record has a single block, the caller
+ * may judge the umbrella stretches after it. item.js does that only when Melvin's label says
+ * "weg dicht", and only with a closure for all traffic: a start day plus the label is the Kerkesteeg
+ * shape, and "Gevolgen niet gemeld" (the old `onbekend` label) under "Weg dicht in beide richtingen"
+ * was simply wrong. Before the block, and around two or more blocks (an envelope, or nights), the
+ * umbrella stays `onbekend`.
  *
  * What is published (`buildTimeline`), from local midnight of the run day:
  *   - `periods`  the blocks in which the measure applies, when there are gaps (as in v3);
@@ -264,6 +270,9 @@ export function concernedVehicles(verdicts) {
  * @param {string=} input.itemEnd                            the item's own end (undefined = open ended)
  * @param {number} input.nowMs
  * @param {(active: TimedRecord[]) => Verdict} input.judge   the verdict of the records active in one stretch
+ * @param {((shadowed: TimedRecord[]) => Verdict | null)=} input.fillUmbrella
+ *   the verdict of a stretch after the main record's only block that nothing but an umbrella covers;
+ *   null (or no callback) keeps it `onbekend`
  * @returns {{
  *   segments: Segment[],
  *   periods?: [string, string][],
@@ -271,9 +280,10 @@ export function concernedVehicles(verdicts) {
  *   tlTo?: string,
  *   heaviest?: Verdict,
  *   veh?: string[],
+ *   filled?: true,
  * }}
  */
-export function buildTimeline({ records, itemStart, itemEnd, nowMs, judge }) {
+export function buildTimeline({ records, itemStart, itemEnd, nowMs, judge, fillUmbrella }) {
   const main = records.find((r) => r.isMain) ?? records[0];
   if (!main) return { segments: [] };
   const { floor, to } = timelineWindow(nowMs);
@@ -286,6 +296,9 @@ export function buildTimeline({ records, itemStart, itemEnd, nowMs, judge }) {
     return { r, on: clip(a.on), shadow: clip(a.shadow) };
   });
   const counts = (/** @type {TimedRecord} */ r) => r.isMain || MANAGEMENT_TYPES.has(r.m.type);
+  // Umbrella stretches from the end of the main record's only block on may be judged (see above).
+  const fillFrom = fillUmbrella && blocks.length === 1 ? blocks[0][1] - SLACK_MS : Number.POSITIVE_INFINITY;
+  let filled = false;
 
   // The item's own end is always a boundary (+Infinity when it is open ended): without it, the
   // stretch between the last record boundary and the end of the item was never looked at, and a
@@ -303,8 +316,12 @@ export function buildTimeline({ records, itemStart, itemEnd, nowMs, judge }) {
     const covers = (/** @type {Intervals} */ iv) => iv.some(([s, e]) => s <= a && e >= b);
     const active = acts.filter(({ on }) => covers(on)).map(({ r }) => r);
     if (active.some(counts)) return judge(active);
-    if (acts.some(({ r, shadow }) => counts(r) && covers(shadow))) return UMBRELLA_VERDICT;
-    return null;
+    const shadowed = acts.filter(({ r, shadow }) => counts(r) && covers(shadow)).map(({ r }) => r);
+    if (shadowed.length === 0) return null;
+    const verdict = a >= fillFrom ? fillUmbrella?.(shadowed) : null;
+    if (!verdict) return UMBRELLA_VERDICT;
+    filled = true;
+    return verdict;
   };
 
   /** @type {Segment[]} */
@@ -397,5 +414,5 @@ export function buildTimeline({ records, itemStart, itemEnd, nowMs, judge }) {
 
   const tlTo = capped ? toMinuteIso(segments[segments.length - 1][1]) : changesAfter ? toMinuteIso(to) : undefined;
 
-  return { segments, periods, tl, tlTo, heaviest: top, veh };
+  return { segments, periods, tl, tlTo, heaviest: top, veh, ...(filled ? { filled: /** @type {true} */ (true) } : {}) };
 }

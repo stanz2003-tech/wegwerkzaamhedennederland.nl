@@ -89,6 +89,32 @@ test('a verdict raised later by a related closure record is not explained as rea
   assert.deepEqual(same.detail.chk, [{ c: 'tekst-dicht', q: 'De A6 is dicht' }]);
 });
 
+test('review 2026-10-16: a vehicle list the label overruled is explained on the site', () => {
+  const dicht = { key: 'weg dicht in beide richtingen', text: 'Weg dicht in beide richtingen' };
+  const overruled = ['lorry', 'bicycle', 'moped', 'bus', 'agricultural'];
+  assert.deepEqual(checkItem({ imp: 'dicht', overruled, gevolg: dicht, texts: [] }), [{ c: 'gevolg-auto', q: 'Weg dicht in beide richtingen', v: overruled }]);
+  // On a dual carriageway the label also raised `rijbaan` to `dicht`; there IS a closure record, so no "gevolg-dicht".
+  assert.deepEqual(checkItem({ imp: 'dicht', by: 'gevolg', overruled: ['bicycle'], gevolg: dicht, texts: [] }), [
+    { c: 'gevolg-auto', q: 'Weg dicht in beide richtingen', v: ['bicycle'] },
+  ]);
+  assert.equal(VISIBLE_CHECKS.has('gevolg-auto'), true);
+
+  const item = { id: 'f', props: { id: 'f', imp: 'dicht' }, detail: { id: 'f' }, qa: { texts: [], gevolg: dicht, imp: 'dicht', overruled: ['bicycle'] } };
+  const report = annotateConsistency([item]);
+  assert.deepEqual(item.detail.chk, [{ c: 'gevolg-auto', q: 'Weg dicht in beide richtingen', v: ['bicycle'] }]);
+  assert.deepEqual(report.counts, { 'gevolg-auto': 1 });
+});
+
+test('review 2026-10-16: an umbrella the label filled is explained on the site', () => {
+  const dicht = { key: 'weg dicht in beide richtingen', text: 'Weg dicht in beide richtingen' };
+  assert.deepEqual(checkItem({ imp: 'dicht', periode: true, gevolg: dicht, texts: [] }), [{ c: 'gevolg-periode', q: 'Weg dicht in beide richtingen' }]);
+  assert.deepEqual(checkItem({ imp: 'onbekend', periode: true, gevolg: dicht, texts: [] }), [], 'nothing filled is still ahead');
+  assert.equal(VISIBLE_CHECKS.has('gevolg-periode'), true);
+  const item = { id: 'v', props: { id: 'v', imp: 'dicht' }, detail: { id: 'v' }, qa: { texts: [], gevolg: dicht, imp: 'dicht', periode: true } };
+  annotateConsistency([item]);
+  assert.deepEqual(item.detail.chk, [{ c: 'gevolg-periode', q: 'Weg dicht in beide richtingen' }]);
+});
+
 test('"afsluiting van de weg en het fietspad" is a road closure, not a cycle-path conflict', () => {
   assert.deepEqual(checkItem({ imp: 'dicht', texts: ['Afsluiting van de weg en het fietspad i.v.m. riolering.'] }), []);
 });

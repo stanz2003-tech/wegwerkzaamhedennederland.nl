@@ -17,6 +17,10 @@
  * |-------------------|-------|-------------------------------------------------------------------------------|
  * | `correctie`       | yes   | a hand correction (src/corrections.js) was applied; `q` = its reason          |
  * | `gevolg-dicht`    | yes   | the verdict comes from Melvin's label, not from a closure record               |
+ * | `gevolg-auto`     | yes   | the label made a closure count for cars that its own vehicle list left out;    |
+ * |                   |       | `v` = that list (impact.js `listLeavesOutCars`)                                 |
+ * | `gevolg-periode`  | yes   | the label made the umbrella after a single working period read as the closure  |
+ * |                   |       | (timeline.js `fillUmbrella`)                                                   |
  * | `tekst-dicht`     | yes   | the verdict comes from a sentence like "De A15 is afgesloten" plus a detour     |
  * | `tekst-fietspad`  | yes   | closed for cars, while the text only names a cycle/foot path as closed          |
  * | `gevolg-geen`     | yes   | closed, while the label says "Geen gevolgen voor verkeer"                       |
@@ -28,8 +32,8 @@
 
 import { closedByText, sentencesOf } from './impact.js';
 
-/** @typedef {'correctie'|'gevolg-dicht'|'tekst-dicht'|'tekst-fietspad'|'gevolg-geen'|'gevolg-langzaam'|'gevolg-fiets'|'hinderklasse'|'snelheid'} CheckCode */
-/** @typedef {{ c: CheckCode, q?: string }} Check */
+/** @typedef {'correctie'|'gevolg-dicht'|'gevolg-auto'|'gevolg-periode'|'tekst-dicht'|'tekst-fietspad'|'gevolg-geen'|'gevolg-langzaam'|'gevolg-fiets'|'hinderklasse'|'snelheid'} CheckCode */
+/** @typedef {{ c: CheckCode, q?: string, v?: string[] }} Check */
 /** @typedef {{ key: string, text: string }} Gevolg */
 
 /**
@@ -37,6 +41,8 @@ import { closedByText, sentencesOf } from './impact.js';
  * @property {string} imp                       final verdict of the item
  * @property {string[]=} veh
  * @property {'gevolg'|'tekst'=} by             what impactOf() read the verdict from, when not a record
+ * @property {string[]=} overruled              the closure's vehicle list the label overruled (impactOf())
+ * @property {boolean=} periode                  the label filled an umbrella period (buildTimeline())
  * @property {Gevolg=} gevolg
  * @property {(string | undefined)[]} texts     the publisher's comments, description, cause
  * @property {string=} hind
@@ -44,7 +50,7 @@ import { closedByText, sentencesOf } from './impact.js';
  */
 
 /** @type {ReadonlySet<CheckCode>} */
-export const VISIBLE_CHECKS = new Set(['correctie', 'gevolg-dicht', 'tekst-dicht', 'tekst-fietspad', 'gevolg-geen', 'gevolg-langzaam']);
+export const VISIBLE_CHECKS = new Set(['correctie', 'gevolg-dicht', 'gevolg-auto', 'gevolg-periode', 'tekst-dicht', 'tekst-fietspad', 'gevolg-geen', 'gevolg-langzaam']);
 
 /** Melvin's six "gevolg voor het verkeer" labels, heaviest first (title.js demotes the same six). */
 const GEVOLG_LABELS = [
@@ -92,14 +98,16 @@ export function gevolgOf(texts) {
  * @returns {Check[]}
  */
 export function checkItem(input) {
-  const { imp, veh, by, gevolg, hind, spd } = input;
+  const { imp, veh, by, gevolg, hind, spd, overruled, periode } = input;
   const text = input.texts.filter(Boolean).join('\n');
   const closed = CLOSED.has(imp);
   const forCars = !veh || veh.includes('car');
   /** @type {Check[]} */
   const out = [];
 
-  if (closed && by === 'gevolg' && gevolg) out.push({ c: 'gevolg-dicht', q: gevolg.text });
+  if (closed && by === 'gevolg' && gevolg && !overruled) out.push({ c: 'gevolg-dicht', q: gevolg.text });
+  if (closed && forCars && overruled && gevolg) out.push({ c: 'gevolg-auto', q: gevolg.text, v: overruled });
+  if (closed && periode && gevolg) out.push({ c: 'gevolg-periode', q: gevolg.text });
   if (closed && by === 'tekst') out.push({ c: 'tekst-dicht', q: closedByText(text) });
   if (closed && forCars && !by && !LABEL_CLOSED.has(gevolg?.key ?? '') && !ROAD_CLOSED_RE.test(text)) {
     const sentence = pathSentence(text);
@@ -132,7 +140,7 @@ export function annotateConsistency(items) {
   /** @type {Partial<Record<CheckCode, string[]>>} */
   const ids = {};
   for (const item of items) {
-    const qa = /** @type {{ texts: (string|undefined)[], gevolg?: Gevolg, by?: 'gevolg'|'tekst', imp?: string } | undefined} */ (item.qa);
+    const qa = /** @type {{ texts: (string|undefined)[], gevolg?: Gevolg, by?: 'gevolg'|'tekst', imp?: string, overruled?: string[], periode?: boolean } | undefined} */ (item.qa);
     if (!qa) continue;
     const p = item.props;
     const checks = item.correction ? [{ c: /** @type {CheckCode} */ ('correctie'), q: item.correction }] : [];
@@ -145,6 +153,8 @@ export function annotateConsistency(items) {
       by: qa.imp === p.imp ? qa.by : undefined,
       gevolg: qa.gevolg,
       texts: qa.texts,
+      overruled: qa.overruled,
+      periode: qa.periode,
     }));
     for (const { c } of checks) {
       counts[c] = (counts[c] ?? 0) + 1;

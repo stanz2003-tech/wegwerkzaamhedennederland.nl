@@ -238,16 +238,20 @@ export interface ItemDetail {
 
 /**
  * `gevolg-dicht` / `tekst-dicht`: the verdict comes from the publisher's label or sentence (`q`),
- * there is no closure record. `tekst-fietspad`: closed for cars while the text (`q`) only names a
+ * there is no closure record. `gevolg-auto`: the label "weg dicht" (`q`) made a closure count for
+ * cars that its own vehicle list (`v`) left out. `gevolg-periode`: that label made the open-ended
+ * period after a single working period read as the closure. `tekst-fietspad`: closed for cars while the text (`q`) only names a
  * cycle or foot path. `gevolg-geen` / `gevolg-langzaam`: closed while the label (`q`) says "Geen
  * gevolgen voor verkeer" / "Beperking voor langzaam verkeer". `correctie`: Wegwerk corrected the
  * publisher's data by hand (pipeline/static/correcties.json), `q` = why.
  */
-export type ConsistencyCode = 'correctie' | 'gevolg-dicht' | 'tekst-dicht' | 'tekst-fietspad' | 'gevolg-geen' | 'gevolg-langzaam';
+export type ConsistencyCode = 'correctie' | 'gevolg-dicht' | 'gevolg-auto' | 'gevolg-periode' | 'tekst-dicht' | 'tekst-fietspad' | 'gevolg-geen' | 'gevolg-langzaam';
 export interface ConsistencyCheck {
   c: ConsistencyCode;
   /** The publisher's words the check is about, verbatim. */
   q?: string;
+  /** `gevolg-auto`: the vehicle groups the publisher's closure named. */
+  v?: Vehicle[];
 }
 
 export type DetailShard = Record<string, ItemDetail>;

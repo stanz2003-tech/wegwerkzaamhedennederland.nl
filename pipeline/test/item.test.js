@@ -153,3 +153,61 @@ test('Melvin\'s "Weg dicht in beide richtingen" without a closure record closes 
   assert.deepEqual(item.qa?.gevolg, { key: 'weg dicht in beide richtingen', text: 'Weg dicht in beide richtingen' });
   assert.equal(item.qa?.by, 'gevolg');
 });
+
+/**
+ * Review 2026-10-16: a works record with Melvin's label, one working period and an umbrella over the
+ * rest of the month, plus closure records built from the real Zwolle record (afsl.xml). NOW_MS
+ * (10 September) lies after the working period, under the umbrella.
+ */
+async function umbrellaSituation({ label = true, closures }) {
+  const [situation] = await parseSnippet(fixture('afsl.xml'));
+  const [rec] = situation.recs;
+  const window = { start: '2026-09-08T05:00:00Z', end: '2026-09-30T15:00:00Z' };
+  const periods = [
+    ['2026-09-08T05:00:00Z', '2026-09-30T15:00:00Z'],
+    ['2026-09-09T05:00:00Z', '2026-09-09T14:00:00Z'],
+  ];
+  const comments = label ? [{ type: 'warning', text: 'Weg dicht in beide richtingen' }] : [];
+  situation.recs = [
+    { ...rec, ...window, periods, type: 'MaintenanceWorks', lane: undefined, comments },
+    ...closures.map((c, i) => ({ ...rec, ...window, id: `${rec.id}_${i}`, comments: [], ...c })),
+  ];
+  const built = buildItem(situation, 'planning', { vild: NO_VILD, nowMs: NOW_MS });
+  assert.ok(built.item);
+  return finalizeItem(built.item, GEO, NOW_MS);
+}
+
+test('review 2026-10-16: "weg dicht" + one working period + umbrella reads dicht after that period (Voorweg), and says so', async () => {
+  const periods = [
+    ['2026-09-08T05:00:00Z', '2026-09-30T15:00:00Z'],
+    ['2026-09-09T05:00:00Z', '2026-09-09T14:00:00Z'],
+  ];
+  const closures = [{ lane: 'carriagewayClosures', periods }];
+  const filled = await umbrellaSituation({ closures });
+  assert.equal(filled.props.imp, 'dicht');
+  assert.equal(filled.props.veh, undefined);
+  assert.equal(filled.qa?.periode, true);
+  // Without the label the umbrella stays unknown, as before.
+  const plain = await umbrellaSituation({ label: false, closures });
+  assert.equal(plain.props.imp, 'onbekend');
+  assert.equal(plain.qa?.periode, undefined);
+});
+
+test('review 2026-10-16: an umbrella over a closure for only some vehicles is never filled — no "Geldt niet voor auto\'s" where it read "onduidelijk"', async () => {
+  // The umbrella sits on a closure for heavy traffic; the closure for cars has no periods of its own and
+  // only applies in the working period. Filling the umbrella with the heavy-traffic closure would tell
+  // drivers the road is open to them after that period.
+  const periods = [
+    ['2026-09-08T05:00:00Z', '2026-09-30T15:00:00Z'],
+    ['2026-09-09T05:00:00Z', '2026-09-09T14:00:00Z'],
+  ];
+  const item = await umbrellaSituation({
+    closures: [
+      { lane: 'carriagewayClosures', vehicles: ['lorry', 'bus', 'agriculturalVehicle'], periods },
+      { lane: 'roadClosed', vehicles: ['car', 'bus', 'bicycle', 'lorry'], periods: undefined },
+    ],
+  });
+  assert.equal(item.props.imp, 'onbekend');
+  assert.equal(item.props.veh, undefined, 'unknown for every kind of traffic');
+  assert.equal(item.qa?.periode, undefined);
+});
