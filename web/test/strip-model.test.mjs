@@ -61,9 +61,11 @@ describe('the strip with an open-ended closure (vooruit-2)', () => {
     const today = model.cells[0];
     assert.equal(today.name, 'vandaag');
     assert.equal(today.headline, 'Weg dicht');
-    assert.equal(today.line, '+ weg dicht bij Lexmond en 1 andere plek · 18:00–24:00');
+    // The real hours of the nightly closures (21:00–05:00), not the evening part "18:00–24:00"
+    // (review 2026-10-16); the morning after names where last night's closure ends.
+    assert.equal(today.line, '+ weg dicht bij Lexmond en 1 andere plek · 21:00–05:00');
     const fri = model.cells[2];
-    assert.equal(fri.line, '+ weg dicht bij Lexmond en 1 andere plek · 18:00–06:00');
+    assert.equal(fri.line, '+ weg dicht bij Lexmond en 1 andere plek · tot 05:00 en 21:00–05:00');
     assert.deepEqual(fri.parts.map((p) => p.worst), ['dicht', 'hinder', 'hinder', 'dicht']);
     const quiet = model.cells[13];
     assert.equal(quiet.headline, 'Rijbaan dicht');
@@ -74,7 +76,7 @@ describe('the strip with an open-ended closure (vooruit-2)', () => {
 
   it('every cell is a full sentence for screen readers', () => {
     assert.equal(model.cells[13].aria, 'dinsdag 22 september: rijbaan dicht; verder niets');
-    assert.equal(model.cells[3].aria, 'zaterdag 12 september: weg dicht; daarnaast weg dicht bij Lexmond en 1 andere plek 18:00–06:00');
+    assert.equal(model.cells[3].aria, 'zaterdag 12 september: weg dicht; daarnaast weg dicht bij Lexmond en 1 andere plek tot 05:00 en 21:00–05:00');
   });
 });
 

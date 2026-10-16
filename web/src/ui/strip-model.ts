@@ -8,8 +8,9 @@
  *   - measures that are the same every day, all day ("einde onbekend" closures) are named once
  *     above the strip and drawn as a top edge in every cell, instead of making all days look alike;
  *   - a four-part bar (nacht · ochtend · middag · avond) shows what else applies, and when;
- *   - the second line names where ("bij Houten en 2 andere plekken") and when ("18:00–06:00"),
- *     never a count of level ids.
+ *   - the second line names where ("bij Houten en 2 andere plekken") and when, in the real hours
+ *     of those items ("21:00–05:30", data/time-phrase.ts daySpan) — never a count of level ids,
+ *     and no longer the hours of the parts ("18:00–24:00" for that closure, review 2026-10-16).
  * Every level here comes from selectInWindow through data/forecast.ts; nothing is judged anew.
  */
 import { itemPlaceName, wherePhrase, type AnswerSubject } from '../data/answer';
@@ -18,7 +19,6 @@ import {
   constantIds,
   dayParts,
   dayStrip,
-  heaviestSpan,
   relativeDayLabel,
   selectInWindow,
   type AnsweredItem,
@@ -28,6 +28,7 @@ import {
   type ForecastItem,
 } from '../data/forecast';
 import { MS } from '../data/time';
+import { daySpan } from '../data/time-phrase';
 import { VERDICT_META, type VehicleMode, type VerdictLevel } from '../data/verdict';
 import { fmtDayTime, fmtWeekdayShort } from './format';
 import { dayLong } from './when-words';
@@ -96,7 +97,8 @@ function cellModel(cell: DayCell, items: readonly ForecastItem[], kept: readonly
     return { cell, name, level: null, headline: 'Niets gemeld', parts, edge: null, line: '', aria: `${day}: niets gemeld` };
   }
   const headline = VERDICT_META[cell.worst].label;
-  const rest = selectInWindow(kept, mode, Math.max(cell.from, now), cell.to, now);
+  const judged = { from: Math.max(cell.from, now), to: cell.to };
+  const rest = selectInWindow(kept, mode, judged.from, judged.to, now);
   const restWorst = rest.worst;
   let line: string;
   let aria: string;
@@ -104,8 +106,9 @@ function cellModel(cell: DayCell, items: readonly ForecastItem[], kept: readonly
     line = edge ? 'verder niets' : '';
     aria = `${day}: ${headline.toLowerCase()}${edge ? '; verder niets' : ''}`;
   } else {
-    const where = placesPhrase(rest.items.filter((x) => x.verdict.level === restWorst), subject);
-    const span = heaviestSpan(parts);
+    const heaviest = rest.items.filter((x) => x.verdict.level === restWorst);
+    const where = placesPhrase(heaviest, subject);
+    const span = daySpan(heaviest.map((x) => x.item), mode, restWorst, cell, judged);
     const what = [where, span].filter((s): s is string => !!s);
     if (edge) {
       // Another level than the headline: name it, so "bij Houten" cannot be read as the closure.

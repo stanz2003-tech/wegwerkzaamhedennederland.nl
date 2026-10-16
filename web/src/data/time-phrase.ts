@@ -217,6 +217,42 @@ function windowStretches(item: ForecastItem, mode: VehicleMode, from: number, to
   return span.start <= to && span.end >= from ? [span] : [];
 }
 
+/* --------------------------------- strip days -------------------------------- */
+
+/** One run of a strip day: "tot 05:30" (since before the day), "21:00–05:30", "vanaf 21:00". */
+function runLabel(s: Stretch, day: { from: number }): string {
+  if (s.start < day.from - TOUCH_MS) return `tot ${clockLabel(s.end)}`;
+  if (!Number.isFinite(s.end) || s.end - s.start >= DAY_MS) return `vanaf ${clockLabel(s.start)}`;
+  return `${clockLabel(s.start)}–${clockLabel(s.end)}`;
+}
+
+/**
+ * When `level` (or heavier) holds on one day of the 14-day strip, in the real clock times of the
+ * items: "21:00–05:30" (into the next morning), "tot 05:30" (since before the day), "vanaf 21:00"
+ * (no end within a day), "hele dag"; two runs joined by "en", "o.a." before more. The stretches of
+ * all `items` (timeline, periods, else the whole span) are merged, also across midnight and a day
+ * beyond the cell, so a run is never cut short. The day-part hours this replaces said "18:00–24:00"
+ * for a closure from 21:00 to 05:30 (review 2026-10-16). `day` is the calendar day; `judged` the
+ * part of it the cell answers for (from now on for today). Null when no run touches `judged`.
+ */
+export function daySpan(
+  items: readonly ForecastItem[],
+  mode: VehicleMode,
+  level: VerdictLevel,
+  day: { from: number; to: number },
+  judged: { from: number; to: number },
+): string | null {
+  const from = day.from - DAY_MS;
+  const to = day.to + DAY_MS;
+  const runs = mergeStretches(items.flatMap((it) => windowStretches(it, mode, from, to, level))).filter((s) => s.start <= judged.to && s.end > judged.from);
+  if (runs.length === 0) return null;
+  // "hele dag" is about the calendar day: at 22:40 a closure from 21:00 covers the rest of today,
+  // and still is a night closure.
+  if (runs.some((s) => s.start <= day.from + TOUCH_MS && s.end >= day.to - TOUCH_MS)) return 'hele dag';
+  const parts = runs.map((s) => runLabel(s, day));
+  return parts.length > 2 ? `o.a. ${parts.slice(0, 2).join(' en ')}` : parts.join(' en ');
+}
+
 /**
  * When the measure bites inside the window [from, to]: "hele dag" / "het hele weekend" when it
  * covers the window, else up to two stretches ("wo 30 sep 20:00–05:00"), "o.a. …" when there

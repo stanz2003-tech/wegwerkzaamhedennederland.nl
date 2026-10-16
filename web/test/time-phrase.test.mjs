@@ -219,6 +219,59 @@ function randomItem(rand) {
   return { x: item(tl, tlTo ? { tlTo } : {}), t0, last: t, tlTo: tlTo ? ms(tlTo) : Number.NaN };
 }
 
+describe('daySpan: the real hours of a strip day (review 2026-10-16)', () => {
+  const { daySpan } = timePhrase;
+  // vr 2 okt 2026, Europe/Amsterdam (UTC+2): the calendar day, and judged from 14:00 on as today.
+  const FRI = { from: ms('2026-10-01T22:00:00Z'), to: ms('2026-10-02T21:59:59.999Z') };
+  const FRI_FROM_14 = { from: ms('2026-10-02T12:00:00Z'), to: FRI.to };
+  const SAT = { from: ms('2026-10-02T22:00:00Z'), to: ms('2026-10-03T21:59:59.999Z') };
+  const night = item([['2026-10-02T19:00:00Z', '2026-10-03T03:30:00Z', 'dicht']]); // vr 21:00 – za 05:30
+
+  it('a night closure: its own hours on the evening it starts, not the part "18:00–24:00"', () => {
+    assert.equal(daySpan([night], 'auto', 'dicht', FRI, FRI_FROM_14), '21:00–05:30');
+  });
+
+  it('the morning after: "tot 05:30"', () => {
+    assert.equal(daySpan([night], 'auto', 'dicht', SAT, SAT), 'tot 05:30');
+  });
+
+  it('late in the evening the closure still has its own hours, not "hele dag" for the rest of today', () => {
+    const at2240 = { from: ms('2026-10-02T20:40:00Z'), to: FRI.to };
+    assert.equal(daySpan([night], 'auto', 'dicht', FRI, at2240), '21:00–05:30');
+  });
+
+  it('a timeline cut at midnight still ends where the closure ends', () => {
+    const cut = item([['2026-10-02T19:00:00Z', '2026-10-02T22:00:00Z', 'dicht'], ['2026-10-02T22:00:00Z', '2026-10-03T03:30:00Z', 'dicht']]);
+    assert.equal(daySpan([cut], 'auto', 'dicht', FRI, FRI_FROM_14), '21:00–05:30');
+  });
+
+  it('several items at the level merge into one run; a lighter stretch does not count', () => {
+    const early = item([['2026-10-02T18:00:00Z', '2026-10-02T19:00:00Z', 'hinder'], ['2026-10-02T19:00:00Z', '2026-10-03T03:00:00Z', 'dicht']]);
+    const later = item([['2026-10-02T20:00:00Z', '2026-10-03T04:00:00Z', 'dicht']], {}, { id: 't2' });
+    assert.equal(daySpan([early, later], 'auto', 'dicht', FRI, FRI_FROM_14), '21:00–06:00');
+  });
+
+  it('a closure that covers the day is "hele dag"; one that runs on for days starts "vanaf"', () => {
+    const week = item([['2026-09-28T00:00:00Z', '2026-10-06T00:00:00Z', 'dicht']]);
+    assert.equal(daySpan([week], 'auto', 'dicht', FRI, FRI_FROM_14), 'hele dag');
+    const long = item([['2026-10-02T19:00:00Z', '2026-10-05T03:00:00Z', 'dicht']]);
+    assert.equal(daySpan([long], 'auto', 'dicht', FRI, FRI_FROM_14), 'vanaf 21:00');
+    const open = item([['2026-10-02T19:00:00Z', '', 'dicht']]);
+    assert.equal(daySpan([open], 'auto', 'dicht', FRI, FRI_FROM_14), 'vanaf 21:00');
+  });
+
+  it('two runs on one day: the end of last night and tonight', () => {
+    const nights = item([['2026-10-01T19:00:00Z', '2026-10-02T03:00:00Z', 'dicht'], ['2026-10-02T19:00:00Z', '2026-10-03T03:00:00Z', 'dicht']]);
+    assert.equal(daySpan([nights], 'auto', 'dicht', FRI, FRI), 'tot 05:00 en 21:00–05:00');
+    assert.equal(daySpan([nights], 'auto', 'dicht', FRI, FRI_FROM_14), '21:00–05:00', 'a run that is over before now is not named');
+  });
+
+  it('null when nothing at the level touches the judged window', () => {
+    assert.equal(daySpan([night], 'auto', 'dicht', SAT, { from: ms('2026-10-03T08:00:00Z'), to: SAT.to }), null);
+    assert.equal(daySpan([], 'auto', 'dicht', FRI, FRI), null);
+  });
+});
+
 describe('randomised: the stated end never suggests a reopening that is not there', () => {
   it('holds for 400 random timelines at every hour', () => {
     const rand = rng(20261003);

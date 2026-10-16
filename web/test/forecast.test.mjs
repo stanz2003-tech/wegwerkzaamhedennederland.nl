@@ -177,7 +177,7 @@ describe('a picked strip day lists the same items as its cell, worst first (voor
 
 /* ------------------------------------------------------------------ 14 days, day parts */
 
-const { constantIds, dayParts, heaviestSpan, PAGE_STRIP_DAYS } = forecast;
+const { constantIds, dayParts, PAGE_STRIP_DAYS } = forecast;
 const RANK = (level) => (level === null ? Infinity : verdict.VERDICT_SEVERITY.indexOf(level));
 
 /** Every night from 2026-09-01 for 40 nights, 21:00–05:00 CEST. */
@@ -237,7 +237,7 @@ describe('constantIds: the measures that are the same every day, all day (voorui
   });
 });
 
-describe('dayParts and heaviestSpan', () => {
+describe('dayParts', () => {
   const items = gorinchemItems();
   const cells = dayStrip(items, 'auto', NOW, PAGE_STRIP_DAYS);
   const constants = new Set(constantIds(cells, items, 'auto', NOW).map((c) => c.id));
@@ -254,16 +254,6 @@ describe('dayParts and heaviestSpan', () => {
     assert.deepEqual(fri, ['dicht', 'hinder', 'hinder', 'dicht']);
     const later = dayParts(items, 'auto', cells[10], NOW, constants).map((p) => p.worst);
     assert.deepEqual(later, ['dicht', null, null, 'dicht']);
-  });
-
-  it('heaviestSpan names the part hours, round the clock', () => {
-    const p = (worsts, ahead = [true, true, true, true]) => worsts.map((worst, i) => ({ part: 'x', from: 0, to: 0, ahead: ahead[i], worst }));
-    assert.equal(heaviestSpan(p(['dicht', null, null, 'dicht'])), '18:00–06:00');
-    assert.equal(heaviestSpan(p(['hinder', 'rijbaan', 'rijbaan', 'hinder'])), '06:00–18:00');
-    assert.equal(heaviestSpan(p(['rijbaan', 'rijbaan', 'rijbaan', 'rijbaan'])), 'hele dag');
-    assert.equal(heaviestSpan(p(['dicht', null, 'dicht', null])), '00:00–06:00 en 12:00–18:00');
-    assert.equal(heaviestSpan(p([null, 'dicht', 'dicht', 'dicht'], [false, true, true, true])), '06:00–24:00');
-    assert.equal(heaviestSpan(p([null, null, null, null])), null);
   });
 });
 

@@ -313,30 +313,3 @@ export function constantIds(cells: readonly DayCell[], items: readonly ForecastI
   }
   return out.sort((a, b) => VERDICT_SEVERITY.indexOf(a.level) - VERDICT_SEVERITY.indexOf(b.level));
 }
-
-/**
- * The hours of the heaviest part level of a cell: "hele dag", "18:00–06:00" (evening and night,
- * read round the clock), "06:00–18:00", or two stretches joined with "en". Only part bounds — the
- * exact "22:00–05:00" would need the item's own segments, and a guess there could understate.
- * Null when no part has a verdict.
- */
-export function heaviestSpan(parts: readonly DayPartCell[]): string | null {
-  let worst: VerdictLevel | null = null;
-  for (const p of parts) if (p.ahead && p.worst !== null) worst = worseLevel(worst, p.worst);
-  if (worst === null) return null;
-  const on = parts.map((p) => p.ahead && p.worst === worst);
-  if (on.every(Boolean)) return 'hele dag';
-  const hour = (h: number): string => `${String(h).padStart(2, '0')}:00`;
-  const n = on.length;
-  const runs: string[] = [];
-  // A run starts at a part that is on while the one before it (round the clock) is off.
-  for (let i = 0; i < n; i++) {
-    if (!on[i] || on[(i - 1 + n) % n]) continue;
-    let j = i;
-    while (on[(j + 1) % n]) j += 1;
-    const start = DAY_PARTS[i];
-    const end = DAY_PARTS[j % n];
-    if (start && end) runs.push(`${hour(start.fromHour)}–${hour(end.toHour)}`);
-  }
-  return runs.join(' en ');
-}
