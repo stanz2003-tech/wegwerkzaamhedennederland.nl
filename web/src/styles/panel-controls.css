@@ -243,6 +243,8 @@
 /* The folded "Wanneer: nu · wijzig" line (when-control.ts setCompact). Phones only, see below. */
 .when__summary {
   display: none;
+  /* Full width also in the two-column row of a phone on its side. */
+  grid-column: 1 / -1;
   align-items: center;
   gap: var(--s-2);
   width: 100%;
