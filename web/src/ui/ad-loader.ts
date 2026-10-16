@@ -30,11 +30,14 @@ export interface AdScript {
   state(): AdScriptState;
   /** Starts loading at once when it has not started yet. */
   now(): void;
+  /** Calls `cb` once the script has loaded; at once when it already has. */
+  onLoaded(cb: () => void): void;
   /** Calls `cb` when the script fails to load (ad blocker, offline); at once when it already has. */
   onFail(cb: () => void): void;
   /**
    * Also waits for `work` (the page's own start-up) before the idle wait, at most HOLD_MAX_MS
-   * after `load`. Counts only when called before `load`, as the page boot does.
+   * after `load`. Counts only when called before `load` (the holds are read then), as the page
+   * boot does.
    */
   holdUntil(work: Promise<unknown>): void;
 }
@@ -70,25 +73,26 @@ function browserEnv(): AdScriptEnv {
 /** Schedules `<script async src>` for after `load`, the page's own work and idle. Once per page. */
 export function deferAdScript(src: string, env: AdScriptEnv = browserEnv()): AdScript {
   let state: AdScriptState = 'waiting';
+  let loadListeners: ReadonlyArray<() => void> = [];
   let failListeners: ReadonlyArray<() => void> = [];
   let holds: ReadonlyArray<Promise<unknown>> = [];
-  let loadSeen = false;
+
+  /** Ends the wait: `state` becomes `outcome` and that outcome's listeners run once. */
+  const settle = (outcome: 'loaded' | 'failed'): void => {
+    state = outcome;
+    const listeners = outcome === 'loaded' ? loadListeners : failListeners;
+    loadListeners = [];
+    failListeners = [];
+    listeners.forEach((cb) => cb());
+  };
 
   const start = (): void => {
     if (state !== 'waiting') return;
     state = 'loading';
     env.inject(
       src,
-      () => {
-        state = 'loaded';
-        failListeners = [];
-      },
-      () => {
-        state = 'failed';
-        const listeners = failListeners;
-        failListeners = [];
-        listeners.forEach((cb) => cb());
-      },
+      () => settle('loaded'),
+      () => settle('failed'),
     );
   };
 
@@ -99,7 +103,6 @@ export function deferAdScript(src: string, env: AdScriptEnv = browserEnv()): AdS
 
   /** After `load`: the page's own work first (capped), then an idle moment. */
   const afterLoad = (): void => {
-    loadSeen = true;
     if (holds.length === 0) {
       whenIdle();
       return;
@@ -120,12 +123,16 @@ export function deferAdScript(src: string, env: AdScriptEnv = browserEnv()): AdS
   return {
     state: () => state,
     now: start,
+    onLoaded(cb) {
+      if (state === 'loaded') cb();
+      else if (state !== 'failed') loadListeners = [...loadListeners, cb];
+    },
     onFail(cb) {
       if (state === 'failed') cb();
       else if (state !== 'loaded') failListeners = [...failListeners, cb];
     },
     holdUntil(work) {
-      if (!loadSeen) holds = [...holds, work];
+      holds = [...holds, work];
     },
   };
 }

@@ -1,9 +1,10 @@
 /**
  * Ad slots on content pages only (never on the map canvas).
  * Markup: <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
- * Filled only when site.config `ads.enabled` is true: one <ins> per slot, fixed height reserved
- * (CLS 0); a slot AdSense leaves unfilled collapses (components.css). Otherwise the slots stay
- * hidden with zero height. The AdSense script itself loads once, when the page is done (`load`,
+ * Filled only when site.config `ads.enabled` is true: one <ins> per slot, fixed height reserved so
+ * nothing jumps when the ad arrives. A slot AdSense leaves unfilled collapses (components.css),
+ * and so does one whose script is blocked: that moves the text below it up once, which beats a
+ * permanent empty box. Otherwise the slots stay hidden with zero height. The AdSense script itself loads once, when the page is done (`load`,
  * the page's own start-up, an idle moment: ui/ad-loader.ts); the slots wait in the
  * `window.adsbygoogle` queue until it arrives.
  * Consent: Google's own CMP ("Privacy & messaging") ships with the AdSense script; `openCmp()`

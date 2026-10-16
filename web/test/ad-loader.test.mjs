@@ -117,8 +117,7 @@ describe('the ad script waits for the page (ui/ad-loader.ts)', () => {
     env.runIdle();
     assert.equal(env.injected.length, 1);
     env.runTimers();
-    env.runIdle();
-    assert.equal(env.injected.length, 1, 'the cap timer that is left over adds nothing');
+    assert.equal(env.idleCbs.length, 0, 'the cap timer that is left over asks for no second idle wait');
   });
 
   it('a page that hangs or fails holds the ads back at most HOLD_MAX_MS after load', async () => {
@@ -145,6 +144,27 @@ describe('the ad script waits for the page (ui/ad-loader.ts)', () => {
     script.holdUntil(new Promise(() => {}));
     await flush();
     assert.equal(env.idleCbs.length, 1);
+  });
+
+  it('tells who waits for the script when it has loaded, and later askers at once', () => {
+    const env = fakeEnv({ loaded: true });
+    const script = adLoader.deferAdScript(SRC, env);
+    const calls = [];
+    script.onLoaded(() => calls.push('early'));
+    env.runIdle();
+    assert.deepEqual(calls, []);
+    env.injected[0].onLoad();
+    assert.deepEqual(calls, ['early']);
+    script.onLoaded(() => calls.push('late'));
+    assert.deepEqual(calls, ['early', 'late']);
+
+    const blocked = fakeEnv({ loaded: true });
+    const failing = adLoader.deferAdScript(SRC, blocked);
+    failing.onLoaded(() => calls.push('never'));
+    blocked.runIdle();
+    blocked.injected[0].onError();
+    failing.onLoaded(() => calls.push('never either'));
+    assert.deepEqual(calls, ['early', 'late'], 'a blocked script never counts as loaded');
   });
 
   it('never calls the failure callbacks once the script has loaded', () => {
