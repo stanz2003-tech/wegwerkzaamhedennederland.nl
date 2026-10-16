@@ -27,7 +27,7 @@ De achtergrondkaart is de **BRT Achtergrondkaart** van het Kadaster, geleverd vi
 
 ## Hoe actueel is de informatie?
 
-Het **actuele beeld** — files, incidenten, brugopeningen en de afzettingen van dit moment — halen we **elke {{refreshMinutes}} minuten** opnieuw op bij NDW. De **planning** van wegwerkzaamheden vernieuwt NDW ongeveer elk kwartier; die verwerken we dus ook ongeveer elke {{planningMinutes}} minuten. Het tijdstip van de laatste update staat altijd bovenaan de kaart en op elke wegpagina. Lukt het ophalen van een bron een keer niet, dan blijft de vorige versie staan en zie je een melding dat die bron tijdelijk niet is bijgewerkt.
+Het **actuele beeld** — files, incidenten, brugopeningen en de afzettingen van dit moment — halen we **elke {{refreshMinutes}} minuten** opnieuw op bij NDW. De **planning** van wegwerkzaamheden vernieuwt NDW ongeveer elk kwartier; die verwerken we dus ook ongeveer elke {{planningMinutes}} minuten. Het tijdstip van de laatste update staat altijd bovenaan de kaart en op elke wegpagina. Lukt het ophalen een keer niet, dan blijft de vorige versie staan. Krijgen we het actuele beeld langer dan een halfuur niet binnen, dan zie je bovenaan een melding dat de gegevens niet actueel zijn.
 
 Bedenk wel: de kaart toont wat de wegbeheerder heeft **ingevoerd**. Werk dat eerder klaar is, uitloopt of niet is gemeld, zie je hier niet of pas later. Meer daarover lees je bij de [veelgestelde vragen](/veelgestelde-vragen/).
 

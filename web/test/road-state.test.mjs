@@ -68,8 +68,27 @@ describe('stale data wording', () => {
     assert.equal(topbar.staleDataLabel({ kind: 'error' }, later), undefined);
   });
 
+  it('a run that keeps reusing an old live feed is stale too, dated by that feed (2026-10-16)', () => {
+    // When the actueel feed cannot be fetched the pipeline reuses its last parse and sets ok: false;
+    // `generated` still moves every ten minutes, and the pill said "Bijgewerkt" over frozen files.
+    const withFeed = (publicationTime, ok = true) => ({
+      ...data.meta,
+      generated: '2026-09-28T19:25Z',
+      sources: { ...data.meta.sources, actueel: { ...data.meta.sources.actueel, ok, publicationTime } },
+    });
+    const frozen = topbar.liveStatusFromMeta(withFeed('2026-09-28T18:17:00.000750273Z', false), later);
+    assert.equal(frozen.kind, 'stale');
+    assert.equal(topbar.staleDataLabel(frozen, later), '20:17');
+    assert.equal(topbar.liveStatusFromMeta(withFeed('2026-09-28T19:24:00.000123Z'), later).kind, 'ok');
+    // Older meta files without the live source are judged on `generated`, as before.
+    const { actueel, ...rest } = data.meta.sources;
+    assert.equal(topbar.liveStatusFromMeta({ ...data.meta, generated: '2026-09-28T19:25Z', sources: rest }, later).kind, 'ok');
+    assert.ok(actueel);
+  });
+
   it('the status turns stale after STALE_AFTER_MINUTES, not before', () => {
-    const meta = { ...data.meta, generated: '2026-09-28T18:17Z' };
+    const { actueel: _ignored, ...sources } = data.meta.sources;
+    const meta = { ...data.meta, generated: '2026-09-28T18:17Z', sources };
     const just = today + topbar.STALE_AFTER_MINUTES * 60_000;
     assert.equal(topbar.liveStatusFromMeta(meta, just).kind, 'ok');
     assert.equal(topbar.liveStatusFromMeta(meta, just + 60_000).kind, 'stale');

@@ -22,6 +22,10 @@ function stampGenerated(file, iso) {
     const json = JSON.parse(readFileSync(file, 'utf8'));
     if (json && typeof json === 'object' && typeof json.generated === 'string') {
       json.generated = iso;
+      // The pill also judges the live feed's own publication time (ui/topbar.ts liveDataTime).
+      for (const source of Object.values(json.sources ?? {})) {
+        if (source && typeof source.publicationTime === 'string') source.publicationTime = iso;
+      }
       writeFileSync(file, JSON.stringify(json));
     }
   } catch (err) {

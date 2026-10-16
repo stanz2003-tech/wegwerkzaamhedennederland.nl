@@ -26,10 +26,25 @@ export type LiveStatus =
  */
 export const STALE_AFTER_MINUTES = 30;
 
+/**
+ * How old the live picture is: the run (`generated`), or the actueel feed it was built from when
+ * that is older. A run that cannot fetch the feed reuses its last parse and still writes a new
+ * `generated` every ten minutes, so the pill said "Bijgewerkt" over files from hours ago
+ * (review 2026-10-16). NDW publishes the feed every minute, so its age is the honest one.
+ */
+export function liveDataTime(meta: Meta): string {
+  const feed = meta.sources?.['actueel']?.publicationTime;
+  return feed && toMs(feed) < toMs(meta.generated) ? feed : meta.generated;
+}
+
 export function liveStatusFromMeta(meta: Meta, now = Date.now()): LiveStatus {
   const age = ageMinutes(meta.generated, now);
   if (Number.isNaN(age)) return { kind: 'error' };
-  return age > STALE_AFTER_MINUTES ? { kind: 'stale', generated: meta.generated } : { kind: 'ok', generated: meta.generated };
+  const dataTime = liveDataTime(meta);
+  const dataAge = ageMinutes(dataTime, now);
+  return Math.max(age, Number.isNaN(dataAge) ? age : dataAge) > STALE_AFTER_MINUTES
+    ? { kind: 'stale', generated: dataTime }
+    : { kind: 'ok', generated: meta.generated };
 }
 
 /**
