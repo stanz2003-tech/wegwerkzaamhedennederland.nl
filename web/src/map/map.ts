@@ -23,6 +23,7 @@ import { isPdokTileFailure, loadBasemap, loadOpenFreeMap, renderStaticFallback, 
 import { HIT_LAYERS, LAYERS, SRC_LINES, SRC_POINTS, ensureOverlay, setDetourData, setOverlayData, splitFeatures, updateOverlayData, type SplitData } from './layers';
 import { unionBbox } from '../data/filter';
 import { announceMap } from './ready';
+import { ensureRoadOutline, setRoadOutlineData, type RoadLines } from './road-outline';
 import { ensureRouteOverlay, setRouteData, type RouteDrawing } from './route-layers';
 import type { BasemapTheme } from './restyle';
 
@@ -178,6 +179,7 @@ export class AppMap {
 
   private detour: [number, number][] | null = null;
   private route: RouteDrawing | null = null;
+  private outline: RoadLines | null = null;
 
   private installOverlay(): void {
     ensureOverlay(this.map, this.data, {
@@ -190,7 +192,15 @@ export class AppMap {
     setDetourData(this.map, this.detour);
     ensureRouteOverlay(this.map, this.resolved.theme);
     setRouteData(this.map, this.route);
+    ensureRoadOutline(this.map, this.resolved.theme);
+    setRoadOutlineData(this.map, this.outline);
     this.applySelected();
+  }
+
+  /** Draws the course of the road of road mode as a soft band (null removes it). */
+  setRoadOutline(lines: RoadLines | null): void {
+    this.outline = lines;
+    setRoadOutlineData(this.map, lines);
   }
 
   /** Draws the routes of route mode (null removes them). */

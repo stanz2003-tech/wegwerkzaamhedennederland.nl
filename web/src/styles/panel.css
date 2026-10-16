@@ -160,8 +160,13 @@
 }
 
 .panel.is-road .panel__summary {
-  /* "28 meldingen op de A27 · nu" is short: it shares its line with sort and legend. */
-  flex: 1 1 8rem;
+  /* "28 meldingen op de A27 · nu" is short: it shares its line with sort and legend when it fits
+     there whole, else the tools move to the next line. In the wider panel it squeezed in and
+     broke off "· nu" on a line of its own. */
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-2);

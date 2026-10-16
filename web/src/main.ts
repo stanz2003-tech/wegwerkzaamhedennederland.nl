@@ -69,11 +69,13 @@ import { liveStatusFromMeta, mountTopbar, staleDataLabel, type LiveStatus } from
 import { mountWhenControl } from './ui/when-control';
 import { createPaintScheduler } from './ui/after-paint';
 import { horizonMs } from './data/horizon';
+import { createRoadOutline } from './ui/road-outline';
 
 const REFRESH_MS = 90_000;
 /** Upper bound on list models; the list itself renders in batches of 40. */
 const LIST_MAX = 800;
-const DESKTOP_PANEL_PAD = 420;
+/** Desktop: room between the floating panel and what the camera fits. */
+const PANEL_GAP_PX = 24;
 /** Phone only: low enough that the whole country fits above the half-open sheet (mobiel-11). */
 const MOBILE_MIN_ZOOM = 5.4;
 /** Below this viewport height the half sheet cannot show the answer under the sticky header. */
@@ -110,6 +112,8 @@ let pendingRoadFit = false;
 /** Set when a text filter was typed (or came in the URL): fit the map to its matches once. */
 let pendingQueryFit = url.query !== '';
 let liveStatus: LiveStatus = { kind: 'loading' };
+/** Road mode draws the whole course of the road softly under the items. */
+const roadOutline = createRoadOutline(() => map);
 
 /* ------------------------------------------------------------------ chrome */
 
@@ -188,7 +192,8 @@ function updatePadding(): void {
     top: 24,
     right: 24,
     bottom: mobile ? Math.min(panel.coveredPx() + 16, Math.round(stageEl.clientHeight * 0.6)) : 24,
-    left: mobile ? 24 : DESKTOP_PANEL_PAD,
+    // The panel is wider on a wide screen (tokens.css --panel-w): measure it instead of assuming.
+    left: mobile ? 24 : panelEl.offsetLeft + panelEl.offsetWidth + PANEL_GAP_PX,
   });
 }
 
@@ -222,6 +227,7 @@ function render(): void {
     map?.setItems(forMap.map(withVerdict));
     map?.setSelected(detail.selected()?.properties.id ?? null);
   }
+  roadOutline.show(url.road);
 
   // Outside road mode the list follows the viewport; in road mode it is the whole road, and with
   // a text filter it is every match: "Almkerk" typed with the camera on Amsterdam must not answer
@@ -747,6 +753,7 @@ async function boot(): Promise<void> {
     stageEl.dataset.noWebgl = '1';
     showToast('Deze browser kan de interactieve kaart niet tonen. De lijst werkt gewoon.', 'error');
   }
+  roadOutline.apply();
   updatePadding();
   // Without a camera in the URL, frame the country in the part of the stage the panel leaves
   // free. On desktop that is the default zoom re-centred next to the panel (the BRT tiles only

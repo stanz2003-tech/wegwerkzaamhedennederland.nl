@@ -966,8 +966,10 @@
   padding-left: var(--s-4);
 }
 
-/* Two lines per row (overzicht-8). Line 1: pill, badge and section, one line; a long section
-   ends in an ellipsis (the full text is in the row's name and in the detail). */
+/* Two lines per row (overzicht-8). Line 1: pill, badge and section; a long section may take a
+   second line beside the pill before it ends in an ellipsis — on one line "Vianen → Everdinge…"
+   and "Utrechtse Brug → A…" never said which stretch it was (review 2026-10-16). The full text is
+   in the row's name and in the detail. */
 .item__where {
   display: flex;
   align-items: center;
@@ -982,9 +984,11 @@
 .item__where .item__title {
   flex: 1 1 auto;
   min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
   overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   font-size: var(--text-sm);
 }
 

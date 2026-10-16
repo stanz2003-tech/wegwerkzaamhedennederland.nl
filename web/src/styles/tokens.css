@@ -100,6 +100,13 @@
   --z-map: 0; --z-panel: 10; --z-topbar: 20; --z-sheet: 30; --z-toast: 40; --z-modal: 100;
 }
 
+/* A laptop or wider: the map can spare the room, and at 380 px a row cut its section short
+   ("Utrechtse Brug → A…", review 2026-10-16). The stylesheets follow the token; main.ts measures
+   the panel itself for the map padding. */
+@media (min-width: 1280px) {
+  :root { --panel-w: 440px; }
+}
+
 /* Dark theme: asphalt surfaces, paper text, same accents. */
 :root[data-theme="dark"] {
   color-scheme: dark;
