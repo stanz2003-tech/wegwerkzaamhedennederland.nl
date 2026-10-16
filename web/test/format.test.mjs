@@ -194,7 +194,12 @@ describe('impact labels', () => {
     assert.equal(subLabel('ietsNieuws'), null);
     assert.equal(subLabel(null), null);
     assert.equal(vehiclesLabel(['lorry', 'bicycle']), 'vrachtverkeer, fietsers');
-    assert.equal(vehiclesLabel(['onbekendType']), 'onbekendType');
+    // An unknown DATEX type never reaches the page in English (2026-10-16).
+    assert.equal(vehiclesLabel(['onbekendType']), 'ander verkeer');
+    // Melvin's "all motor traffic" list, now read in full: Dutch, and each label once.
+    const all = ['car', 'bus', 'lorry', 'agriculturalVehicle', 'carWithTrailer', 'constructionOrMaintenanceVehicle', 'moped', 'motorcycle', 'motorscooter', 'van'];
+    assert.equal(vehiclesLabel(all), "auto's, bussen, vrachtverkeer, landbouwverkeer, auto's met aanhanger, werkverkeer, brommers, motoren, scooters, bestelauto's");
+    assert.equal(vehiclesLabel(['lorry', 'heavyGoodsVehicle', 'bicycle']), 'vrachtverkeer, fietsers');
     assert.equal(vehiclesLabel([]), null);
     assert.equal(vehiclesLabel(undefined), null);
   });

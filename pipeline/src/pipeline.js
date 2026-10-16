@@ -31,8 +31,9 @@ const DEFAULT_WEGEN_PATH = fileURLToPath(new URL('../static/wegen.json', import.
  * (`cache/last/<source>.ndjson`) written by an older parser lacks the new
  * fields, so it is not replayed on HTTP 304 — the feed is downloaded instead.
  * 2 = alternativeRoute captured as `detourLine` (contract v3).
+ * 3 = every vehicleType of a forVehiclesWithCharacteristicsOf, not only the first (2026-10-16).
  */
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 3;
 const CATEGORIES = ['werk', 'afsluiting', 'file', 'incident', 'brug', 'evenement', 'overig'];
 const LIVE_CATS = new Set(['file', 'incident', 'brug']);
 

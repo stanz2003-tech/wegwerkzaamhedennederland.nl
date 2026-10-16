@@ -147,6 +147,25 @@ test('unknown elements, missing values and multiple situations are tolerated', a
   assert.equal(list[1].sev, undefined);
 });
 
+test('review 2026-10-16: every vehicleType inside one forVehiclesWithCharacteristicsOf is read, not only the first', async () => {
+  // Melvin writes "car+bus+bicycle+lorry" (397 records on 2026-10-16) as ONE element with four vehicleTypes. Reading
+  // only the first made such a closure "alleen auto's", and the site told cyclists and lorry drivers they could pass.
+  const one = '<sit:forVehiclesWithCharacteristicsOf><com:vehicleType>bicycle</com:vehicleType></sit:forVehiclesWithCharacteristicsOf>';
+  const xml = fixture('fiets_dicht.xml');
+  assert.ok(xml.includes(one));
+  const merwede = xml.replace(
+    one,
+    '<sit:forVehiclesWithCharacteristicsOf><com:vehicleType>car</com:vehicleType><com:vehicleType>bus</com:vehicleType>' +
+      '<com:vehicleType>bicycle</com:vehicleType><com:vehicleType>lorry</com:vehicleType></sit:forVehiclesWithCharacteristicsOf>',
+  );
+  const [a] = await parseSnippet(merwede);
+  assert.deepEqual(a.recs.find((r) => r.lane === 'roadClosed').vehicles, ['car', 'bus', 'bicycle', 'lorry']);
+  // Several elements with one type each (the other way DATEX allows) still read as one list.
+  const split = xml.replace(one, `${one}<sit:forVehiclesWithCharacteristicsOf><com:vehicleType>moped</com:vehicleType></sit:forVehiclesWithCharacteristicsOf>`);
+  const [b] = await parseSnippet(split);
+  assert.deepEqual(b.recs.find((r) => r.lane === 'roadClosed').vehicles, ['bicycle', 'moped']);
+});
+
 test('malformed XML rejects', async () => {
   await assert.rejects(parseFeed(chunked('<mc:messageContainer><sit:situation id="1">', 5), () => {}));
 });

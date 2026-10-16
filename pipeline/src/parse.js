@@ -279,8 +279,10 @@ function recordFromNode(node) {
     .map((u) => text(child(u, 'urlLinkAddress')))
     .filter((u) => u !== undefined);
 
+  // One element may list several types (Melvin: car+bus+bicycle+lorry in one element). Reading
+  // only the first made such a closure "car only" for cyclists and lorry drivers (2026-10-16).
   const vehicles = children(node, 'forVehiclesWithCharacteristicsOf')
-    .map((v) => text(child(v, 'vehicleType')))
+    .flatMap((v) => children(v, 'vehicleType').map(text))
     .filter((v) => v !== undefined);
 
   /** @type {SituationRecord} */

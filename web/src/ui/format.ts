@@ -363,21 +363,43 @@ export function kindLabel(cat: Category, sub: string | null | undefined, opts: {
   return cat === 'file' || cat === 'incident' ? text : `${label} · ${text}`;
 }
 
+/**
+ * DATEX vehicleType → Dutch. Since 2026-10-16 the pipeline reads every type of a restriction, and
+ * Melvin's "all motor traffic" lists ten of them (carWithTrailer, van, motorscooter, …); a type
+ * missing here must not reach the page in English, so it reads "ander verkeer".
+ */
 const VEHICLE_LABELS: Record<string, string> = {
   bicycle: 'fietsers',
   pedestrian: 'voetgangers',
   lorry: 'vrachtverkeer',
   heavyGoodsVehicle: 'vrachtverkeer',
+  heavyVehicle: 'vrachtverkeer',
+  articulatedVehicle: 'vrachtverkeer',
+  tanker: 'vrachtverkeer',
   bus: 'bussen',
+  minibus: 'bussen',
   car: "auto's",
+  carOrLightVehicle: "auto's",
+  fourWheelDrive: "auto's",
+  carWithTrailer: "auto's met aanhanger",
+  carWithCaravan: "auto's met caravan",
+  vehicleWithTrailer: 'voertuigen met aanhanger',
+  van: "bestelauto's",
+  motorhome: 'campers',
   motorcycle: 'motoren',
+  motorcycleWithSideCar: 'motoren',
+  motorscooter: 'scooters',
+  moped: 'brommers',
+  twoWheeledVehicle: 'tweewielers',
   agriculturalVehicle: 'landbouwverkeer',
+  constructionOrMaintenanceVehicle: 'werkverkeer',
+  emergencyVehicle: 'hulpdiensten',
   anyVehicle: 'alle voertuigen',
 };
 
 export function vehiclesLabel(vehicles: string[] | undefined): string | null {
   if (!vehicles || vehicles.length === 0) return null;
-  return vehicles.map((v) => VEHICLE_LABELS[v] ?? v).join(', ');
+  return Array.from(new Set(vehicles.map((v) => VEHICLE_LABELS[v] ?? 'ander verkeer'))).join(', ');
 }
 
 export function formatCount(n: number): string {

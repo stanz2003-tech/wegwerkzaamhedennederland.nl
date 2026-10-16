@@ -4,10 +4,11 @@
     {
       "id": "AND01_C1020D9C0FA84C228DBBA388E93364CB",
       "ver": "2026-05-14T19:00:22Z",
-      "van": ["car"],
+      "van": ["car", "bus", "bicycle", "lorry"],
       "naar": ["bicycle"],
-      "reden": "Waterschap Rivierenland heeft deze afsluiting ingevuld als ‘dicht voor auto’s’, maar schrijft zelf ‘afsluiting fietspad Merwedebrug westzijde’ en leidt alleen fietsers om. Auto’s kunnen over de A27-brug (max 70 km/u, vrachtverkeer verboden). Wij hebben de afsluiting daarom op fietsers gezet.",
-      "door": "Stan, 2026-10-12"
+      "reden": "Waterschap Rivierenland heeft deze afsluiting ingevuld als ‘dicht voor auto’s, bussen, fietsers en vrachtverkeer’, maar schrijft zelf ‘afsluiting fietspad Merwedebrug westzijde’ en leidt alleen fietsers om. Auto’s kunnen over de A27-brug (max 70 km/u, vrachtverkeer verboden). Wij hebben de afsluiting daarom op fietsers gezet.",
+      "door": "Stan, 2026-10-12",
+      "bijgewerkt": "2026-10-16: 'van' is de volledige lijst sinds de pipeline elk voertuigtype leest (eerder alleen het eerste, 'car')"
     }
   ]
 }
