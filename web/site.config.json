@@ -14,12 +14,12 @@
     "btw": ""
   },
   "ads": {
-    "enabled": false,
-    "adsenseClient": "ca-pub-0000000000000000",
+    "enabled": true,
+    "adsenseClient": "ca-pub-2154960775763414",
     "slots": {
-      "panel": "0000000000",
-      "list": "0000000000",
-      "article": "0000000000"
+      "panel": "",
+      "list": "",
+      "article": ""
     }
   },
   "indexnow": {
