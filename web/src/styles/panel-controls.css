@@ -124,6 +124,12 @@
   min-width: 0;
 }
 
+/* The chips, date row and notes lay out in the row itself; the wrapper only matters while the
+   row is folded on a phone (below). */
+.when__body {
+  display: contents;
+}
+
 /* Slightly tighter time chips so all four fit the panel on one line. */
 .panel .chip--time {
   padding-inline: var(--s-2);
@@ -234,6 +240,63 @@
   display: none;
 }
 
+/* The folded "Wanneer: nu · wijzig" line (when-control.ts setCompact). Phones only, see below. */
+.when__summary {
+  display: none;
+  align-items: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: var(--touch);
+  padding: 0 var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-align: left;
+  transition: border-color var(--dur-1) var(--ease-out);
+}
+
+.when__summary > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-3);
+}
+
+.when__summary-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-2);
+}
+
+.when__summary-text strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.when__summary-edit {
+  font-weight: 600;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.when__summary > svg:last-child { transition: transform var(--dur-1) var(--ease-out); }
+.when.is-open > .when__summary > svg:last-child { transform: rotate(180deg); }
+.when__summary:hover { border-color: var(--text-3); }
+.when__summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Another moment than now: the line wears the date field's "chosen" look, so a folded "morgen"
+   is not mistaken for the default. */
+.when:not(.is-now) > .when__summary {
+  border-color: var(--chrome);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}
+
 /* ------------------------------------------------------------------ phone */
 
 @media (max-width: 768px) {
@@ -262,6 +325,39 @@
   .panel__sticky .when__hint,
   .panel__sticky .when.is-now .when__notes {
     display: none;
+  }
+
+  /* A road or place is chosen: chips and date row fold into one line, so the answer card starts
+     right under the search box instead of three quarters down the screen (review 2026-10-16).
+     Opened, they drop down as a panel OVER the card: pushing the card down instead made the
+     browser keep it in place under the grown header, which then hid its question and verdict.
+     Not in detail mode, which has its own one-row header with the date field. */
+  .panel:not(.is-detail) .when.is-compact {
+    position: relative;
+  }
+
+  .panel:not(.is-detail) .when.is-compact > .when__summary {
+    display: flex;
+  }
+
+  .panel:not(.is-detail) .when.is-compact > .when__body {
+    display: none;
+  }
+
+  .panel:not(.is-detail) .when.is-compact.is-open > .when__body {
+    position: absolute;
+    z-index: 2;
+    top: calc(100% + var(--s-1));
+    left: 0;
+    right: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-2);
+    padding: var(--s-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-2);
+    background: var(--surface);
+    box-shadow: var(--shadow-2);
   }
 
   /* All seven kinds at once, two per row, instead of a scroller that showed one and a half

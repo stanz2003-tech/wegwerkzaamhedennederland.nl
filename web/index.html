@@ -154,9 +154,12 @@
               </div>
               <div data-when></div>
             </div>
+            <div class="panel__stale" data-stale hidden></div>
+            <!-- National zoom only: the motorways with a closure, each a button into road mode. Right
+                 under the header, so it is in view on a phone's half-open sheet (review 2026-10-16). -->
+            <div class="panel__roads closed-roads" data-closed-roads hidden></div>
             <!-- Route mode (ui/route-controller.ts): the "Route plannen" bar, its form, the route card. -->
             <div class="panel__route" id="route-panel" data-route hidden></div>
-            <div class="panel__stale" data-stale hidden></div>
             <div class="panel__answer" data-answer hidden></div>
             <!-- The answer for the view (the verdict sentence) comes before the filters. -->
             <div class="panel__bar">
@@ -166,8 +169,6 @@
                 <div data-legend></div>
               </div>
             </div>
-            <!-- National zoom only: the motorways with a closure, each a button into road mode. -->
-            <div class="panel__roads closed-roads" data-closed-roads hidden></div>
             <details class="panel__filters" data-filters>
               <summary class="panel__filters-summary" data-filters-summary>Filters · alle soorten</summary>
               <div class="panel__filters-body">

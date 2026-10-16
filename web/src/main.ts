@@ -201,6 +201,8 @@ function updatePadding(): void {
 
 /** Signature of the dataset handed to the map, so panning does not re-upload the GeoJSON. */
 let lastMapKey = '';
+/** The road or place the "Wanneer?" row was last folded for ('' = none). */
+let lastSubject = '';
 /** What the last render put on screen, in the form a screen reader should hear it. */
 let lastAnswerText = '';
 
@@ -215,6 +217,14 @@ function render(): void {
   const dayWin = route?.window ?? dayWindowOf(url, now);
   const place = places.active();
   const inPlace = place ? placeMatcher(place, entityPagesNow()) : null;
+  // A new road or place: on a phone "Wanneer?" folds into one line above the answer card. Only
+  // on a change of subject, so a refresh or another moment never folds a row the reader opened.
+  const subject = url.road ?? (place ? `${place.kind}:${place.slug}` : '');
+  const newSubject = subject !== lastSubject;
+  if (newSubject) {
+    lastSubject = subject;
+    when.setCompact(subject !== '');
+  }
   const { base, roadAll, placeAll } = route ? { base: route.base, roadAll: [], placeAll: [] } : selectForQuestion(items, url, inPlace, now);
   const judged = judge(base, url.mode, at, dayWin);
   const relevant = hideNvt ? judged.filter((j) => j.level !== 'nvt') : judged;
@@ -285,6 +295,9 @@ function render(): void {
     pendingQueryFit = false;
     map.fitToFeatures(forMap.map((j) => j.f));
   }
+  // However the road or place came (a pick, a link from a road page, the back button): its answer
+  // starts right under the header, not under the "Route plannen" bar.
+  if (newSubject && subject !== '') panel.scrollTo(answerEl);
 }
 
 function showFatal(message: string): void {

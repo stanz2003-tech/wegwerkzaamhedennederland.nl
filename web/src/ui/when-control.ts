@@ -7,11 +7,28 @@
  * Under the chips the chosen window is spelled out ("Weekend: vr 2 okt 20:00 – ma 5 okt 06:00"):
  * what "Dit weekend" covers used to live in a `title` tooltip only, which touch and keyboard
  * users never see (vooruit-6).
+ *
+ * On a phone, once a road or place is chosen, the row folds into one line "Wanneer: nu · wijzig"
+ * (`setCompact`): chips and date row stood above the answer card and pushed it three quarters
+ * down the screen (review 2026-10-16). One tap opens the row again; a chip tapped there folds it
+ * back with the new moment in the line. The CSS (panel-controls.css) folds on phones only.
  */
 import { horizonDateLabel } from '../data/answer';
-import { TIME_WINDOWS, WHEN_WINDOWS, timeWindowBounds, timeWindowRange, type TimeWindowId } from '../data/time';
+import { DAY_PARTS, TIME_WINDOWS, WHEN_WINDOWS, dayWindow, timeWindowBounds, timeWindowRange, type TimeWindowId } from '../data/time';
 import { mountDatePick, pickHintKind, whenHint, type DatePick } from './date-pick';
 import { esc, fmtDay, fmtDayTime } from './format';
+import { ICONS } from './icons';
+
+/** The moment in the folded line: "nu", "dit weekend", "zo 18 okt, ochtend", "zo 18 okt 08:00". */
+export function whenSummaryText(id: TimeWindowId, pick: DatePick | null): string {
+  if (pick?.kind === 'moment') return fmtDayTime(pick.at);
+  if (pick?.kind === 'day') {
+    const day = dayWindow(pick.date);
+    const part = DAY_PARTS.find((p) => p.id === pick.part)?.label.toLowerCase();
+    if (day) return part ? `${fmtDay(day.from)}, ${part}` : fmtDay(day.from);
+  }
+  return (TIME_WINDOWS.find((w) => w.id === id)?.label ?? 'nu').toLowerCase();
+}
 
 /**
  * The window a chip stands for, in words; '' for "Nu". Uses the same clamped range the answer
@@ -49,6 +66,8 @@ export interface WhenControl {
    * "Planning bekend tot 21 oktober" before anyone picks a later date; undefined hides it.
    */
   setHorizon(ms: number | undefined): void;
+  /** Folds the row into one line (phones, a road or place chosen); false unfolds it for good. */
+  setCompact(on: boolean): void;
 }
 
 export interface WhenCallbacks {
@@ -67,13 +86,21 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     .map((w) => `<button type="button" class="chip chip--time" role="radio" data-time="${w.id}" aria-checked="false">${esc(w.label)}</button>`)
     .join('');
 
-  root.innerHTML = `<span class="when__label" id="when-label">Wanneer?</span>
-    <div class="chips chips--time when__chips" role="radiogroup" aria-labelledby="when-label" data-when-chips>${chips}</div>
-    <div class="when__pick" data-when-pick></div>
-    <p class="when__hint" id="when-hint" hidden></p>
-    <div class="when__notes">
-      <p class="when__range" id="when-range" hidden></p>
-      <p class="when__horizon" id="when-horizon" hidden></p>
+  // `.when__body` is `display: contents` (its children lay out in the row as before) except when
+  // folded: hidden, or opened as a panel over the answer card (panel-controls.css).
+  root.innerHTML = `<button type="button" class="when__summary" data-when-summary aria-expanded="true" aria-controls="when-body">
+      ${ICONS.calendarClock}<span class="when__summary-text">Wanneer: <strong data-when-summary-value></strong></span>
+      <span class="when__summary-edit">wijzig</span>${ICONS.chevronDown}
+    </button>
+    <span class="when__label" id="when-label">Wanneer?</span>
+    <div class="when__body" id="when-body">
+      <div class="chips chips--time when__chips" role="radiogroup" aria-labelledby="when-label" data-when-chips>${chips}</div>
+      <div class="when__pick" data-when-pick></div>
+      <p class="when__hint" id="when-hint" hidden></p>
+      <div class="when__notes">
+        <p class="when__range" id="when-range" hidden></p>
+        <p class="when__horizon" id="when-horizon" hidden></p>
+      </div>
     </div>`;
 
   const chipsEl = root.querySelector<HTMLElement>('[data-when-chips]');
@@ -81,7 +108,18 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
   const hint = root.querySelector<HTMLElement>('#when-hint');
   const horizonEl = root.querySelector<HTMLElement>('#when-horizon');
   const rangeEl = root.querySelector<HTMLElement>('#when-range');
-  if (!chipsEl || !pickEl || !hint || !horizonEl || !rangeEl) throw new Error('when markup ontbreekt');
+  const summary = root.querySelector<HTMLButtonElement>('[data-when-summary]');
+  const summaryValue = root.querySelector<HTMLElement>('[data-when-summary-value]');
+  if (!chipsEl || !pickEl || !hint || !horizonEl || !rangeEl || !summary || !summaryValue) throw new Error('when markup ontbreekt');
+
+  /** Folded into one line: `compact` while a road or place is chosen, `open` after a tap on it. */
+  let compact = false;
+  let open = false;
+  const fold = (): void => {
+    root.classList.toggle('is-compact', compact);
+    root.classList.toggle('is-open', compact && open);
+    summary.setAttribute('aria-expanded', !compact || open ? 'true' : 'false');
+  };
 
   const datePick = mountDatePick(pickEl, {
     block: 'when',
@@ -111,6 +149,7 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     const range = has ? '' : whenRangeLabel(current, Date.now());
     rangeEl.textContent = range;
     rangeEl.hidden = range === '';
+    summaryValue.textContent = whenSummaryText(current, pick);
   };
 
   const select = (id: TimeWindowId, focus: boolean): void => {
@@ -127,7 +166,31 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
 
   chipsEl.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-time]');
-    if (btn) select(btn.dataset.time as TimeWindowId, false);
+    if (!btn) return;
+    select(btn.dataset.time as TimeWindowId, false);
+    // Opened from the folded line for this one tap: fold back, so the new answer is in view.
+    // (Arrow keys walk the chips without folding; a date may still get a day part, so it stays.)
+    if (compact && open) {
+      open = false;
+      fold();
+      summary.focus();
+    }
+  });
+
+  summary.addEventListener('click', () => {
+    open = !open;
+    fold();
+    if (open) chipsEl.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus({ preventScroll: true });
+  });
+
+  // Escape closes the opened panel first (and only that: main.ts would also lower the sheet).
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !compact || !open) return;
+    e.preventDefault();
+    e.stopPropagation();
+    open = false;
+    fold();
+    summary.focus();
   });
 
   chipsEl.addEventListener('keydown', (e) => {
@@ -165,6 +228,11 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     setHorizon(ms) {
       horizonEl.hidden = ms === undefined;
       horizonEl.textContent = ms === undefined ? '' : `Planning bekend tot ${horizonDateLabel(ms)}`;
+    },
+    setCompact(on) {
+      compact = on;
+      open = false;
+      fold();
     },
   };
 }
