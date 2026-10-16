@@ -16,6 +16,30 @@ export const ROAD_KIND = {
   overig: { label: 'Weg', badge: 'lokaal', groupTitle: 'Overige wegen' },
 };
 
+/**
+ * Publisher lines for colofon, contact and over, from site.config `owner`. All fields are
+ * optional: the owner chose (2026-10-12) to keep his name off the site, so with an empty
+ * `owner.name` the pages call Wegwerk a private initiative. Dutch law (art. 3:15d BW) asks a site
+ * that earns money for the publisher's name and geographic address (`owner.address`, e.g.
+ * "Dorpsstraat 1, 1234 AB Utrecht"), and the KvK and btw numbers once registered; `owner.city`
+ * alone is the lighter option. Plain text: the values go into Markdown, which escapes them.
+ */
+export function publisherVars(owner) {
+  const field = (key) => String(owner?.[key] ?? '').trim();
+  const [name, address, city, kvk, btw] = ['name', 'address', 'city', 'kvk', 'btw'].map(field);
+  const inCity = city ? ` (${city})` : '';
+  // The address belongs in colofon and contact; "Over" names the maker, not the street.
+  const who = name ? `${name}${address ? `, ${address}` : inCity}` : '';
+  const maker = name ? `${name}${inCity}` : '';
+  return {
+    sentence: who ? `Wegwerk wordt uitgegeven door ${who}.` : 'Wegwerk is een particulier initiatief.',
+    byline: maker ? `Wegwerk wordt gemaakt en onderhouden door ${maker}, los van de wegbeheerders.` : 'Wegwerk wordt onafhankelijk gemaakt en onderhouden, los van de wegbeheerders.',
+    registration: kvk
+      ? `KvK-nummer ${kvk}${btw ? `, btw-identificatienummer ${btw}` : ''}.`
+      : 'Zodra de site is ingeschreven bij de Kamer van Koophandel staan hier het KvK- en btw-nummer.',
+  };
+}
+
 export function roadKind(type) {
   return ROAD_KIND[type] ?? ROAD_KIND.overig;
 }

@@ -59,7 +59,7 @@ Zet in het filter de categorieën **File** en **Incident** aan. Files komen uit 
 
 ## Ik zie een fout in de gegevens. Waar meld ik dat?
 
-Wegwerk toont de gegevens ongewijzigd, dus een fout kan alleen bij de bron worden hersteld. Bij elke melding staat welke **wegbeheerder** hem heeft ingevoerd. Voor rijkswegen (A-wegen en een aantal N-wegen) is dat Rijkswaterstaat, bereikbaar via [rijkswaterstaat.nl](https://www.rijkswaterstaat.nl) of de gratis Landelijke Informatielijn 0800-8002. Voor provinciale wegen neem je contact op met de provincie, voor straten binnen de bebouwde kom met de gemeente. Gaat het om een technische fout in de open data zelf, dan kun je terecht bij [NDW](https://www.ndw.nu). Ziet iets er op onze kaart anders uit dan in de bron? Mail ons dan via de [contactpagina](/contact/).
+Wegwerk toont de gegevens zoals de wegbeheerder ze invoert, dus een fout kan in de regel alleen bij de bron worden hersteld. Bij elke melding staat welke **wegbeheerder** hem heeft ingevoerd. Voor rijkswegen (A-wegen en een aantal N-wegen) is dat Rijkswaterstaat, bereikbaar via [rijkswaterstaat.nl](https://www.rijkswaterstaat.nl) of de gratis Landelijke Informatielijn 0800-8002. Voor provinciale wegen neem je contact op met de provincie, voor straten binnen de bebouwde kom met de gemeente. Gaat het om een technische fout in de open data zelf, dan kun je terecht bij [NDW](https://www.ndw.nu). Ziet iets er op onze kaart anders uit dan in de bron? Mail ons dan via de [contactpagina](/contact/).
 
 ## Mag ik Wegwerk gratis gebruiken, ernaar linken of de kaart insluiten?
 

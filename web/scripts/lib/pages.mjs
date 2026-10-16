@@ -7,14 +7,15 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { markdownToHtml, parseFrontMatter, splitSections, stripMarkdown } from './markdown.mjs';
-import { escapeHtml } from './render.mjs';
+import { escapeHtml, protectEmails } from './render.mjs';
+import { isThinPage } from './activity.mjs';
 import { loadLists, nearestByCentroid, nearestRoads } from './lists.mjs';
 import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragments.mjs';
 import {
   PLANNING_REFRESH_MINUTES,
   bridgeDescription, bridgeFaq, bridgeIntro, bridgeTitle, bridgeVariants,
   clampText, fmtDate, fmtDateTime, mapHref,
-  placeDescription, placeFaq, placeHeading, placeIntro, placeTitle,
+  placeDescription, placeFaq, placeHeading, placeIntro, placeTitle, publisherVars,
   roadDescription, roadFaq, roadIntro, roadKind, roadTitle,
 } from './text.mjs';
 
@@ -73,7 +74,11 @@ export function loadContent(webRoot, warn = console.warn) {
 /* Model                                                                                      */
 /* ------------------------------------------------------------------------------------------ */
 
-export function buildModel({ webRoot, repoRoot, listsDir, now = new Date(), warn = console.warn }) {
+/**
+ * `activity` (activity.mjs, from the live data) marks place and bridge pages without anything to
+ * show as `thin`: noindex, follow, out of the sitemap, no ads. Without it every page is indexable.
+ */
+export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now = new Date(), warn = console.warn }) {
   const site = loadSite(webRoot);
   const lists = loadLists({ repoRoot, webRoot, listsDir, warn });
   const content = loadContent(webRoot, warn);
@@ -100,34 +105,37 @@ export function buildModel({ webRoot, repoRoot, listsDir, now = new Date(), warn
     bridgesByProv.get(prov).push(b);
   }
 
-  const pages = [];
+  const routes = [];
   for (const r of lists.roads) {
-    pages.push({
+    routes.push({
       type: 'road', path: `/weg/${r.slug}/`, entity: r, sitemap: true,
       priority: r.type === 'A' ? 0.8 : r.type === 'N' ? 0.6 : 0.5, changefreq: 'daily',
     });
   }
   for (const g of lists.gemeenten) {
-    pages.push({ type: 'place', kind: 'gemeente', path: `/gemeente/${g.slug}/`, entity: g, sitemap: true, priority: 0.6, changefreq: 'daily' });
+    routes.push({ type: 'place', kind: 'gemeente', path: `/gemeente/${g.slug}/`, entity: g, sitemap: true, priority: 0.6, changefreq: 'daily' });
   }
   for (const w of lists.woonplaatsen) {
-    pages.push({ type: 'place', kind: 'woonplaats', path: `/plaats/${w.slug}/`, entity: w, sitemap: true, priority: 0.5, changefreq: 'daily' });
+    routes.push({ type: 'place', kind: 'woonplaats', path: `/plaats/${w.slug}/`, entity: w, sitemap: true, priority: 0.5, changefreq: 'daily' });
   }
   for (const b of lists.bridges) {
-    pages.push({ type: 'bridge', path: `/brug/${b.slug}/`, entity: b, sitemap: true, priority: 0.5, changefreq: 'daily' });
+    routes.push({ type: 'bridge', path: `/brug/${b.slug}/`, entity: b, sitemap: true, priority: 0.5, changefreq: 'daily' });
   }
   for (const l of LIST_ROUTES) {
     if (!content.has(l.slug)) warn(`[gen-pages] content/${l.slug}.md ontbreekt – lijstpagina ${l.path} krijgt standaardtekst`);
-    pages.push({ type: 'list', path: l.path, slug: l.slug, list: l.list, sitemap: true, priority: l.priority, changefreq: l.changefreq });
+    routes.push({ type: 'list', path: l.path, slug: l.slug, list: l.list, sitemap: true, priority: l.priority, changefreq: l.changefreq });
   }
   for (const s of STATIC_ROUTES) {
     if (!content.has(s.slug)) {
       warn(`[gen-pages] content/${s.slug}.md ontbreekt – pagina ${s.path} overgeslagen`);
       continue;
     }
-    pages.push({ type: 'static', path: s.path, slug: s.slug, sitemap: true, priority: s.priority, changefreq: s.changefreq });
+    routes.push({ type: 'static', path: s.path, slug: s.slug, sitemap: true, priority: s.priority, changefreq: s.changefreq });
   }
-  pages.push({ type: 'static', path: '/404.html', slug: NOT_FOUND_SLUG, sitemap: false, outFile: '404.html', noindex: true });
+  routes.push({ type: 'static', path: '/404.html', slug: NOT_FOUND_SLUG, sitemap: false, outFile: '404.html', noindex: true });
+
+  const marked = routes.map((p) => (isThinPage(p, activity) ? { ...p, thin: true, sitemap: false } : p));
+  const pages = believable(marked, lists.gemeenten.length, warn) ? marked : routes;
 
   const counts = {
     roads: lists.roads.length,
@@ -136,6 +144,7 @@ export function buildModel({ webRoot, repoRoot, listsDir, now = new Date(), warn
     bridges: lists.bridges.length,
     lists: pages.filter((p) => p.type === 'list').length,
     statics: pages.filter((p) => p.type === 'static').length,
+    thin: pages.filter((p) => p.thin).length,
   };
 
   return {
@@ -147,6 +156,19 @@ export function buildModel({ webRoot, repoRoot, listsDir, now = new Date(), warn
     },
     warn,
   };
+}
+
+/**
+ * More than half of the gemeenten without a single roadwork is a broken index (a shifted column, a
+ * source that died), not a quiet day: on 2026-10-16 it was 9 of 342. Then no page is marked thin.
+ */
+const MAX_THIN_GEMEENTE_SHARE = 0.5;
+
+function believable(pages, gemeenteCount, warn) {
+  const thin = pages.filter((p) => p.thin && p.kind === 'gemeente').length;
+  if (gemeenteCount === 0 || thin / gemeenteCount <= MAX_THIN_GEMEENTE_SHARE) return true;
+  warn(`[gen-pages] ${thin} van ${gemeenteCount} gemeenten zouden zonder meldingen zijn; dat is geen rustige dag maar kapotte data – alle pagina's blijven indexeerbaar`);
+  return false;
 }
 
 /** File name of the entity-page manifest at the site root (web/src/data/entity-pages.ts reads it). */
@@ -225,6 +247,12 @@ function faqLd(items) {
   };
 }
 
+/** `ca-pub-…` for the `google-adsense-account` meta when ads are on; '' otherwise. */
+function adsenseAccount(site) {
+  const client = site.ads?.enabled ? String(site.ads.adsenseClient ?? '') : '';
+  return /^ca-pub-\d{10,20}$/.test(client) ? client : '';
+}
+
 function baseContext(model, page, { title, description, crumbs, current, ogType = 'website', extraLd = [] }) {
   const { site } = model;
   const siteUrl = String(site.url ?? '').replace(/\/+$/, '');
@@ -241,7 +269,8 @@ function baseContext(model, page, { title, description, crumbs, current, ogType 
     canonical,
     ogType,
     ogImage,
-    robots: page.noindex ? 'noindex, nofollow' : 'index, follow, max-image-preview:large',
+    robots: page.noindex ? 'noindex, nofollow' : page.thin ? 'noindex, follow' : 'index, follow, max-image-preview:large',
+    adsenseAccount: adsenseAccount(site),
     jsonld: jsonLd(graph),
     crumbs,
     crumbCurrent: current,
@@ -269,7 +298,6 @@ function roadContext(model, page) {
       crumbs,
       current: `Wegwerkzaamheden ${r.road}`,
       ogType: 'article',
-      extraLd: [faqLd(faq)],
     }),
     road: r.road,
     slug: r.slug,
@@ -318,7 +346,6 @@ function placeContext(model, page) {
       crumbs,
       current: placeHeading(p, kind),
       ogType: 'article',
-      extraLd: [faqLd(faq)],
     }),
     kind,
     isGemeente,
@@ -368,7 +395,6 @@ function bridgeContext(model, page) {
       crumbs,
       current: `Brugopeningen ${b.name}${variant ? ` (${variant})` : ''}`,
       ogType: 'article',
-      extraLd: [faqLd(faq)],
     }),
     id: b.id,
     name: b.name,
@@ -413,6 +439,7 @@ function contentVars(model, extra = {}) {
     buildDate: fmtDate(model.buildIso),
     refreshMinutes: model.site.refreshMinutes ?? 5,
     planningMinutes: model.site.planningRefreshMinutes ?? PLANNING_REFRESH_MINUTES,
+    publisher: publisherVars(model.site.owner),
     ...extra,
   };
 }
@@ -519,7 +546,7 @@ export function pageContext(page, model) {
 export function renderPage(page, model, templates) {
   const tpl = templates[page.type];
   if (!tpl) throw new Error(`Template voor ${page.type} ontbreekt`);
-  return tpl(pageContext(page, model));
+  return protectEmails(tpl(pageContext(page, model)));
 }
 
 /** Synthetic 404 page (also used by the dev plugin for unknown slugs). */

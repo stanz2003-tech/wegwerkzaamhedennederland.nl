@@ -1,5 +1,5 @@
 # Builds the static site and deploys web/dist to Cloudflare Pages (Direct Upload).
-# Runs on pushes to main that touch the site, or manually. Data is never deployed here;
+# Runs on pushes to main that touch the site, daily, or manually. Data is never deployed here;
 # it goes to R2 through the "Data" workflow.
 name: Deploy
 
@@ -12,6 +12,11 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/deploy.yml"
+  schedule:
+    # Daily rebuild: place and bridge pages without any roadworks get noindex and leave the
+    # sitemap, and that changes with the data (web/scripts/lib/activity.mjs reads DATA_BASE).
+    # Before the IndexNow run at 06:23 UTC, so that one reports today's sitemap.
+    - cron: "41 4 * * *"
   workflow_dispatch:
 
 concurrency:

@@ -2,16 +2,16 @@
 slug: disclaimer
 layout: static
 title: Disclaimer en bronvermelding
-description: De verkeersinformatie komt ongewijzigd van wegbeheerders via NDW en kan onvolledig of verouderd zijn. Volg onderweg altijd de bebording ter plaatse.
+description: De verkeersinformatie komt van wegbeheerders via NDW en kan onvolledig of verouderd zijn. Volg onderweg altijd de bebording ter plaatse.
 heading: Disclaimer
 kicker: Juridisch
 lead: Wegwerk toont open data van de Nederlandse wegbeheerders zonder redactionele controle. Gebruik de kaart om je te informeren en volg onderweg altijd de borden, de aanwijzingen van verkeersregelaars en de officiële kanalen van de wegbeheerder.
-updated: 2026-10-12
+updated: 2026-10-16
 ---
 
 ## Herkomst en verwerking van de gegevens
 
-De informatie op deze website is afkomstig van open data van het **Nationaal Dataportaal Wegverkeer (NDW)**, waarin Rijkswaterstaat, provincies, gemeenten en andere wegbeheerders hun wegwerkzaamheden, afsluitingen, omleidingen, evenementen, files en incidenten publiceren. Wegwerk haalt deze gegevens automatisch op, zet ze om naar een kaart en toont ze **zonder redactionele controle en zonder inhoudelijke wijzigingen**. Wat je ziet, is wat de wegbeheerder heeft ingevoerd, zoals het op het moment van de laatste update bij NDW bekend was.
+De informatie op deze website is afkomstig van open data van het **Nationaal Dataportaal Wegverkeer (NDW)**, waarin Rijkswaterstaat, provincies, gemeenten en andere wegbeheerders hun wegwerkzaamheden, afsluitingen, omleidingen, evenementen, files en incidenten publiceren. Wegwerk haalt deze gegevens automatisch op, zet ze om naar een kaart en vat elke melding samen in een antwoord als "weg dicht" of "doorrijden mogelijk". Er is **geen redactionele controle**: wat je ziet, is wat de wegbeheerder heeft ingevoerd, zoals het op het moment van de laatste update bij NDW bekend was. Spreekt een melding zichzelf tegen, dan gaan we uit van de zwaarste lezing en zeggen we dat erbij; een enkele duidelijke fout corrigeren we zelf, en dan staat dat bij de melding.
 
 Wegwerkzaamheden, afsluitingen, omleidingen en files kunnen **gewijzigd, vertraagd, onvolledig of onjuist** zijn. Werk kan eerder klaar zijn of uitlopen, een melding kan te laat worden ingevoerd of ingetrokken, en niet elke wegbeheerder meldt alles. Tussen twee updates zit tot {{refreshMinutes}} minuten voor het actuele beeld en ongeveer {{planningMinutes}} minuten voor de planning van werkzaamheden, en bij een storing bij een bron kan de informatie ouder zijn; in dat geval melden we dat op de kaart. De tijd van de laatste update staat op elke pagina.
 
@@ -36,7 +36,7 @@ Wegwerk is een particulier initiatief. Het is **geen officiële website** van Ri
 
 ## Externe links en advertenties
 
-Deze website bevat links naar websites van derden en, na toestemming, advertenties van derden. Wegwerk heeft geen invloed op de inhoud van die websites en advertenties en is daar niet verantwoordelijk voor. Een advertentie is geen aanbeveling van Wegwerk.
+Deze website bevat links naar websites van derden en advertenties van derden. Wegwerk heeft geen invloed op de inhoud van die websites en advertenties en is daar niet verantwoordelijk voor. Een advertentie is geen aanbeveling van Wegwerk.
 
 ## Intellectueel eigendom
 

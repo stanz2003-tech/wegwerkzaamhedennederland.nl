@@ -97,6 +97,7 @@ export const listGroupRow = await load('ui/list-group-row.ts');
 export const closedRoads = await load('ui/closed-roads.ts');
 export const motorwayBlock = await load('ui/motorway-block.ts');
 export const copy = await load('ui/copy.ts');
+export const adPolicy = await load('ui/ad-policy.ts');
 export const mapSelection = await load('ui/map-selection.ts');
 export const routeMatch = await load('data/route-match.ts');
 export const routing = await load('data/routing.ts');

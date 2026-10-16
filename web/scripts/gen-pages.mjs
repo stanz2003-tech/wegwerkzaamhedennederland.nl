@@ -8,6 +8,9 @@
  *   node scripts/gen-pages.mjs --lists <dir>       use the static lists from <dir> (testing)
  *   node scripts/gen-pages.mjs                     dry run: copy the static lists to public/lists and report
  *
+ * With `DATA_BASE` set (the Deploy workflow does), the live index decides which place and bridge
+ * pages have nothing to show; those get noindex and stay out of the sitemap (lib/activity.mjs).
+ *
  * Never throws on missing data: it warns and keeps going.
  */
 
@@ -16,6 +19,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 
+import { loadActivity } from './lib/activity.mjs';
 import { loadPartials, loadTemplates } from './lib/render.mjs';
 import { ENTITY_MANIFEST_FILE, PAGE_TYPES, buildEntityManifest, buildModel, outFileFor, renderPage, samplePages } from './lib/pages.mjs';
 import { copyLists } from './lib/lists.mjs';
@@ -67,7 +71,7 @@ export function generate(opts) {
     else warn(`[gen-pages] ${built} ontbreekt (is 'vite build' gedraaid?) – brontemplates gebruikt, zonder gebundelde assets`);
   }
 
-  const model = buildModel({ webRoot, repoRoot, listsDir: opts.lists, warn });
+  const model = buildModel({ webRoot, repoRoot, listsDir: opts.lists, activity: opts.activity ?? null, warn });
   const publicLists = join(webRoot, 'public', 'lists');
 
   if (!outDir) {
@@ -147,6 +151,7 @@ export function generate(opts) {
   const total = Object.values(written).reduce((a, b) => a + b, 0);
   const ms = Math.round(performance.now() - t0);
   console.log(`${total} pagina's gegenereerd (wegen ${written.road}, plaatsen ${placeKinds.woonplaats}, gemeenten ${placeKinds.gemeente}, bruggen ${written.bridge})`);
+  console.log(activitySummary(model, opts.activity));
   if (!opts.quiet) {
     console.log(
       `[gen-pages] + lijsten ${written.list}, statisch ${written.static}; sitemap ${sitemaps.length > 1 ? `${sitemaps.length - 1} delen + index` : '1 bestand'} (${sitemapEntries.length} URL's); ` +
@@ -157,6 +162,17 @@ export function generate(opts) {
   return { pages: total, written, placeKinds, failures, ms, outDir, model, warnings, sitemaps: sitemaps.length };
 }
 
+/** One line for the build log: how many pages left Google because they have nothing to show. */
+function activitySummary(model, activity) {
+  if (!activity) return "[gen-pages] geen live data (DATA_BASE niet gezet of niet bereikbaar): alle pagina's indexeerbaar";
+  const thin = model.pages.filter((p) => p.thin);
+  const of = (pred) => thin.filter(pred).length;
+  return (
+    `[gen-pages] live data ${activity.generated ?? '?'} (${activity.rows} meldingen): ${thin.length} pagina's zonder meldingen krijgen noindex ` +
+    `(plaatsen ${of((p) => p.kind === 'woonplaats')}, gemeenten ${of((p) => p.kind === 'gemeente')}, bruggen ${of((p) => p.type === 'bridge')})`
+  );
+}
+
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
   const opts = parseArgs(process.argv.slice(2));
@@ -164,7 +180,9 @@ if (isMain) {
     usage();
   } else {
     try {
-      const result = generate(opts);
+      const writes = Boolean(opts.out || opts.dist) && !opts.sample;
+      const activity = writes ? await loadActivity({ dataBase: process.env.DATA_BASE ?? '', warn: console.warn }) : null;
+      const result = generate({ ...opts, activity });
       if (result.error) process.exitCode = 1;
     } catch (err) {
       console.error(`[gen-pages] onverwachte fout: ${err.stack ?? err.message}`);

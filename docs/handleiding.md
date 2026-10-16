@@ -345,7 +345,10 @@ niet; `Validation floor not met` → NDW leverde te weinig data, wacht op de vol
 en komma's). Vul in: `url` → `https://www.<domein>` (zonder slash aan het eind),
 `contactEmail`; `owner.kvk` en `owner.btw` pas als je een KvK-nummer hebt. Je naam en woonplaats
 staan bewust nergens op de site (sinds 2026-10-12); de pagina's spreken van "de uitgever van
-Wegwerk". `dataBase` laat je staan: in productie gebruikt de site de variabele
+Wegwerk". Wil je dat later wel, vul dan `owner.name` in, met `owner.address` (straat, huisnummer,
+postcode en plaats) of alleen `owner.city`: colofon, contact en de pagina Over noemen je dan als
+uitgever. De wet (art. 3:15d BW) vraagt van een site met advertentie-inkomsten naam en
+vestigingsadres; het helpt ook bij de beoordeling door Google AdSense. `dataBase` laat je staan: in productie gebruikt de site de variabele
 `DATA_BASE`.
 
 9.2 Open de pagina's in `web/content/` (`over.md`, `contact.md`, `privacy.md`, `cookies.md`,

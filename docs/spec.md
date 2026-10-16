@@ -81,7 +81,7 @@ Why no framework: fewer dependencies to rot, small bundle, trivially hostable as
 
 **Ads**: reserved slots with fixed dimensions (CLS 0): panel bottom 300×250 (desktop), list inline every 8 items (fluid 300×100), mobile anchor left to AdSense anchor ads. Rendered only when `window.__ADS_ENABLED__` (config); otherwise the slot is hidden and the layout is unchanged. CMP: Google-certified CMP placeholder (AdSense Privacy & messaging) — documented script stub.
 
-**SEO pages**: static HTML per road generated at build (`web/scripts/gen-pages.mjs` reads the road list from the pipeline output) with unique `<title>`, description, `<h1>`, canonical, BreadcrumbList + FAQPage JSON-LD, plus `sitemap.xml` + `robots.txt`. Content hydrates from `roads/{road}.json`; a pre-rendered paragraph explains the page for crawlers.
+**SEO pages**: static HTML per road generated at build (`web/scripts/gen-pages.mjs` reads the road list from the pipeline output) with unique `<title>`, description, `<h1>`, canonical, BreadcrumbList JSON-LD (FAQPage dropped 2026-10-16), plus `sitemap.xml` + `robots.txt`. Content hydrates from `roads/{road}.json`; a pre-rendered paragraph explains the page for crawlers.
 
 **Performance budgets**: LCP < 2.5 s on 4G (first map tiles), JS < 300 kB gz total, 2 font families (latin subset, `font-display: swap`), preload the display weight only. `prefers-reduced-motion` honoured.
 

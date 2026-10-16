@@ -7,6 +7,7 @@
  * re-opens it for the footer link (`data-cmp-open`).
  */
 import site from '../../site.config.json';
+import { robotsAllowAds } from './ad-policy';
 
 type SlotName = 'panel' | 'list' | 'article';
 
@@ -79,7 +80,8 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
 
 /** Wires every `[data-ad-slot]` in `root`. Safe to call more than once (idempotent per slot). */
 export function mountAds(root: ParentNode = document): void {
-  const enabled = adsEnabled();
+  const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content;
+  const enabled = adsEnabled() && robotsAllowAds(robots);
   window.__ADS_ENABLED__ = enabled;
   const slots = root.querySelectorAll<HTMLElement>('[data-ad-slot]');
   if (!enabled) {

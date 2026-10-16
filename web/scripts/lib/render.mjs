@@ -23,6 +23,17 @@ export function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (c) => ESCAPES[c]);
 }
 
+const MAILTO_LINK_RE = /<a\s[^>]*href="mailto:[^"]*"[^>]*>[\s\S]*?<\/a>/g;
+
+/**
+ * Cloudflare's Email Obfuscation (zone setting) rewrites every e-mail address in our HTML to
+ * "[email protected]" plus a decoder script, so crawlers and an AdSense reviewer without
+ * JavaScript see no contact address. `<!--email_off-->` is Cloudflare's documented opt-out.
+ */
+export function protectEmails(html) {
+  return html.replace(MAILTO_LINK_RE, (link) => `<!--email_off-->${link}<!--/email_off-->`);
+}
+
 const TAG_RE = /\{\{\{\s*([^}]+?)\s*\}\}\}|\{\{\s*([^}]+?)\s*\}\}/g;
 
 /** Parse template source into a node tree. */

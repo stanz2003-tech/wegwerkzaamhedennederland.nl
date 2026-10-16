@@ -6,7 +6,7 @@ description: Welke cookies en browseropslag Wegwerk gebruikt, en hoe je toestemm
 heading: Cookiebeleid
 kicker: Juridisch
 lead: Wegwerk werkt zonder tracking. De site slaat één voorkeur op in je browser en plaatst advertentiecookies alleen nadat je daar toestemming voor hebt gegeven. Weigeren is net zo makkelijk als accepteren en heeft geen gevolgen voor het gebruik van de kaart.
-updated: 2026-09-08
+updated: 2026-10-16
 ---
 
 ## Wat zijn cookies en browseropslag?
@@ -23,7 +23,7 @@ Meer bewaren we niet. De kaartpositie, filters en de geselecteerde melding staan
 
 ## Toestemmingsbeheer
 
-Zodra we advertenties tonen, vraagt een toestemmingsbanner bij je eerste bezoek of je akkoord gaat met gepersonaliseerde advertenties. We gebruiken daarvoor de door Google gecertificeerde toestemmingstool (Google Privacy & messaging, volgens het IAB Transparency & Consent Framework). De banner heeft gelijkwaardige knoppen om te **accepteren** en te **weigeren** en een knop om per doel en per partner te kiezen. Vóór je keuze worden geen advertentiecookies geplaatst. Je keuze zelf wordt onthouden in een cookie:
+Op de tekstpagina's (de kaart heeft geen advertenties) vraagt een toestemmingsbanner bij je eerste bezoek of je akkoord gaat met advertentiecookies en gepersonaliseerde advertenties. We gebruiken daarvoor de door Google gecertificeerde toestemmingstool (Google Privacy & messaging, volgens het IAB Transparency & Consent Framework). De banner heeft gelijkwaardige knoppen om te **accepteren** en te **weigeren** en een knop om per doel en per partner te kiezen. Vóór je keuze worden geen advertentiecookies geplaatst. Je keuze zelf wordt onthouden in een cookie:
 
 | Naam | Soort | Geplaatst door | Doel | Bewaartermijn |
 |---|---|---|---|---|
@@ -41,11 +41,11 @@ Advertenties op Wegwerk worden geleverd door **Google AdSense** (Google Ireland 
 
 De lijst is indicatief: Google en de partners kunnen namen en termijnen wijzigen. De actuele lijst met partners en hun doeleinden zie je in de toestemmingsbanner onder "Opties beheren". Meer over hoe Google gegevens gebruikt lees je op [policies.google.com/technologies/partner-sites](https://policies.google.com/technologies/partner-sites).
 
-**Wat gebeurt er als je weigert?** De kaart en alle pagina's werken precies hetzelfde. Er worden dan hooguit niet-gepersonaliseerde advertenties getoond, waarvoor geen cookies op je apparaat worden geplaatst of uitgelezen.
+**Wat gebeurt er als je weigert?** De kaart en alle pagina's werken precies hetzelfde. Google toont dan hooguit beperkte, niet-gepersonaliseerde advertenties, waarvoor geen cookies op je apparaat worden geplaatst of uitgelezen.
 
 ## Toestemming wijzigen of intrekken
 
-- Klik onderaan elke pagina op **Cookie-instellingen**. De banner opent opnieuw en je kunt je keuze aanpassen of intrekken. Intrekken kost niet meer moeite dan accepteren.
+- Klik onderaan een pagina met advertenties op **Cookie-instellingen**. De banner opent opnieuw en je kunt je keuze aanpassen of intrekken. Intrekken kost niet meer moeite dan accepteren.
 - Je kunt cookies ook verwijderen of blokkeren in je browser. Kijk daarvoor bij de instellingen van [Chrome](https://support.google.com/chrome/answer/95647?hl=nl), [Firefox](https://support.mozilla.org/nl/kb/cookies-verwijderen-gegevens-wissen-websites-opgeslagen), [Safari](https://support.apple.com/nl-nl/guide/safari/sfri11471/mac) of [Edge](https://support.microsoft.com/nl-nl/microsoft-edge/cookies-verwijderen-in-microsoft-edge-63947406-40ac-c3b8-57b9-2a946a29ae09).
 - Je advertentievoorkeuren bij Google zelf beheer je op [adssettings.google.com](https://adssettings.google.com).
 

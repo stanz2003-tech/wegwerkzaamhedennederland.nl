@@ -6,7 +6,7 @@ description: Wat Wegwerk is, waar de gegevens over werkzaamheden, afsluitingen e
 heading: Over Wegwerk
 kicker: Over deze site
 lead: Wegwerk zet alle wegwerkzaamheden, afsluitingen, omleidingen, files en incidenten van Nederland op één kaart. Gratis, zonder account en zonder app, met open data van de Nederlandse wegbeheerders.
-updated: 2026-10-12
+updated: 2026-10-16
 ---
 
 ## Wat is Wegwerk?
@@ -23,7 +23,7 @@ Alle verkeersinformatie komt van het **Nationaal Dataportaal Wegverkeer (NDW)**,
 - **Actueel verkeersbeeld** – wat er op dit moment op de weg speelt: rijstrookafzettingen, afsluitingen, tijdelijke snelheidsbeperkingen, files, ongevallen, obstakels en brugopeningen.
 - **Planning van brugopeningen** – de openingen van beweegbare bruggen die de beheerders vooraf aanmelden.
 
-De achtergrondkaart is de **BRT Achtergrondkaart** van het Kadaster, geleverd via [PDOK](https://www.pdok.nl). De kaartsoftware is het open-sourceproject MapLibre GL JS. Alle bronnen en licenties staan in de [disclaimer](/disclaimer/).
+De achtergrondkaart is de **BRT Achtergrondkaart** van het Kadaster, geleverd via [PDOK](https://www.pdok.nl). De kaartsoftware is het open-sourceproject MapLibre GL JS. Alle bronnen en licenties staan in het [colofon](/colofon/).
 
 ## Hoe actueel is de informatie?
 
@@ -33,14 +33,14 @@ Bedenk wel: de kaart toont wat de wegbeheerder heeft **ingevoerd**. Werk dat eer
 
 ## Wat Wegwerk niet doet
 
-- We passen de gegevens **niet** aan, vullen ze niet aan en controleren ze niet ter plaatse. Wat de wegbeheerder invoert, is wat je ziet.
+- We controleren de gegevens **niet** ter plaatse. Wat de wegbeheerder invoert, is wat je ziet; wij voegen alleen een plaatsnaam en een samenvatting toe, zoals "weg dicht" of "doorrijden mogelijk". Twee uitzonderingen: spreekt een melding zichzelf tegen, dan gaan we uit van de zwaarste lezing en zeggen we dat erbij; en een enkele duidelijke fout corrigeren we zelf, met de vermelding "Door Wegwerk gecorrigeerd".
 - We zijn **geen navigatiedienst**. Gebruik de kaart om je te informeren en volg onderweg altijd de borden en de aanwijzingen van verkeersregelaars.
 - We slaan **geen** persoonlijke routes of locaties op. Zoekopdrachten worden alleen in je browser verwerkt.
 
 ## Onafhankelijk
 
-Wegwerk is een particulier initiatief en **geen officiële website** van Rijkswaterstaat, NDW, een provincie of gemeente. De site wordt betaald uit advertenties, die alleen worden getoond nadat je daar toestemming voor hebt gegeven. We verkopen geen gegevens over bezoekers. Hoe we met privacy omgaan, staat in de [privacyverklaring](/privacy/) en het [cookiebeleid](/cookies/).
+Wegwerk is een particulier initiatief en **geen officiële website** van Rijkswaterstaat, NDW, een provincie of gemeente. De site wordt betaald uit advertenties op de tekstpagina's; op de kaart staan er geen. Gepersonaliseerde advertenties zie je alleen als je daar toestemming voor geeft. We verkopen geen gegevens over bezoekers. Hoe we met privacy omgaan, staat in de [privacyverklaring](/privacy/) en het [cookiebeleid](/cookies/).
 
 ## Wie maakt Wegwerk?
 
-Wegwerk wordt onafhankelijk gemaakt en onderhouden, los van de wegbeheerders. Vragen, opmerkingen of een fout gezien? Kijk op de [contactpagina](/contact/). Fouten in de verkeersinformatie zelf meld je het snelst bij de wegbeheerder; ook dat staat daar uitgelegd.
+{{publisher.byline}} Vragen, opmerkingen of een fout gezien? Kijk op de [contactpagina](/contact/). Fouten in de verkeersinformatie zelf meld je het snelst bij de wegbeheerder; ook dat staat daar uitgelegd.

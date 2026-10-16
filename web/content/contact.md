@@ -6,7 +6,7 @@ description: Vragen over de site, samenwerking of adverteren? Mail ons. Fouten i
 heading: Contact
 kicker: Vragen en meldingen
 lead: Wegwerk wordt met weinig mensen gemaakt, dus een mail is de snelste weg. Een fout in de verkeersinformatie zelf kun je het beste direct bij de wegbeheerder melden; dan is hij ook meteen voor alle andere kaarten en navigatiesystemen hersteld.
-updated: 2026-10-12
+updated: 2026-10-16
 ---
 
 ## Mail ons
@@ -17,7 +17,7 @@ Verzoeken over je persoonsgegevens (inzage, verwijdering, bezwaar) kun je naar h
 
 ## Fout in de verkeersinformatie?
 
-Wegwerk toont de gegevens van de wegbeheerders ongewijzigd. Staat een werkzaamheid verkeerd op de kaart, is een afsluiting al voorbij of ontbreekt een omleiding, dan kan alleen de wegbeheerder dat corrigeren. Bij elke melding op de kaart staat wie de bron is.
+Wegwerk toont de gegevens zoals de wegbeheerders ze invoeren. Staat een werkzaamheid verkeerd op de kaart, is een afsluiting al voorbij of ontbreekt een omleiding, dan kan alleen de wegbeheerder dat corrigeren. Bij elke melding op de kaart staat wie de bron is.
 
 - **Rijkswegen (A-wegen en een aantal N-wegen):** Rijkswaterstaat, via [rijkswaterstaat.nl/contact](https://www.rijkswaterstaat.nl/contact) of de gratis Landelijke Informatielijn **0800-8002** (dag en nacht bereikbaar).
 - **Provinciale wegen (N-wegen):** het meldpunt of klantcontactcentrum van de provincie waarin de weg ligt.
@@ -36,4 +36,4 @@ Advertenties op Wegwerk lopen via Google AdSense; losse advertentieruimte verkop
 
 ## Gegevens
 
-Wegwerk is een particulier initiatief en is bereikbaar via [{{site.contactEmail}}](mailto:{{site.contactEmail}}). Zodra de site is ingeschreven bij de Kamer van Koophandel vermelden we hier het KvK- en btw-nummer.
+{{publisher.sentence}} De uitgever is bereikbaar via [{{site.contactEmail}}](mailto:{{site.contactEmail}}). {{publisher.registration}}

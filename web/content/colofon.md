@@ -6,14 +6,14 @@ description: Wie Wegwerk uitgeeft en welke bronnen en software erin zitten: open
 heading: Colofon
 kicker: Over deze site
 lead: Wegwerk is gebouwd op open data en open source. Hieronder staat wie de site uitgeeft en welke bronnen, software en diensten erin zitten, met de voorgeschreven bronvermelding.
-updated: 2026-10-12
+updated: 2026-10-16
 ---
 
 ## Uitgever
 
-De uitgever van {{site.longName}} ({{site.name}}, {{site.url}}) is bereikbaar via [{{site.contactEmail}}](mailto:{{site.contactEmail}}); zie ook de [contactpagina](/contact/). Zodra de site is ingeschreven bij de Kamer van Koophandel staan hier het KvK- en btw-nummer.
+{{publisher.sentence}} De uitgever van {{site.longName}} ({{site.name}}, {{site.url}}) is bereikbaar via [{{site.contactEmail}}](mailto:{{site.contactEmail}}); zie ook de [contactpagina](/contact/). {{publisher.registration}}
 
-Wegwerk is een particulier initiatief en geen officiële website van Rijkswaterstaat, NDW, een provincie of een gemeente. Lees ook de [disclaimer](/disclaimer/).
+Wegwerk is geen officiële website van Rijkswaterstaat, NDW, een provincie of een gemeente. Lees ook de [disclaimer](/disclaimer/).
 
 ## Bronvermelding
 
@@ -32,11 +32,11 @@ De verkeersinformatie en de kaart komen van de volgende bronnen. De bronvermeldi
 - **Iconen:** [Lucide](https://lucide.dev), ISC-licentie.
 - **Lettertypen:** Overpass (Red Hat) en IBM Plex Sans en IBM Plex Mono (IBM), beide onder de SIL Open Font License 1.1 ([licentie](/fonts/OFL.txt)). We serveren ze zelf, zodat je browser daarvoor geen verbinding met Google maakt.
 - **Hosting en distributie:** Cloudflare (Pages en R2). Bezoekersstatistieken, als die worden bijgehouden, via Cloudflare Web Analytics, dat geen cookies plaatst en geen bezoekers volgt; zie de [privacyverklaring](/privacy/).
-- **Advertenties:** Google AdSense, alleen op de tekstpagina's en alleen met toestemming voor gepersonaliseerde advertenties; zie het [cookiebeleid](/cookies/).
+- **Advertenties:** Google AdSense, alleen op de tekstpagina's en niet op de kaart. Gepersonaliseerde advertenties alleen met je toestemming; zonder toestemming toont Google hooguit beperkte advertenties zonder advertentiecookies. Zie het [cookiebeleid](/cookies/).
 
 ## Hoe de site werkt
 
-Wegwerk is een statische website zonder database of gebruikersaccounts. Een automatisch proces haalt de open data van NDW op, zet die om naar compacte kaartbestanden en publiceert ze: files, incidenten en brugopeningen elke {{refreshMinutes}} minuten, de planning van wegwerkzaamheden ongeveer elk kwartier. De pagina's per weg, plaats, gemeente en brug worden bij elke publicatie van de site opnieuw gegenereerd uit dezelfde bronnen; de actuele meldingen erop worden in je browser geladen.
+Wegwerk is een statische website zonder database of gebruikersaccounts. Een automatisch proces haalt de open data van NDW op, zet die om naar compacte kaartbestanden en publiceert ze: files, incidenten en brugopeningen elke {{refreshMinutes}} minuten, de planning van wegwerkzaamheden ongeveer elk kwartier. De pagina's per weg, plaats, gemeente en brug worden elke dag opnieuw gegenereerd uit dezelfde bronnen; de actuele meldingen erop worden in je browser geladen. Pagina's van plaatsen en bruggen waarvoor bij die dagelijkse update geen werkzaamheden, afsluitingen, evenementen of brugopeningen bekend zijn, blijven bereikbaar, maar vragen we zoekmachines niet op te nemen.
 
 ## Auteursrecht
 
