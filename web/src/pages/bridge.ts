@@ -212,4 +212,4 @@ async function main(): Promise<void> {
   await drawMap(entry, lon, lat, openings);
 }
 
-void main();
+boot.adsAfter(main());

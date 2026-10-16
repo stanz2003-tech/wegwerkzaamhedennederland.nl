@@ -947,6 +947,8 @@
 /* ------------------------------------------------------------------ ad slots */
 .ad-slot { height: 0; overflow: hidden; margin: 0; }
 .ad-slot.is-enabled { margin: var(--s-6) 0; background: var(--surface-2); border-radius: var(--r-2); }
+/* AdSense had no ad for this slot: collapse the box and its label instead of leaving them empty. */
+.ad-slot:has(> ins.adsbygoogle[data-ad-status='unfilled']) { display: none; }
 .ad-slot { --ad-label-h: 20px; }
 .ad-slot__label {
   display: block;

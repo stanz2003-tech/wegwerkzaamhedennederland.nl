@@ -186,6 +186,10 @@ domein → **Caching** → **Cache Rules** → **Create rule** → *Rule name* `
 Zet daarnaast de **zone-brede** instelling **Caching → Configuration → Browser Cache TTL** op
 **Respect Existing Headers**. De standaard (*4 hours*) overschrijft de `Cache-Control`-header van
 elk bestand, zodat browsers `meta.json` vier uur vasthouden en de site verouderde data toont.
+Dezelfde instelling laat ook de website zelf haar eigen cachetijden houden: het bestand
+`web/public/_headers` zegt dat de scripts, stijlen (`/assets/…`) en lettertypen (`/fonts/…`) een
+jaar in de browser mogen blijven (hun bestandsnaam verandert bij elke wijziging), en de pagina's
+zelf bij elk bezoek opnieuw gecontroleerd worden.
 
 4.8 **Controle (na §8).** Open in de browser twee keer `https://data.<domein>/v1/meta.json`.
 Ziet een ontwikkelaar in de response-headers `cf-cache-status: HIT`, dan werkt de cache.
@@ -377,7 +381,13 @@ aanmelden → site toevoegen → je krijgt een id `ca-pub-…`. Zet in `web/site
 `ads.adsenseClient` dat id en `ads.enabled` op `true`; commit en push. De site plaatst dan
 automatisch het AdSense-script en het bestand `/ads.txt` (`google.com, pub-…, DIRECT,
 f08c47fec0942fa0`). Vraag in AdSense de beoordeling aan (enkele dagen tot 2–4 weken). Maak daarna
-advertentieblokken aan en zet hun ids in `ads.slots`. Ga naar **Privacy & messaging** →
+advertentieblokken aan en zet hun ids in `ads.slots`. De pagina's hebben nu één vak, `article`
+(onder de lijst met meldingen); `panel` en `list` worden nergens gebruikt en mogen leeg blijven.
+Kies **Advertenties → Per advertentieblok → Displayadvertenties**, vorm *Vierkant*, formaat
+*Responsief* **(controleer** de namen**)**; uit de code die AdSense toont heb je alleen het getal
+achter `data-ad-slot` nodig.
+De site vraagt zelf om een rechthoek die in het gereserveerde vak past en klapt het vak in als
+Google er geen advertentie voor heeft. Ga naar **Privacy & messaging** →
 *European regulations* → maak de toestemmingsmelding (Google's eigen CMP, TCF v2.3) in het
 Nederlands, met de knop **"Niet akkoord"/"Do not consent"** ingeschakeld, en publiceer. Uitbetaling
 vanaf €70; zie `docs/onderzoek.md` §6.4 voor KvK en btw.

@@ -7,7 +7,7 @@
 import { loadMeta } from '../data/load';
 import { toMs } from '../data/time';
 import { slugify, type Meta } from '../data/types';
-import { mountAds, wireCmpLinks } from './ads';
+import { holdAdsUntil, mountAds, wireCmpLinks } from './ads';
 import { mountAnalytics } from './analytics';
 import { fmtDayTime } from './format';
 import { renderStaleBanner } from './stale-banner';
@@ -21,6 +21,12 @@ export interface PageBoot {
   topbar: Topbar | null;
   /** Resolves with meta.json, or null when it could not be loaded. Never rejects. */
   meta: Promise<Meta | null>;
+  /**
+   * The page's own start-up (data, answer, map): the AdSense script waits until it has settled
+   * (ui/ad-loader.ts) so it never competes with the answer. Call it right away with `main()`;
+   * a failure is logged here, as an unhandled rejection was before.
+   */
+  adsAfter(work: Promise<unknown>): void;
 }
 
 /** Mounts the shared chrome and starts loading meta.json. Safe to call once per page. */
@@ -50,7 +56,14 @@ export function bootPage(): PageBoot {
       );
 
   void meta.then(showStaleBanner);
-  return { topbar, meta };
+  const adsAfter = (work: Promise<unknown>): void => {
+    holdAdsUntil(
+      work.catch((err: unknown) => {
+        console.error('[wegwerk] pagina niet volledig opgebouwd:', err);
+      }),
+    );
+  };
+  return { topbar, meta, adsAfter };
 }
 
 /** "20:17" when the loaded data is stale (for the answer card's "nu"); undefined otherwise. */

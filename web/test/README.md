@@ -64,7 +64,9 @@ Not covered (and why):
 - `search-index.ts` PDOK Locatieserver calls (`suggestPlaces`, `lookupPlace`) — network.
 - `map/**` and the DOM parts of `ui/**` (`panel`, `list`, `detail`, `topbar`, `search`,
   `chips`, `controls`, `theme`, `toast`, `ads`, `analytics`, `badge`, `icons`, `list-item`) —
-  they need a browser (MapLibre needs WebGL2). These belong in a Playwright suite.
+  they need a browser (MapLibre needs WebGL2). These belong in a Playwright suite. The pure
+  parts of the ad code are tested: `ad-policy`, `ad-loader` (the deferred script) and `cmp`
+  (the cookie link); `ad-slots.test.mjs` reads the `ads.ts` source for the wiring.
 
 ## Fixtures
 

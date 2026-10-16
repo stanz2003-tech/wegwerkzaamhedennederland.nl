@@ -279,6 +279,9 @@ without pushing code, run it manually the same way.
   **Browser Cache TTL** (Caching → Configuration) to *Respect Existing Headers*; its default
   of 4 hours overrides the per-file `Cache-Control` and makes browsers hold stale data.
 - A Pages project (created automatically by the Deploy workflow if missing) with custom
-  domain(s) `www.<domein>` and the apex.
+  domain(s) `www.<domein>` and the apex. Its browser caching comes from `web/public/_headers`
+  (copied into `web/dist` by Vite): `/assets/*` and `/fonts/*` get
+  `public, max-age=31536000, immutable`, everything else keeps the Pages default
+  `public, max-age=0, must-revalidate`. This too needs the zone's *Respect Existing Headers*.
 
 Details with click paths: `docs/handleiding.md`.

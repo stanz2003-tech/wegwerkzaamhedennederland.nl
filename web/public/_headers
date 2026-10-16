@@ -1,0 +1,17 @@
+# Response headers for Cloudflare Pages (https://developers.cloudflare.com/pages/configuration/headers/).
+# Vite copies this file into web/dist; Pages applies it on deploy. A Cache-Control set here
+# replaces the Pages default "public, max-age=0, must-revalidate".
+#
+# Only files whose name changes with their content may be cached for a year, unchecked:
+#   /assets/*  everything Vite builds (JS, CSS); every file name carries a content hash.
+#   /fonts/*   the self-hosted fonts (src/styles/fonts.css); a changed font gets a new name.
+# Everything else (the HTML pages, /data/, sitemap.xml, robots.txt, ads.txt, icons) keeps the
+# default: the browser checks with Cloudflare on every visit, so a deploy is visible at once.
+# The zone setting Caching > Configuration > Browser Cache TTL must stay on "Respect Existing
+# Headers" (docs/handleiding.md, 4.7), or Cloudflare overrides these values.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable

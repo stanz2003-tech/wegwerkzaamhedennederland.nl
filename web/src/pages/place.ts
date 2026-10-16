@@ -106,4 +106,4 @@ async function main(): Promise<void> {
 }
 
 // Whatever happened, the reserved forecast slot must not stay a skeleton.
-void main().finally(() => releaseForecastSlot(forecastEl));
+boot.adsAfter(main().finally(() => releaseForecastSlot(forecastEl)));

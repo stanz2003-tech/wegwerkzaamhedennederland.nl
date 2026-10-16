@@ -1,27 +1,32 @@
 /**
  * Ad slots on content pages only (never on the map canvas).
  * Markup: <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
- * Filled only when site.config `ads.enabled` is true: AdSense script once, one <ins> per slot,
- * fixed height reserved (CLS 0). Otherwise the slots stay hidden with zero height.
+ * Filled only when site.config `ads.enabled` is true: one <ins> per slot, fixed height reserved
+ * (CLS 0); a slot AdSense leaves unfilled collapses (components.css). Otherwise the slots stay
+ * hidden with zero height. The AdSense script itself loads once, when the page is done (`load`,
+ * the page's own start-up, an idle moment: ui/ad-loader.ts); the slots wait in the
+ * `window.adsbygoogle` queue until it arrives.
  * Consent: Google's own CMP ("Privacy & messaging") ships with the AdSense script; `openCmp()`
  * re-opens it for the footer link (`data-cmp-open`).
  */
 import site from '../../site.config.json';
+import { deferAdScript, type AdScript } from './ad-loader';
 import { robotsAllowAds } from './ad-policy';
+import { createCmpOpener, type GoogleFc } from './cmp';
 
 type SlotName = 'panel' | 'list' | 'article';
 
 const SLOT_HEIGHT: Record<SlotName, number> = { panel: 250, list: 100, article: 280 };
+/**
+ * The ad shape that fits each reserved box: the 250 and 280 px boxes take a rectangle (300×250,
+ * 336×280); a horizontal banner there would leave most of the box empty.
+ */
+const SLOT_FORMAT: Record<SlotName, 'rectangle' | 'horizontal'> = { panel: 'rectangle', list: 'horizontal', article: 'rectangle' };
 /** Reclamecode: ads must be recognisable; AdSense allows only "Advertenties" or "Gesponsorde links". */
 const AD_LABEL = 'Advertenties';
 /** Must match --ad-label-h in components.css; reserved up front so the page does not jump. */
 const LABEL_HEIGHT = 20;
 const ADSENSE_SRC = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
-
-interface GoogleFc {
-  callbackQueue?: { push(cb: Record<string, () => void>): void };
-  showRevocationMessage?(): void;
-}
 
 declare global {
   interface Window {
@@ -39,19 +44,16 @@ export function adsEnabled(): boolean {
   return site.ads?.enabled === true && typeof site.ads.adsenseClient === 'string' && site.ads.adsenseClient.length > 0;
 }
 
-let scriptLoaded = false;
+/** The deferred AdSense script of this page; null until mountAds() schedules it. */
+let adScript: AdScript | null = null;
+const openConsentDialog = createCmpOpener(window);
 
-function loadAdsenseScript(client: string): void {
-  if (scriptLoaded || document.querySelector(`script[src^="${ADSENSE_SRC}"]`)) {
-    scriptLoaded = true;
-    return;
+/** Schedules the AdSense script once per page, for when the page is done (ui/ad-loader.ts). */
+function loadAdsenseScript(client: string): AdScript | null {
+  if (!adScript && !document.querySelector(`script[src^="${ADSENSE_SRC}"]`)) {
+    adScript = deferAdScript(`${ADSENSE_SRC}?client=${encodeURIComponent(client)}`);
   }
-  const s = document.createElement('script');
-  s.async = true;
-  s.crossOrigin = 'anonymous';
-  s.src = `${ADSENSE_SRC}?client=${encodeURIComponent(client)}`;
-  document.head.appendChild(s);
-  scriptLoaded = true;
+  return adScript;
 }
 
 function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: string): void {
@@ -72,7 +74,7 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
   ins.style.height = `${SLOT_HEIGHT[name]}px`;
   ins.dataset.adClient = client;
   ins.dataset.adSlot = slotId;
-  ins.dataset.adFormat = name === 'panel' ? 'rectangle' : 'horizontal';
+  ins.dataset.adFormat = SLOT_FORMAT[name];
   ins.dataset.fullWidthResponsive = 'false';
   el.appendChild(ins);
   (window.adsbygoogle = window.adsbygoogle ?? []).push({});
@@ -91,7 +93,7 @@ export function mountAds(root: ParentNode = document): void {
     return;
   }
   const client = site.ads.adsenseClient;
-  loadAdsenseScript(client);
+  const script = loadAdsenseScript(client);
   slots.forEach((el) => {
     const name = el.dataset.adSlot;
     if (!isSlotName(name)) return;
@@ -99,22 +101,26 @@ export function mountAds(root: ParentNode = document): void {
     if (!slotId) return;
     el.hidden = false;
     fillSlot(el, name, client, slotId);
+    // A blocked script brings no ad: no empty box with an "Advertenties" label either.
+    script?.onFail(() => {
+      el.hidden = true;
+    });
   });
 }
 
+/** The AdSense script also waits for this work of the page (its data, answer and map). */
+export function holdAdsUntil(work: Promise<unknown>): void {
+  adScript?.holdUntil(work);
+}
+
 /**
- * Re-opens Google's consent dialog. Returns false when the CMP is not on the page (ads disabled
- * or script blocked) so the caller can explain that no ad cookies are in use.
+ * Re-opens Google's consent dialog, also before the deferred AdSense script has arrived (ui/cmp.ts).
+ * Returns false when the CMP is not on the page (no ads here, or the script was blocked) so the
+ * caller can explain that no ad cookies are in use; `onUnavailable` is also called when a script
+ * that was still on its way fails afterwards.
  */
-export function openCmp(): boolean {
-  const fc = window.googlefc;
-  if (!fc?.callbackQueue) return false;
-  fc.callbackQueue.push({
-    CONSENT_DATA_READY: () => {
-      fc.showRevocationMessage?.();
-    },
-  });
-  return true;
+export function openCmp(onUnavailable?: () => void): boolean {
+  return openConsentDialog(adScript, onUnavailable);
 }
 
 /** Wires `[data-cmp-open]` links; `onUnavailable` is called when there is no CMP to open. */
@@ -122,7 +128,7 @@ export function wireCmpLinks(onUnavailable: () => void, root: ParentNode = docum
   root.querySelectorAll<HTMLElement>('[data-cmp-open]').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.preventDefault();
-      if (!openCmp()) onUnavailable();
+      if (!openCmp(onUnavailable)) onUnavailable();
     });
   });
 }

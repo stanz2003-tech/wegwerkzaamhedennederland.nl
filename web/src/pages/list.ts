@@ -285,4 +285,4 @@ async function main(): Promise<void> {
   if (itemsEl) renderEntityNotice(itemsEl, 'Deze lijst is niet beschikbaar.');
 }
 
-void main();
+boot.adsAfter(main());
