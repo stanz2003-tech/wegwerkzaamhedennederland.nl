@@ -42,7 +42,8 @@ const LIST_GAP_PX = 8;
 /** PDOK rows per call: places and streets are asked separately, so a village is never pushed out by its streets. */
 const PLACE_ROWS = 5;
 const STREET_ROWS = 4;
-const LOCAL_ROWS = 5;
+/** Local hits asked for: more than the three shown, so folding look-alikes leaves enough. */
+const LOCAL_ROWS = 12;
 /** How long a press on an option may take before its click (see the focusout handler). */
 const PRESS_MS = 800;
 
@@ -102,6 +103,33 @@ function itemSub(o: LocalHit, ctx: SearchContext, now: number): string {
   const extra = [CATEGORY_META[o.cat].label, ...(place && !o.title.includes(place) ? [place] : [])];
   // One text run for when + category, so a wrapped line never starts with a stray "·".
   return `${renderVerdictPill(verdict, { size: 'sm' })}<span class="search__when">${esc(when)} <span class="search__cat">· ${esc(extra.join(' · '))}</span></span>`;
+}
+
+/**
+ * The local hits as suggestion rows: "Utrecht" listed "A12 · Ring Utrecht · Doorrijden mogelijk"
+ * three times (review 2026-10-16). So:
+ *   - hits that would read exactly the same (road, title, verdict, when, category, place) are one
+ *     row, the best-scored one standing for the others;
+ *   - among equal scores every name comes once before its repeats, so the three rows shown name
+ *     three places where there are three. A repeat that differs in when or verdict keeps its own
+ *     row further down: its when-text tells it apart (zoek-4).
+ */
+export function distinctRows(hits: readonly LocalHit[], ctx: SearchContext, now: number): LocalHit[] {
+  const seenRow = new Set<string>();
+  const seenName = new Set<string>();
+  const rows: { hit: LocalHit; repeat: boolean }[] = [];
+  for (const o of hits) {
+    const verdict = listItemVerdict(modelFromIndexItem(o.item), now, { mode: ctx.mode, at: ctx.at, ...(ctx.window ? { window: ctx.window } : {}) });
+    const when = whenLabel({ start: o.item.start, end: o.item.end }, now);
+    const name = `${o.road ?? ''}|${o.title}`;
+    const key = [name, verdict.level, verdict.label, when, o.cat, o.woonplaats ?? o.gemeente ?? ''].join('|');
+    if (seenRow.has(key)) continue;
+    seenRow.add(key);
+    rows.push({ hit: o, repeat: seenName.has(name) });
+    seenName.add(name);
+  }
+  // Stable: the score order of searchLocal stays; only a repeat steps behind new names of its score.
+  return rows.sort((a, b) => b.hit.score - a.hit.score || Number(a.repeat) - Number(b.repeat)).map((r) => r.hit);
 }
 
 function renderOption(o: SearchOption, i: number, active: boolean, ctx: SearchContext, now: number): string {
@@ -273,7 +301,7 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
     const q = applyAlias(typed);
     const none = (): PlaceHit[] => [];
     const [local, places, streets] = await Promise.all([
-      getLocal().then((items) => searchLocal(items, q, LOCAL_ROWS)),
+      getLocal().then((items) => distinctRows(searchLocal(items, q, LOCAL_ROWS), context(), Date.now())),
       suggestPlaces(q, signal, PLACE_ROWS, 'places').catch(none),
       suggestPlaces(q, signal, STREET_ROWS, 'streets').catch(none),
     ]);

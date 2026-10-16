@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { dataIndex, searchIndex } from './helpers/src.mjs';
+import { dataIndex, searchIndex, uiSearch } from './helpers/src.mjs';
 
 const { normalizeRoadQuery, scoreItem, searchLocal, wktBbox, wktCoords, zoomForPlaceType } = searchIndex;
 const { indexItemFromRow, itemsInGemeente, itemsInWoonplaats, itemsOnRoad, rowsToItems, sortIndexItems, splitActive } = dataIndex;
@@ -210,6 +210,48 @@ describe('WKT helpers and zoom levels', () => {
     assert.equal(zoomForPlaceType('woonplaats'), 12.5);
     assert.equal(zoomForPlaceType('weg'), 14);
     assert.equal(zoomForPlaceType('iets anders'), 12);
+  });
+});
+
+describe('suggestions that would read the same are one row (review 2026-10-16)', () => {
+  const { distinctRows } = uiSearch;
+  const at = Date.parse('2026-10-16T20:00:00Z');
+  const ctx = { mode: 'auto', at };
+  // A 22-column (v3) row with its own end and impact.
+  const v3 = (id, title, road, end, { imp = 'hinder', start = '2026-09-14T09:57:00Z', woonplaats = null } = {}) =>
+    indexItemFromRow([id, 'werk', null, 2, title, road, road ? 'A' : null, 'Utrecht', woonplaats, 'Utrecht', start, end, 5.1, 52.06, 0, null, 1, imp, null, 0, null, null]);
+
+  it('identical "A12 · Ring Utrecht" rows become one; another period keeps its own row, after the other names', () => {
+    const items = [
+      v3('r1', 'A12 · Ring Utrecht', 'A12', '2026-11-10T22:59:00Z'),
+      v3('r2', 'A12 · Ring Utrecht', 'A12', '2026-11-10T22:59:00Z', { woonplaats: 'Utrecht' }),
+      v3('r3', 'A12 · Ring Utrecht', 'A12', '2026-11-10T22:59:00Z'),
+      v3('r4', 'A12 · Ring Utrecht', 'A12', '2026-11-14T06:00:00Z'),
+      v3('r5', 'A2 · Ring Utrecht', 'A2', '2026-11-30T11:00:00Z'),
+    ];
+    const rows = distinctRows(searchLocal(items, 'utrecht', 12), ctx, at);
+    // Equal scores: every name once first, so three suggestions are three different places.
+    assert.deepEqual(rows.map((h) => h.id), ['r1', 'r5', 'r4']);
+  });
+
+  it('a better match keeps its place before a new name', () => {
+    const items = [v3('x1', 'Utrecht, Croeselaan', null, null), v3('x2', 'Utrecht, Croeselaan', null, '2026-11-01T00:00:00Z'), v3('y', 'A27 · Lunetten bij Utrecht', 'A27', null)];
+    const rows = distinctRows(searchLocal(items, 'utrecht', 12), ctx, at);
+    assert.deepEqual(rows.map((h) => h.id), ['x1', 'x2', 'y'], 'a title that starts with the query scores higher than one that only contains it');
+  });
+
+  it('a heavier verdict under the same name is never folded into a lighter one', () => {
+    const items = [v3('h', 'A12 · Ring Utrecht', 'A12', '2026-11-10T22:59:00Z'), v3('d', 'A12 · Ring Utrecht', 'A12', '2026-11-10T22:59:00Z', { imp: 'dicht' })];
+    assert.deepEqual(distinctRows(searchLocal(items, 'utrecht', 12), ctx, at).map((h) => h.id).sort(), ['d', 'h']);
+  });
+
+  it('the same street at other moments keeps one row per moment (zoek-4)', () => {
+    const items = [
+      v3('p1', 'Provincialeweg Noord, Almkerk', null, null),
+      v3('p2', 'Provincialeweg Noord, Almkerk', null, null, { start: '2026-10-28T05:00:00Z' }),
+      v3('p3', 'Provincialeweg Noord, Almkerk', null, null, { start: '2026-11-05T05:00:00Z' }),
+    ];
+    assert.equal(distinctRows(searchLocal(items, 'provincialeweg', 12), ctx, at).length, 3);
   });
 });
 

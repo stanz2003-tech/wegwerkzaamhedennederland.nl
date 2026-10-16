@@ -262,7 +262,8 @@ export function noResultText(query: string): string {
  *   (e) "Filter de lijst op …" last.
  * With no hit at all: the typo guesses ("Bedoelde je Gorinchem?" preselected), or a note that
  * explains what to type — and then no "Filter de lijst", which could only lead to an empty list.
- * Items are never merged, also when two share a label: their when-text tells them apart.
+ * Items that share a label stay apart here: their when-text tells them apart. Rows that would
+ * read exactly the same are folded before this, in ui/search.ts `distinctRows`.
  */
 export function orderOptions(input: OrderInput): OrderedOptions {
   const options: SearchOption[] = [];
