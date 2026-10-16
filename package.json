@@ -17,6 +17,7 @@
     "data:offline": "node pipeline/bin/run.js --out web/public/data --cache pipeline/cache --no-geocode",
     "lists": "node pipeline/bin/build-wegen.js && node pipeline/bin/build-plaatsen.js && node pipeline/bin/build-bruggen.js",
     "vild": "node pipeline/bin/build-vild.js",
+    "road-lines": "node pipeline/bin/build-road-lines.js",
     "dev": "npm run dev -w @wegwerk/web",
     "build": "npm run build -w @wegwerk/web",
     "preview": "npm run preview -w @wegwerk/web",

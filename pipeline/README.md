@@ -370,6 +370,17 @@ The page generator (`web/`) copies `wegen.json`, `plaatsen.json` and
 `bruggen.json` and turns every entry into a page, so their `slug` fields are
 permanent URLs: builders only ever add or update entries.
 
+### Road lines (`web/public/road-lines/`, committed)
+
+`node bin/build-road-lines.js [--only A2,N210]` (root: `npm run road-lines`) writes
+`web/public/road-lines/<slug>.json` = `{road, source, lines: [lon, lat][][]}` for every A- and
+N-road of `wegen.json`: the main carriageway of that road in the NWB (PDOK WFS
+`nwbwegen:wegvakken`, CC0), selected on `wegnrHmp` (the number on the hectometre signs, so the
+A9 and the N9 stay apart) and `bstCode` HR/NRB/GRB/RB/MRB/TRB, chained end to end and simplified
+to 15 m (`src/road-lines.js`). The map draws it as a soft band in road mode. 576 of 595 roads,
+912 KB in all (2026-10-16); the 19 without a file are N-numbers the NWB no longer carries. Roads
+rarely change course: rerun it now and then; a full run (≈ 5 min) also removes stale files.
+
 ## Caches (`pipeline/cache/`)
 
 | File | Written by | Committed? | Purpose |
