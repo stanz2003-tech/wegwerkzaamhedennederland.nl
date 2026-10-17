@@ -173,7 +173,7 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     if (compact && open) {
       open = false;
       fold();
-      summary.focus();
+      summary.focus({ preventScroll: true });
     }
   });
 
@@ -190,7 +190,7 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     e.stopPropagation();
     open = false;
     fold();
-    summary.focus();
+    summary.focus({ preventScroll: true });
   });
 
   chipsEl.addEventListener('keydown', (e) => {
