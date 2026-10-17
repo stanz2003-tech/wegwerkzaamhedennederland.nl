@@ -138,7 +138,7 @@
   line-height: 1.4;
 }
 
-/* "Alle 18 meldingen in de lijst ↓": the specifics are not the whole story (overzicht-9). */
+/* "18 meldingen in de lijst ↓": the specifics are not the whole story (overzicht-9). */
 .answer__more { font-size: var(--text-sm); margin-top: calc(-1 * var(--s-2)); }
 
 .answer__more a {

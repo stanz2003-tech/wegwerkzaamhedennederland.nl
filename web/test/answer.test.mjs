@@ -343,9 +343,10 @@ describe('the card points to the list with the number of meldingen, with or with
     const onMap = answerFor(map, 'auto', when, subject, at);
     const onPage = answerFor(page, 'auto', when, subject, at);
     assert.notEqual(onMap.moreCount, onPage.moreCount, 'the distinct lines differ with the detail: the cause of the review finding');
-    assert.match(more(onMap), /Alle 5 meldingen in de lijst/);
+    assert.match(more(onMap), />5 meldingen in de lijst/);
     assert.equal(more(onPage), more(onMap));
     assert.doesNotMatch(more(onPage), /plek/);
+    assert.doesNotMatch(more(onPage), /Alle/, 'a page list also holds "Gepland": no claim to be all of it');
   });
 
   it('no list link while the card can name every melding', () => {
