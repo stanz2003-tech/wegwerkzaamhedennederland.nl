@@ -270,6 +270,10 @@ describe('daySpan: the real hours of a strip day (review 2026-10-16)', () => {
     const known = item([['2026-10-02T19:00:00Z', '2026-10-03T03:00:00Z', 'dicht']], { tlTo: '2026-10-03T03:00:00Z' }, { end: '2026-10-10T00:00:00Z' });
     assert.equal(daySpan([known], 'auto', 'dicht', SAT, SAT), 'tot 05:00, daarna nog niet bekend');
     assert.equal(daySpan([known], 'auto', 'dicht', FRI, FRI_FROM_14), '21:00–05:00', 'the day before, tlTo lies in the next day');
+    // The pipeline also ends a timeline at a local midnight (its `changesAfter` cut), clipping
+    // the last stretch there: "21:00–00:00" alone would be a false end.
+    const toMidnight = item([['2026-10-02T19:00:00Z', '2026-10-02T22:00:00Z', 'dicht']], { tlTo: '2026-10-02T22:00:00Z' }, { end: '2026-10-10T00:00:00Z' });
+    assert.equal(daySpan([toMidnight], 'auto', 'dicht', FRI, FRI_FROM_14), '21:00–00:00, daarna nog niet bekend');
   });
 
   it('null when nothing at the level touches the judged window', () => {

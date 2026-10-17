@@ -21,6 +21,8 @@ const PAGE = 1000;
 /** Three requests at a time, each worker pausing between roads: ~2 requests a second. */
 const PARALLEL = 3;
 const PAUSE_MS = 100;
+/** "a2.json", "n210.json", "n915a.json": what this script writes, and all it may remove. */
+const ROAD_FILE = /^[an]\d+[a-z]?\.json$/;
 const RETRIES = 2;
 const TIMEOUT_MS = 60_000;
 
@@ -129,9 +131,10 @@ async function main() {
   // A full run removes the files of roads that left wegen.json. A road the NWB answered empty
   // for keeps its file: an empty answer may be a passing PDOK hiccup, and a stale line is
   // harmless where a missing one is a loss.
+  // Only names shaped like a road file, so a mistyped --out never loses other JSON.
   if (!only) {
     const listed = new Set(roads.map((r) => `${r.slug}.json`));
-    for (const name of readdirSync(values.out)) if (name.endsWith('.json') && !listed.has(name)) rmSync(join(values.out, name));
+    for (const name of readdirSync(values.out)) if (ROAD_FILE.test(name) && !listed.has(name)) rmSync(join(values.out, name));
   }
   process.stdout.write(`road-lines: ${written.size} of ${roads.length} roads, ${(bytes / 1024).toFixed(0)} KB → ${values.out}\n`);
   if (missing.length > 0) process.stdout.write(`no NWB main carriageway for ${missing.length}: ${missing.slice(0, 40).join(', ')}${missing.length > 40 ? ' …' : ''}\n`);

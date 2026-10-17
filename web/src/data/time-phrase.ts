@@ -252,9 +252,10 @@ export function daySpan(
   const parts = runs.map((s) => runLabel(s, day));
   const text = parts.length > 2 ? `o.a. ${parts.slice(0, 2).join(' en ')}` : parts.join(' en ');
   // Past `tlTo` the working times are not known: "tot 05:00" alone would suggest a reopening.
+  // Up to and including the next midnight, where the pipeline also cuts a timeline off.
   const unknownTail = items.some((it) => {
     const knownUntil = toMs(it.d?.tlTo ?? null);
-    return Number.isFinite(knownUntil) && knownUntil > judged.from && knownUntil < day.to;
+    return Number.isFinite(knownUntil) && knownUntil > judged.from && knownUntil <= day.to + TOUCH_MS;
   });
   return unknownTail ? `${text}, daarna nog niet bekend` : text;
 }
