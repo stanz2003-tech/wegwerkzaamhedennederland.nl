@@ -250,7 +250,13 @@ export function daySpan(
   // and still is a night closure.
   if (runs.some((s) => s.start <= day.from + TOUCH_MS && s.end >= day.to - TOUCH_MS)) return 'hele dag';
   const parts = runs.map((s) => runLabel(s, day));
-  return parts.length > 2 ? `o.a. ${parts.slice(0, 2).join(' en ')}` : parts.join(' en ');
+  const text = parts.length > 2 ? `o.a. ${parts.slice(0, 2).join(' en ')}` : parts.join(' en ');
+  // Past `tlTo` the working times are not known: "tot 05:00" alone would suggest a reopening.
+  const unknownTail = items.some((it) => {
+    const knownUntil = toMs(it.d?.tlTo ?? null);
+    return Number.isFinite(knownUntil) && knownUntil > judged.from && knownUntil < day.to;
+  });
+  return unknownTail ? `${text}, daarna nog niet bekend` : text;
 }
 
 /**
