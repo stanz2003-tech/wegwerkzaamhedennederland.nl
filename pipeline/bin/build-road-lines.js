@@ -3,8 +3,9 @@
  * Build `web/public/road-lines/<slug>.json`: the course of every A- and N-road of
  * `static/wegen.json` as light lines for the map's road mode (src/road-lines.js), from the NWB
  * wegvakken of PDOK (WFS, CC0). One request per road, a few at a time; roads the NWB does not know
- * under that number (S-routes, E-numbers, renumbered roads) get no file and the map simply draws
- * no line for them. Roads rarely change course: run it by hand now and then, not in the pipeline.
+ * under that number (renumbered roads) get no file and the map simply draws no line for them; an
+ * existing file is kept then. Roads rarely change course: run it by hand now and then, not in the
+ * pipeline.
  *
  *   node bin/build-road-lines.js [--wegen static/wegen.json] [--out ../web/public/road-lines] [--only A2,N210]
  */
@@ -17,7 +18,9 @@ import { MAIN_BST_CODES, roadLineFile } from '../src/road-lines.js';
 
 const WFS = 'https://service.pdok.nl/rws/nwbwegen/wfs/v1_0';
 const PAGE = 1000;
+/** Three requests at a time, each worker pausing between roads: ~2 requests a second. */
 const PARALLEL = 3;
+const PAUSE_MS = 100;
 const RETRIES = 2;
 const TIMEOUT_MS = 60_000;
 
@@ -118,13 +121,17 @@ async function main() {
         failed.push(`${r.road} (${err instanceof Error ? err.message : String(err)})`);
       }
       if ((i + 1) % 50 === 0) process.stdout.write(`${i + 1}/${roads.length}\n`);
+      await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));
     }
   };
   await Promise.all(Array.from({ length: PARALLEL }, worker));
 
-  // A full run also removes the files of roads that are gone or lost their NWB number.
-  if (!only && failed.length === 0) {
-    for (const name of readdirSync(values.out)) if (name.endsWith('.json') && !written.has(name)) rmSync(join(values.out, name));
+  // A full run removes the files of roads that left wegen.json. A road the NWB answered empty
+  // for keeps its file: an empty answer may be a passing PDOK hiccup, and a stale line is
+  // harmless where a missing one is a loss.
+  if (!only) {
+    const listed = new Set(roads.map((r) => `${r.slug}.json`));
+    for (const name of readdirSync(values.out)) if (name.endsWith('.json') && !listed.has(name)) rmSync(join(values.out, name));
   }
   process.stdout.write(`road-lines: ${written.size} of ${roads.length} roads, ${(bytes / 1024).toFixed(0)} KB → ${values.out}\n`);
   if (missing.length > 0) process.stdout.write(`no NWB main carriageway for ${missing.length}: ${missing.slice(0, 40).join(', ')}${missing.length > 40 ? ' …' : ''}\n`);
