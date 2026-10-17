@@ -164,17 +164,21 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     if (changed) cb.onChange(id);
   };
 
+  /** Folds the opened panel back into its line; `refocus` when the focus was inside it. */
+  const shut = (refocus: boolean): void => {
+    if (!compact || !open) return;
+    open = false;
+    fold();
+    if (refocus) summary.focus({ preventScroll: true });
+  };
+
   chipsEl.addEventListener('click', (e) => {
     const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-time]');
     if (!btn) return;
     select(btn.dataset.time as TimeWindowId, false);
     // Opened from the folded line for this one tap: fold back, so the new answer is in view.
     // (Arrow keys walk the chips without folding; a date may still get a day part, so it stays.)
-    if (compact && open) {
-      open = false;
-      fold();
-      summary.focus({ preventScroll: true });
-    }
+    shut(true);
   });
 
   summary.addEventListener('click', () => {
@@ -188,9 +192,17 @@ export function mountWhenControl(root: HTMLElement, initial: { time: TimeWindowI
     if (e.key !== 'Escape' || !compact || !open) return;
     e.preventDefault();
     e.stopPropagation();
-    open = false;
-    fold();
-    summary.focus({ preventScroll: true });
+    shut(true);
+  });
+
+  // A tap anywhere else (the map, the list, the card) or a Tab out of the row folds it too: after
+  // picking a date it stayed open and pinned over the verdict while the reader scrolled on.
+  // `pointerdown`, not focus: Safari does not focus a tapped button, so a blur proves nothing.
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target instanceof Node && !root.contains(e.target)) shut(false);
+  });
+  root.addEventListener('focusout', (e) => {
+    if (e.relatedTarget instanceof Node && !root.contains(e.relatedTarget)) shut(false);
   });
 
   chipsEl.addEventListener('keydown', (e) => {
