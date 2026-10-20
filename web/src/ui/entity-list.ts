@@ -129,8 +129,8 @@ export function firstGroupBatch(groups: readonly ListGroup<IndexItem>[], batch: 
   return Math.max(batch, last + 1);
 }
 
-function renderBatch(container: HTMLElement, groups: readonly ListGroup<IndexItem>[], from: number, count: number, now: number, opts: EntityListOptions): void {
-  const html = groups
+function batchHtml(groups: readonly ListGroup<IndexItem>[], from: number, count: number, now: number, opts: EntityListOptions): string {
+  return groups
     .slice(from, from + count)
     .map((g, i) =>
       renderGroupHtml(g, (it, extra) =>
@@ -143,22 +143,55 @@ function renderBatch(container: HTMLElement, groups: readonly ListGroup<IndexIte
       ),
     )
     .join('');
-  container.insertAdjacentHTML('beforeend', html);
+}
+
+function renderBatch(container: HTMLElement, groups: readonly ListGroup<IndexItem>[], from: number, count: number, now: number, opts: EntityListOptions): void {
+  container.insertAdjacentHTML('beforeend', batchHtml(groups, from, count, now, opts));
+}
+
+/** Inner HTML of a group's `<h2>`, or of the `<summary>` of a collapsed one. */
+function headingHtml(section: EntitySection): string {
+  const count = `<span class="entity-list__group-count">${formatCount(section.items.length)}</span>`;
+  return section.collapsed ? `<span>${esc(section.title ?? '')}</span> ${count}` : `${esc(section.title ?? '')} ${count}`;
 }
 
 /** `<h2>` heading of an open group, or the `<summary>` of a collapsed one. */
 function buildHeading(section: EntitySection): HTMLElement {
-  const count = `<span class="entity-list__group-count">${formatCount(section.items.length)}</span>`;
-  if (section.collapsed) {
-    const summary = document.createElement('summary');
-    summary.className = 'entity-list__group-title';
-    summary.innerHTML = `<span>${esc(section.title ?? '')}</span> ${count}`;
-    return summary;
+  const el = document.createElement(section.collapsed ? 'summary' : 'h2');
+  el.className = 'entity-list__group-title';
+  el.innerHTML = headingHtml(section);
+  return el;
+}
+
+export interface SectionsHtml {
+  html: string;
+  /** Meldingen behind the row limit, over all sections. */
+  more: number;
+}
+
+/**
+ * The same sections as `renderEntityList`, as an HTML string with at most `limit` rows in all and
+ * no "Toon meer" button: the build writes it into the page (ui/entity-snapshot.ts) for readers
+ * that run no script, and the page script replaces it with the live list.
+ */
+export function renderSectionsHtml(sections: readonly EntitySection[], now: number, opts: EntityListOptions = {}, limit = ENTITY_BATCH): SectionsHtml {
+  let left = limit;
+  let more = 0;
+  const parts: string[] = [];
+  for (const section of sections) {
+    if (section.items.length === 0) continue;
+    const rows = groupRows(section.items, now, opts);
+    const shown = Math.min(rows.length, left);
+    left -= shown;
+    more += memberCount(rows.slice(shown));
+    if (shown === 0) continue;
+    const tag = section.collapsed ? 'details' : 'section';
+    const cls = section.collapsed ? 'entity-list__group entity-list__group--collapsed' : 'entity-list__group';
+    const heading = section.title ? `<${section.collapsed ? 'summary' : 'h2'} class="entity-list__group-title">${headingHtml(section)}</${section.collapsed ? 'summary' : 'h2'}>` : '';
+    const note = section.note ? `<p class="entity-list__group-note">${esc(section.note)}</p>` : '';
+    parts.push(`<${tag} class="${cls}">${heading}${note}<div class="entity-list__items">${batchHtml(rows, 0, shown, now, opts)}</div></${tag}>`);
   }
-  const h = document.createElement('h2');
-  h.className = 'entity-list__group-title';
-  h.innerHTML = `${esc(section.title ?? '')} ${count}`;
-  return h;
+  return { html: parts.join(''), more };
 }
 
 function buildSection(section: EntitySection, now: number, opts: EntityListOptions): HTMLElement {

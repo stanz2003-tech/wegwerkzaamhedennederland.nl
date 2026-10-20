@@ -14,27 +14,18 @@ import '../styles/entity-list.css';
 import '../styles/pages.css';
 import '../styles/list-filter.css';
 
-import { compareImpact, compareStart, dedupeItems, roadKey } from '../data/entity';
-import { groupByWindow, normalizeText } from '../data/filter';
+import { dedupeItems, roadKey } from '../data/entity';
+import { normalizeText } from '../data/filter';
 import { indexItemFromRow, loadIndexAll, rowsToItems, type IndexItem } from '../data/index';
 import { isIndexRow, loadBridges, loadLive } from '../data/load';
-import { MEDIUM_RUN_MS, timeWindowBounds, toMs } from '../data/time';
+import { toMs } from '../data/time';
 import { slugify, type BridgeEntry } from '../data/types';
 import type { VerdictLevel } from '../data/verdict';
-import { renderEntityList, renderEntityNotice, renderEntitySkeleton, rowVerdict, type EntitySection } from '../ui/entity-list';
+import { renderEntityList, renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
 import { esc, fmtDayTime, formatCount, plural } from '../ui/format';
-import {
-  BACKGROUND_TITLE,
-  LIST_TITLES,
-  LIST_WINDOW,
-  MOTORWAY_TITLES,
-  listSummary,
-  windowOrder,
-  type DataList,
-  type ListCounts,
-} from '../ui/list-summary';
-import { motorwayLines, renderMotorwayBlock } from '../ui/motorway-block';
-import { bodyAttr, bootPage, setEmptyVisible, setText, stampUpdated } from '../ui/page-boot';
+import { listView } from '../ui/list-sections';
+import type { DataList } from '../ui/list-summary';
+import { bodyAttr, bootPage, setEmptyVisible, setText, showListNotice, stampUpdated, startEntityList } from '../ui/page-boot';
 import { roadStateHtml, worstActiveByKey } from '../ui/road-state';
 import { FILTER_LABELS, mountListFilter } from './list-filter';
 
@@ -42,18 +33,17 @@ const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer he
 
 type PrerenderedList = 'wegen' | 'plaatsen' | 'bruggen';
 
-/** Which items a page shows, and whether it needs live.geojson merged in. */
+/** Whether a page needs live.geojson merged in (which items it shows: ui/list-sections.ts). */
 interface ListConfig {
-  match(it: IndexItem): boolean;
   /** Merge live.geojson so files/incidents show up even if the index lags behind. */
   live: boolean;
 }
 
 const CONFIG: Record<DataList, ListConfig> = {
-  afsluitingen: { match: (it) => it.cat === 'afsluiting' || it.closed, live: false },
-  files: { match: (it) => it.cat === 'file', live: true },
-  vandaag: { match: () => true, live: true },
-  weekend: { match: () => true, live: true },
+  afsluitingen: { live: false },
+  files: { live: true },
+  vandaag: { live: true },
+  weekend: { live: true },
 };
 
 function isDataList(v: string | undefined): v is DataList {
@@ -66,7 +56,7 @@ function isPrerenderedList(v: string | undefined): v is PrerenderedList {
 
 const list = bodyAttr('list');
 const itemsEl = document.getElementById('list-items');
-if (itemsEl && isDataList(list)) renderEntitySkeleton(itemsEl, 5);
+if (itemsEl && isDataList(list)) startEntityList(itemsEl, (el) => renderEntitySkeleton(el, 5));
 
 const boot = bootPage();
 
@@ -121,7 +111,7 @@ async function renderDataList(id: DataList): Promise<void> {
     rows = rowsToItems(index.rows);
   } catch (err) {
     console.warn('[wegwerk] index niet geladen:', err instanceof Error ? err.message : String(err));
-    if (itemsEl) renderEntityNotice(itemsEl, DATA_NOTICE);
+    showListNotice(itemsEl, DATA_NOTICE, renderEntityNotice);
     return;
   }
 
@@ -134,50 +124,13 @@ async function renderDataList(id: DataList): Promise<void> {
   }
 
   const now = Date.now();
-  const matched = rows.filter((it) => {
-    if (!cfg.match(it)) return false;
-    const end = toMs(it.end);
-    // Anything that is already over is not news for any window.
-    return Number.isNaN(end) || end >= now;
-  });
-
-  // What actually happens inside the window, separated from the semi-permanent measures that
-  // merely overlap it. Without this split every years-long width restriction that happens to
-  // cross Friday 20:00 was reported as "nu actief" — 4.544 of them for one weekend.
-  // "Vandaag" and "dit weekend" answer "what happens then", so a measure that has already stood
-  // for a month belongs in the collapsed background group rather than at the top of the page.
-  // The broader 7-day and "nu" lists keep the 90-day default.
-  const longRunMs = id === 'vandaag' || id === 'weekend' ? MEDIUM_RUN_MS : undefined;
-  const groups = groupByWindow(matched, LIST_WINDOW[id], now, { longRunMs });
-  const active = groups.changes.filter((it) => it.active).sort((a, b) => compareImpact(a, b, now));
-  const upcoming = groups.changes.filter((it) => !it.active).sort(compareStart);
-  const background = [...groups.background].sort((a, b) => compareImpact(a, b, now));
-  // Today and the weekend lead with the closures, motorways first, as their intro promises
-  // (overzicht-12); the pill each row shows decides, so the order can never disagree with it.
-  const motorway = MOTORWAY_TITLES[id];
-  const levelOf = (it: IndexItem): VerdictLevel => rowVerdict(it, now).level;
-  const activeRows = motorway ? windowOrder(active, levelOf) : active;
-  const upcomingRows = motorway ? windowOrder(upcoming, levelOf) : upcoming;
-
-  const counts: ListCounts = {
-    changes: groups.changes.length,
-    active: active.length,
-    upcoming: upcoming.length,
-    background: background.length,
-  };
-  const titles = LIST_TITLES[id];
-  setText('list-summary', listSummary(id, counts));
-  setEmptyVisible('list-empty', counts.changes === 0 && counts.background === 0);
+  const view = listView(id, rows, now);
+  setText('list-summary', view.summary);
+  setEmptyVisible('list-empty', view.counts.changes === 0 && view.counts.background === 0);
 
   if (!itemsEl) return;
-  const sections: EntitySection[] = [{ title: titles.active, items: activeRows }];
-  if (titles.upcoming) sections.push({ title: titles.upcoming, items: upcomingRows });
-  sections.push({ title: BACKGROUND_TITLE, items: background, collapsed: true, note: titles.backgroundNote });
-  renderEntityList(itemsEl, sections, now, { linkQuery: id === 'files' ? 'cat=file' : undefined });
-  if (motorway) {
-    const lines = motorwayLines([...activeRows, ...upcomingRows, ...background], levelOf, timeWindowBounds(LIST_WINDOW[id], now), motorway.whole, now);
-    itemsEl.insertAdjacentHTML('afterbegin', renderMotorwayBlock(motorway.title, lines));
-  }
+  renderEntityList(itemsEl, view.sections, now, { linkQuery: view.linkQuery });
+  if (view.motorwayHtml) itemsEl.insertAdjacentHTML('afterbegin', view.motorwayHtml);
 }
 
 /* ----------------------------- pre-rendered lists ---------------------------- */

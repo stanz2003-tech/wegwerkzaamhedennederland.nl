@@ -272,6 +272,63 @@
   to { min-height: 0; height: 0; margin: 0; }
 }
 
+/* With the build's snapshot (ui/entity-snapshot.ts) the slot shows the morning's answer card and
+   keeps the same reserve, but never collapses: that answer is content, not a skeleton. */
+.entity-forecast[data-reserve] {
+  min-height: var(--forecast-reserve);
+  margin: 0 0 var(--s-6);
+}
+
+.forecast-snapshot { display: block; }
+
+.entity-snapshot__stamp {
+  margin: 0 0 var(--s-3);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.entity-snapshot__more {
+  margin: var(--s-3) 0 0;
+  font-size: var(--text-sm);
+}
+
+/* "Is de A2 vandaag dicht?" (ui/road-questions.ts): four short answers, written into the HTML by
+   the build and refreshed by the page script. */
+.road-questions {
+  margin: var(--s-6) 0;
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-2);
+}
+
+.road-questions[hidden] { display: none; }
+
+.road-questions__title {
+  margin: 0 0 var(--s-3);
+  font-size: var(--text-lg);
+}
+
+.road-questions__list {
+  display: grid;
+  gap: var(--s-3);
+  margin: 0;
+}
+
+.road-questions__item dt {
+  font-weight: 600;
+}
+
+.road-questions__item dd {
+  margin: var(--s-1) 0 0;
+}
+
+.road-questions__meta {
+  margin: var(--s-3) 0 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
 .forecast-pending {
   display: grid;
   grid-template-rows: 52px 240px 1fr;

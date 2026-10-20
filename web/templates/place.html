@@ -25,7 +25,7 @@
     </div>
   </header>
 
-  <section class="entity-forecast" id="entity-forecast" data-pending aria-label="Kan ik door {{name}}?"><div class="forecast-pending" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Het antwoord wordt geladen.</p></section>
+  <section class="entity-forecast" id="entity-forecast" {{#if hasSnapshot}}data-reserve{{else}}data-pending{{/if}} aria-label="Kan ik door {{name}}?">{{#if hasSnapshot}}<div class="forecast__answer forecast-snapshot">{{{snapshotAnswer}}}</div>{{else}}<div class="forecast-pending" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Het antwoord wordt geladen.</p>{{/if}}</section>
 
   <section class="entity-live" aria-label="Actuele situatie in {{name}}">
     <div class="entity-mapcol">
@@ -34,10 +34,8 @@
       </div>
       <a class="btn btn--secondary entity-mapcol__open" id="entity-map-link" href="{{mapHref}}">Op de grote kaart</a>
     </div>
-    <div id="entity-list" class="entity-list"></div>
-    <div id="entity-empty" class="entity-empty" hidden>
-      <p><strong>Geen meldingen voor {{name}}.</strong> Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden of afsluitingen {{#if isGemeente}}in de gemeente{{else}}in{{/if}} {{name}} bekend. Kijk op <a href="{{mapHref}}">de kaart</a> voor de omgeving{{#if gemeenteHref}} of op de pagina van de <a href="{{gemeenteHref}}">gemeente {{gemeente}}</a>{{/if}}.</p>
-    </div>
+    <div id="entity-list" class="entity-list"{{#if hasSnapshot}} data-snapshot{{/if}}>{{{snapshotList}}}</div>
+    <div id="entity-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
   </section>
 
   <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>

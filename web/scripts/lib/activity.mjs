@@ -132,7 +132,7 @@ export function isThinPage(page, activity) {
   return false;
 }
 
-async function fetchJson(url, fetchImpl) {
+export async function fetchJson(url, fetchImpl) {
   const res = await fetchImpl(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
   return res.json();
@@ -140,10 +140,10 @@ async function fetchJson(url, fetchImpl) {
 
 /**
  * Fetches index/all.json, bruggen.json and meta.json from the published data (`DATA_BASE`, e.g.
- * https://data.wegwerkzaamhedennederland.nl/v1/). Never throws.
- * @returns {Promise<Activity | null>}
+ * https://data.wegwerkzaamhedennederland.nl/v1/). Never throws; null without DATA_BASE or index.
+ * @returns {Promise<{ index: any, bridges: any, meta: any } | null>}
  */
-export async function loadActivity({ dataBase, fetchImpl = globalThis.fetch, warn = console.warn } = {}) {
+export async function loadLiveFiles({ dataBase, fetchImpl = globalThis.fetch, warn = console.warn } = {}) {
   if (!dataBase) return null;
   const base = dataBase.endsWith('/') ? dataBase : `${dataBase}/`;
   const [index, bridges, meta] = await Promise.allSettled(['index/all.json', 'bruggen.json', 'meta.json'].map((f) => fetchJson(base + f, fetchImpl)));
@@ -154,5 +154,11 @@ export async function loadActivity({ dataBase, fetchImpl = globalThis.fetch, war
   if (bridges.status === 'rejected') warn(`[gen-pages] bruggen.json niet geladen (${bridges.reason?.message ?? bridges.reason})`);
   if (meta.status === 'rejected') warn(`[gen-pages] meta.json niet geladen (${meta.reason?.message ?? meta.reason})`);
   const value = (/** @type {PromiseSettledResult<unknown>} */ r) => (r.status === 'fulfilled' ? r.value : null);
-  return buildActivity({ index: index.value, bridges: value(bridges), meta: value(meta) }, { warn });
+  return { index: index.value, bridges: value(bridges), meta: value(meta) };
+}
+
+/** `loadLiveFiles` + `buildActivity`. Never throws. @returns {Promise<Activity | null>} */
+export async function loadActivity({ dataBase, fetchImpl = globalThis.fetch, warn = console.warn } = {}) {
+  const files = await loadLiveFiles({ dataBase, fetchImpl, warn });
+  return files ? buildActivity(files, { warn }) : null;
 }

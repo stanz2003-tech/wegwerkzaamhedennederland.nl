@@ -26,7 +26,7 @@
     </div>
   </header>
 
-  <section class="entity-forecast" id="entity-forecast" data-pending aria-label="Kan ik over de {{road}}?"><div class="forecast-pending" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Het antwoord wordt geladen.</p></section>
+  <section class="entity-forecast" id="entity-forecast" {{#if hasSnapshot}}data-reserve{{else}}data-pending{{/if}} aria-label="Kan ik over de {{road}}?">{{#if hasSnapshot}}<div class="forecast__answer forecast-snapshot">{{{snapshotAnswer}}}</div>{{else}}<div class="forecast-pending" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Het antwoord wordt geladen.</p>{{/if}}</section>
 
   <section class="entity-live" aria-label="Actuele situatie op de {{road}}">
     <div class="entity-mapcol">
@@ -35,10 +35,13 @@
       </div>
       <a class="btn btn--secondary entity-mapcol__open" id="entity-map-link" href="{{mapHref}}">Op de grote kaart</a>
     </div>
-    <div id="entity-list" class="entity-list"></div>
-    <div id="entity-empty" class="entity-empty" hidden>
-      <p><strong>Geen meldingen voor de {{road}}.</strong> Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden, afsluitingen of files op deze weg bekend. Kijk op <a href="{{mapHref}}">de kaart</a> voor de omgeving.</p>
-    </div>
+    <div id="entity-list" class="entity-list"{{#if hasSnapshot}} data-snapshot{{/if}}>{{{snapshotList}}}</div>
+    <div id="entity-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
+  </section>
+
+  <section class="road-questions" id="road-questions" aria-labelledby="rq-title"{{#unless hasQuestions}} hidden{{/unless}}>
+    <h2 class="road-questions__title" id="rq-title">Is de {{road}} dicht?</h2>
+    <div id="road-questions-body">{{{questionsHtml}}}</div>
   </section>
 
   <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>

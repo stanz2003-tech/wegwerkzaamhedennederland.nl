@@ -57,7 +57,8 @@ export function renderWegenList(roads) {
 }
 
 /** Gemeenten alphabetically (letter headings + jump nav) with their woonplaatsen in <details>. */
-export function renderPlaatsenList(gemeenten, woonplaatsenByGemeente) {
+/** `merged` (pages.mjs mergedWoonplaatsen): woonplaatsen without a page of their own, left out. */
+export function renderPlaatsenList(gemeenten, woonplaatsenByGemeente, merged = new Map()) {
   const sorted = [...gemeenten].sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
   const byLetter = new Map();
   for (const g of sorted) {
@@ -76,7 +77,7 @@ export function renderPlaatsenList(gemeenten, woonplaatsenByGemeente) {
     const id = `gemeenten-${letter === '#' ? 'overig' : letter.toLowerCase()}`;
     out.push(`<section class="list-group" aria-labelledby="${id}"><h2 id="${id}" class="list-group__letter">${esc(letter)}</h2>`);
     for (const g of list) {
-      const places = (woonplaatsenByGemeente.get(g.code) ?? []).slice().sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
+      const places = (woonplaatsenByGemeente.get(g.code) ?? []).filter((w) => !merged.has(w)).sort((a, b) => a.naam.localeCompare(b.naam, 'nl'));
       const count = places.length;
       const countLabel = count === 0 ? '' : ` <span class="list-group__count">${count} ${count === 1 ? 'plaats' : 'plaatsen'}</span>`;
       out.push(`<details class="place-group" data-gemeente="${esc(g.naam)}">`);

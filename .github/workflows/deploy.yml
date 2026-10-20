@@ -13,10 +13,12 @@ on:
       - "package-lock.json"
       - ".github/workflows/deploy.yml"
   schedule:
-    # Daily rebuild: place and bridge pages without any roadworks get noindex and leave the
-    # sitemap, and that changes with the data (web/scripts/lib/activity.mjs reads DATA_BASE).
-    # Before the IndexNow run at 06:23 UTC, so that one reports today's sitemap.
-    - cron: "41 4 * * *"
+    # Rebuild twice a day: road, place and list pages carry a snapshot of the data in their HTML
+    # (web/scripts/lib/snapshot.mjs) for crawlers that run no script, and the afternoon run makes
+    # "vanavond" and "vannacht" in it right; place and bridge pages without roadworks for 60 days
+    # get noindex (lib/activity.mjs, lib/index-state.mjs). 04:41 UTC comes before the IndexNow run
+    # at 06:23 UTC, so that one reports today's sitemap.
+    - cron: "41 4,14 * * *"
   workflow_dispatch:
 
 concurrency:

@@ -22,10 +22,8 @@
   </header>
 
   <section class="list-page" aria-label="{{heading}}">
-    <div id="list-items" class="list-items entity-list"></div>
-    <div id="list-empty" class="entity-empty" hidden>
-      <p><strong>{{emptyTitle}}</strong> {{emptyText}} <a href="/">Bekijk de kaart</a> voor het volledige beeld.</p>
-    </div>
+    <div id="list-items" class="list-items entity-list"{{#if hasSnapshot}} data-snapshot{{/if}}>{{{snapshotList}}}</div>
+    <div id="list-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
   </section>
 
   {{#if hasPrerendered}}<section class="list-groups" aria-label="{{heading}} – alle pagina's">
