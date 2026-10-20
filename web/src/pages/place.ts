@@ -23,7 +23,7 @@ import type { EntityItem, IndexFile } from '../data/types';
 import { slugify } from '../data/types';
 import { readUrlState } from '../data/url-state';
 import { renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
-import { bodyAttr, bootPage, dataAsOfLabel, stampUpdated } from '../ui/page-boot';
+import { bodyAttr, bootPage, dataAsOfLabel, showListNotice, stampUpdated, startEntityList } from '../ui/page-boot';
 import { releaseForecastSlot } from '../ui/forecast-slot';
 import { loadEntitySource, runEntityPage, sourceFromIndex, type EntitySource } from './entity-page';
 
@@ -39,7 +39,7 @@ const provCode = bodyAttr('provCode');
 
 const listEl = document.getElementById('entity-list');
 const forecastEl = document.getElementById('entity-forecast');
-if (listEl) renderEntitySkeleton(listEl, 4);
+startEntityList(listEl, (el) => renderEntitySkeleton(el, 4));
 
 const boot = bootPage();
 
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
   const dataAsOf = dataAsOfLabel(meta);
 
   if (!name) {
-    if (listEl) renderEntityNotice(listEl, DATA_NOTICE);
+    showListNotice(listEl, DATA_NOTICE, renderEntityNotice);
     return;
   }
 
@@ -84,7 +84,7 @@ async function main(): Promise<void> {
   const filter = kind === 'woonplaats' ? (it: EntityItem): boolean => it.f.properties.woonplaats !== undefined && normalizeText(it.f.properties.woonplaats) === w : undefined;
   const source = (await loadEntitySource('gemeente', gemeenteSlug, filter)) ?? (await fallbackSource(name));
   if (!source) {
-    if (listEl) renderEntityNotice(listEl, DATA_NOTICE);
+    showListNotice(listEl, DATA_NOTICE, renderEntityNotice);
     return;
   }
 

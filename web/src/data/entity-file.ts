@@ -54,10 +54,9 @@ export function slugFromPath(pathname: string, prefix: '/weg/' | '/gemeente/' | 
 }
 
 /** The compact feature of an EntityItem as an index row view, so the existing list code works. */
-export function indexItemFromFeature(f: ItemFeature): IndexItem {
+export function indexItemFromFeature(f: ItemFeature, activeNow: number = Date.now()): IndexItem {
   const p = f.properties;
   const mid = midpointOf(f.geometry) ?? [0, 0];
-  const activeNow = Date.now();
   const start = Date.parse(p.start);
   const end = p.end ? Date.parse(p.end) : Number.POSITIVE_INFINITY;
   return {

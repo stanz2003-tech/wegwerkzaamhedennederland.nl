@@ -77,7 +77,9 @@ describe('place titles', () => {
   it('keep the gemeente on a woonplaats and tell a same-named woonplaats from its gemeente', () => {
     assert.equal(placeTitle({ naam: 'Lexmond', gemeente: 'Vijfheerenlanden' }, 'woonplaats'), 'Wegwerkzaamheden Lexmond (Vijfheerenlanden): wat is dicht?');
     assert.equal(placeTitle({ naam: 'Eindhoven', gemeente: 'Eindhoven' }, 'woonplaats'), 'Wegwerkzaamheden Eindhoven (woonplaats): wat is nu dicht?');
-    assert.notEqual(ctx('/plaats/eindhoven/').title, ctx('/gemeente/eindhoven/').title);
+    // Aalten has four woonplaatsen, so both pages exist; Eindhoven has only its own and the
+    // woonplaats URL redirects to the gemeente (pages.mjs mergedWoonplaatsen).
+    assert.notEqual(ctx('/plaats/aalten/').title, ctx('/gemeente/aalten/').title);
   });
 });
 

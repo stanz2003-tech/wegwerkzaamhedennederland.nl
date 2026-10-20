@@ -40,7 +40,9 @@ function noticeOpenings(el: HTMLElement, text: string): void {
   el.innerHTML = `<li class="bridge-openings__notice" role="status">${esc(text)}</li>`;
 }
 
-if (openingsEl) placeholderOpenings(openingsEl);
+// The build may have written the morning's next opening into the list (scripts/lib/snapshot.mjs);
+// it stays until the live openings replace it.
+if (openingsEl && !openingsEl.hasAttribute('data-snapshot')) placeholderOpenings(openingsEl);
 
 const boot = bootPage();
 

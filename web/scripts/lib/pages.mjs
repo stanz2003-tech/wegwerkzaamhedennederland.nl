@@ -8,7 +8,8 @@ import { join } from 'node:path';
 
 import { markdownToHtml, parseFrontMatter, splitSections, stripMarkdown } from './markdown.mjs';
 import { escapeHtml, protectEmails } from './render.mjs';
-import { isThinPage } from './activity.mjs';
+import { isThinPage, normalizeName } from './activity.mjs';
+import { decideThin } from './index-state.mjs';
 import { loadLists, nearestByCentroid, nearestRoads } from './lists.mjs';
 import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragments.mjs';
 import {
@@ -75,10 +76,29 @@ export function loadContent(webRoot, warn = console.warn) {
 /* ------------------------------------------------------------------------------------------ */
 
 /**
- * `activity` (activity.mjs, from the live data) marks place and bridge pages without anything to
- * show as `thin`: noindex, follow, out of the sitemap, no ads. Without it every page is indexable.
+ * Woonplaatsen whose page would repeat the gemeente page: the only woonplaats of a gemeente with
+ * the same name (Alblasserdam, 's-Gravenhage: 74 of them). Both pages showed exactly the same
+ * roadworks and competed for the same searches, so the gemeente page owns the name and the
+ * woonplaats URL redirects to it (301, `_redirects`).
+ * @returns {Map<object, object>} woonplaats → its gemeente
  */
-export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now = new Date(), warn = console.warn }) {
+export function mergedWoonplaatsen(gemeenten, woonplaatsenByGemeente) {
+  const merged = new Map();
+  for (const g of gemeenten) {
+    const own = woonplaatsenByGemeente.get(g.code) ?? [];
+    if (own.length === 1 && normalizeName(own[0].naam) === normalizeName(g.naam)) merged.set(own[0], g);
+  }
+  return merged;
+}
+
+/**
+ * `activity` (activity.mjs, from the live data) says which place and bridge pages have nothing to
+ * show today; with `indexState` (index-state.mjs: last day with activity per path, from the
+ * previous deploy) a page only becomes `thin` (noindex, follow, out of the sitemap, no ads) after
+ * 60 days without anything. Without activity every page is indexable.
+ * `snapshotFor` (snapshot.mjs) gives road and place pages their server-visible content.
+ */
+export function buildModel({ webRoot, repoRoot, listsDir, activity = null, indexState = null, indexStateFailed = false, snapshotFor = null, now = new Date(), warn = console.warn }) {
   const site = loadSite(webRoot);
   const lists = loadLists({ repoRoot, webRoot, listsDir, warn });
   const content = loadContent(webRoot, warn);
@@ -91,6 +111,7 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now =
   }
   const gemeenteByCode = new Map(lists.gemeenten.map((g) => [g.code, g]));
   const gemeenteByName = new Map(lists.gemeenten.map((g) => [g.naam.toLowerCase(), g]));
+  const merged = mergedWoonplaatsen(lists.gemeenten, woonplaatsenByGemeente);
   const roadBySlug = new Map(lists.roads.map((r) => [r.slug, r]));
   const roadByNumber = new Map(lists.roads.map((r) => [r.road.toUpperCase(), r]));
   const bridgesByGemeente = new Map();
@@ -115,7 +136,13 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now =
   for (const g of lists.gemeenten) {
     routes.push({ type: 'place', kind: 'gemeente', path: `/gemeente/${g.slug}/`, entity: g, sitemap: true, priority: 0.6, changefreq: 'daily' });
   }
+  const redirects = [];
   for (const w of lists.woonplaatsen) {
+    const owner = merged.get(w);
+    if (owner) {
+      redirects.push({ from: `/plaats/${w.slug}/`, to: `/gemeente/${owner.slug}/` });
+      continue;
+    }
     routes.push({ type: 'place', kind: 'woonplaats', path: `/plaats/${w.slug}/`, entity: w, sitemap: true, priority: 0.5, changefreq: 'daily' });
   }
   for (const b of lists.bridges) {
@@ -134,8 +161,8 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now =
   }
   routes.push({ type: 'static', path: '/404.html', slug: NOT_FOUND_SLUG, sitemap: false, outFile: '404.html', noindex: true });
 
-  const marked = routes.map((p) => (isThinPage(p, activity) ? { ...p, thin: true, sitemap: false } : p));
-  const pages = believable(marked, lists.gemeenten.length, warn) ? marked : routes;
+  const { thin, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
+  const pages = routes.map((p) => (thin.has(p.path) ? { ...p, thin: true, sitemap: false } : p));
 
   const counts = {
     roads: lists.roads.length,
@@ -148,11 +175,11 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now =
   };
 
   return {
-    site, now, buildIso: now.toISOString(), lists, content, pages, counts,
+    site, now, buildIso: now.toISOString(), lists, content, pages, counts, redirects, lastActive, snapshotFor,
     byPath: new Map(pages.map((p) => [p.path, p])),
     index: {
       woonplaatsenByGemeente, gemeenteByCode, gemeenteByName, roadBySlug, roadByNumber,
-      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges),
+      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), merged,
     },
     warn,
   };
@@ -164,11 +191,27 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, now =
  */
 const MAX_THIN_GEMEENTE_SHARE = 0.5;
 
-function believable(pages, gemeenteCount, warn) {
-  const thin = pages.filter((p) => p.thin && p.kind === 'gemeente').length;
+function believable(thin, gemeenteCount, warn) {
   if (gemeenteCount === 0 || thin / gemeenteCount <= MAX_THIN_GEMEENTE_SHARE) return true;
   warn(`[gen-pages] ${thin} van ${gemeenteCount} gemeenten zouden zonder meldingen zijn; dat is geen rustige dag maar kapotte data – alle pagina's blijven indexeerbaar`);
   return false;
+}
+
+/**
+ * Which pages are thin, and the memory for the next build. Without believable data nothing is
+ * thin and the memory is carried over unchanged, so an outage never shortens a page's 60 days.
+ * When the previous memory exists but could not be read, nothing is thin either; the memory then
+ * holds only today's active pages.
+ */
+function thinPaths({ routes, activity, indexState, indexStateFailed, site, today, gemeenteCount, warn }) {
+  const carried = { thin: new Set(), lastActive: indexState ?? new Map() };
+  if (!activity) return carried;
+  const candidates = routes.filter((p) => p.type === 'place' || p.type === 'bridge');
+  const emptyGemeenten = candidates.filter((p) => p.kind === 'gemeente' && isThinPage(p, activity)).length;
+  if (!believable(emptyGemeenten, gemeenteCount, warn)) return carried;
+  const alwaysIndex = new Set(Array.isArray(site.seo?.alwaysIndex) ? site.seo.alwaysIndex : []);
+  const decided = decideThin({ candidates, inactiveToday: (p) => isThinPage(p, activity), previous: indexState, today, alwaysIndex });
+  return indexStateFailed ? { thin: new Set(), lastActive: decided.lastActive } : decided;
 }
 
 /** File name of the entity-page manifest at the site root (web/src/data/entity-pages.ts reads it). */
@@ -178,6 +221,8 @@ export const ENTITY_MANIFEST_FILE = 'entity-pages.json';
  * Which road, woonplaats and gemeente pages this build generates, from the same lists the pages
  * come from: the map links to /plaats/<slug>/ only when the page exists, and resolves `?plaats=`
  * back to a name. The gemeente of a woonplaats disambiguates the 70 names that occur twice.
+ * A merged woonplaats (mergedWoonplaatsen) stays listed: its URL redirects to the gemeente page,
+ * and shared `?plaats=` links keep resolving.
  */
 export function buildEntityManifest(model) {
   return {
@@ -283,6 +328,27 @@ function baseContext(model, page, { title, description, crumbs, current, ogType 
   };
 }
 
+/** Server-visible content of a road or place page (snapshot.mjs); empty fields without one. */
+function snapshotVars(model, page, mapHrefValue) {
+  const snap = model.snapshotFor ? model.snapshotFor(page, { mapHref: mapHrefValue }) : null;
+  return {
+    hasSnapshot: Boolean(snap),
+    snapshotAnswer: snap?.answerHtml ?? '',
+    snapshotList: snap?.listHtml ?? '',
+    hasQuestions: Boolean(snap?.questionsHtml),
+    questionsHtml: snap?.questionsHtml ?? '',
+  };
+}
+
+/**
+ * The "nothing here" text, as HTML for a `data-empty` attribute: the page script shows it only
+ * when the live data has nothing. As visible text in the HTML it read, to crawlers that run no
+ * script, as a fact about pages that did have roadworks.
+ */
+function emptyHtml(strong, text, mapHrefValue, tail = '') {
+  return `<p><strong>${escapeHtml(strong)}</strong> ${escapeHtml(text)} Kijk op <a href="${escapeHtml(mapHrefValue)}">de kaart</a> voor de omgeving${tail}.</p>`;
+}
+
 function roadContext(model, page) {
   const r = page.entity;
   const refresh = model.site.refreshMinutes ?? 5;
@@ -291,7 +357,10 @@ function roadContext(model, page) {
   const related = nearestRoads(r, model.lists.roads, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
+  const href = bbox ? `/?b=${bbox}` : mapHref(r.lon, r.lat, 9);
   return {
+    ...snapshotVars(model, page, href),
+    emptyHtml: emptyHtml(`Geen meldingen voor de ${r.road}.`, 'Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden, afsluitingen of files op deze weg bekend.', href),
     ...baseContext(model, page, {
       title: roadTitle(r),
       description: roadDescription(r),
@@ -312,7 +381,7 @@ function roadContext(model, page) {
     faq,
     related,
     hasRelated: related.length > 0,
-    mapHref: bbox ? `/?b=${bbox}` : mapHref(r.lon, r.lat, 9),
+    mapHref: href,
   };
 }
 
@@ -322,7 +391,7 @@ function placeContext(model, page) {
   const refresh = model.site.refreshMinutes ?? 5;
   const isGemeente = kind === 'gemeente';
   const gemeente = isGemeente ? p : model.index.gemeenteByCode.get(p.gemeenteCode) ?? model.index.gemeenteByName.get((p.gemeente ?? '').toLowerCase());
-  const siblings = (model.index.woonplaatsenByGemeente.get(isGemeente ? p.code : p.gemeenteCode) ?? []).filter((w) => w !== p);
+  const siblings = (model.index.woonplaatsenByGemeente.get(isGemeente ? p.code : p.gemeenteCode) ?? []).filter((w) => w !== p && !model.index.merged.has(w));
   const faq = placeFaq(p, kind, refresh);
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Plaatsen', href: '/plaatsen/' }];
   if (!isGemeente && gemeente) crumbs.push({ name: `Gemeente ${gemeente.naam}`, href: `/gemeente/${gemeente.slug}/` });
@@ -339,8 +408,21 @@ function placeContext(model, page) {
       : [];
   const provName = p.prov ?? gemeente?.prov ?? '';
   const zoom = isGemeente ? 11 : 12;
-  const naming = { sameNameKern: isGemeente && hasSameNameKern(p, siblings) };
+  const href = mapHref(p.lon, p.lat, zoom);
+  const gemeenteName = isGemeente ? p.naam : p.gemeente ?? gemeente?.naam ?? '';
+  const gemeenteLink = !isGemeente && gemeente ? ` of op de pagina van de <a href="/gemeente/${escapeHtml(gemeente.slug)}/">gemeente ${escapeHtml(gemeenteName)}</a>` : '';
+  // All woonplaatsen, the merged one included: a gemeente that took over its only kern's page
+  // (Alblasserdam) is all the more the page for that name.
+  const ownPlaces = isGemeente ? (model.index.woonplaatsenByGemeente.get(p.code) ?? []) : [];
+  const naming = { sameNameKern: isGemeente && hasSameNameKern(p, ownPlaces) };
   return {
+    ...snapshotVars(model, page, href),
+    emptyHtml: emptyHtml(
+      `Geen meldingen voor ${p.naam}.`,
+      `Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden of afsluitingen ${isGemeente ? 'in de gemeente' : 'in'} ${p.naam} bekend.`,
+      href,
+      gemeenteLink,
+    ),
     ...baseContext(model, page, {
       title: placeTitle(p, kind, naming),
       description: placeDescription(p, kind, naming),
@@ -369,7 +451,7 @@ function placeContext(model, page) {
     relatedGemeenten,
     hasRelatedGemeenten: relatedGemeenten.length > 0,
     relatedGemeentenTitle: isGemeente ? 'Buurgemeenten' : 'Gemeente',
-    mapHref: mapHref(p.lon, p.lat, zoom),
+    mapHref: href,
   };
 }
 
@@ -389,7 +471,12 @@ function bridgeContext(model, page) {
   const place = b.woonplaats ? model.lists.woonplaatsen.find((w) => w.naam === b.woonplaats && (!b.gemeente || w.gemeente === b.gemeente)) : null;
   const gem = b.gemeente ? model.index.gemeenteByName.get(b.gemeente.toLowerCase()) : null;
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Bruggen', href: '/bruggen/' }];
+  const href = mapHref(b.lon, b.lat, 14);
+  const snap = model.snapshotFor ? model.snapshotFor(page, { mapHref: href }) : null;
   return {
+    hasSnapshot: Boolean(snap),
+    snapshotOpenings: snap?.openingsHtml ?? '',
+    emptyHtml: `<p><strong>Geen openingen aangemeld.</strong> Voor ${escapeHtml(b.name)} zijn bij NDW op dit moment geen geplande openingen bekend. Dat betekent niet dat de brug niet opengaat: veel bruggen draaien op aanvraag van de scheepvaart. Kijk op <a href="${escapeHtml(href)}">de kaart</a> voor de actuele situatie in de omgeving.</p>`,
     ...baseContext(model, page, {
       title: bridgeTitle(b, variant),
       description: bridgeDescription(b, variant),
@@ -413,7 +500,7 @@ function bridgeContext(model, page) {
     gemeente: b.gemeente ?? '',
     gemeenteHref: gem ? `/gemeente/${gem.slug}/` : '',
     woonplaats: b.woonplaats ?? '',
-    placeHref: place ? `/plaats/${place.slug}/` : '',
+    placeHref: place ? (model.index.merged.has(place) ? `/gemeente/${model.index.merged.get(place).slug}/` : `/plaats/${place.slug}/`) : '',
     prov: b.prov ?? '',
     lon: b.lon,
     lat: b.lat,
@@ -421,7 +508,7 @@ function bridgeContext(model, page) {
     faq,
     relatedBridges,
     hasRelatedBridges: relatedBridges.length > 0,
-    mapHref: mapHref(b.lon, b.lat, 14),
+    mapHref: href,
   };
 }
 
@@ -460,8 +547,9 @@ function listContext(model, page) {
   const body = entry ? markdownToHtml(substituteVars(entry.body, vars, model.warn), { headingOffset: 0 }) : '';
   let prerendered = '';
   if (page.list === 'wegen') prerendered = renderWegenList(model.lists.roads);
-  else if (page.list === 'plaatsen') prerendered = renderPlaatsenList(model.lists.gemeenten, model.index.woonplaatsenByGemeente);
+  else if (page.list === 'plaatsen') prerendered = renderPlaatsenList(model.lists.gemeenten, model.index.woonplaatsenByGemeente, model.index.merged);
   else if (page.list === 'bruggen') prerendered = renderBruggenList(model.lists.bridges);
+  const snap = !prerendered && model.snapshotFor ? model.snapshotFor(page, { mapHref: '/' }) : null;
   // No " | Wegwerk" on list titles: they are written to fit 60 characters, and Google adds the
   // site name itself.
   const title = data.title ? fillText(data.title, vars) : `${data.heading} | ${model.site.name}`;
@@ -485,9 +573,12 @@ function listContext(model, page) {
     heading: data.heading,
     kicker: data.kicker,
     lead: substituteVars(String(data.lead ?? ''), vars),
-    summaryFallback: data.summary ? substituteVars(String(data.summary), vars) : summaryDefault,
+    summaryFallback: snap ? snap.summary : data.summary ? substituteVars(String(data.summary), vars) : summaryDefault,
+    hasSnapshot: Boolean(snap),
+    snapshotList: snap?.listHtml ?? '',
     emptyTitle: data.emptyTitle,
     emptyText: data.emptyText,
+    emptyHtml: `<p><strong>${escapeHtml(data.emptyTitle)}</strong> ${escapeHtml(data.emptyText)} <a href="/">Bekijk de kaart</a> voor het volledige beeld.</p>`,
     body,
     hasBody: body.trim() !== '',
     prerendered,

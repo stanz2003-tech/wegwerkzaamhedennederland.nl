@@ -182,8 +182,38 @@ export function setText(id: string, text: string): void {
   if (el) el.textContent = text;
 }
 
-/** Shows or hides the pre-rendered empty state (`#entity-empty` / `#list-empty`). */
+/**
+ * Shows or hides the empty state (`#entity-empty` / `#list-empty`). Its text waits in the
+ * element's `data-empty` (written by the build) and only becomes page text when the live data is
+ * empty: as hidden text in the HTML, crawlers that run no script read "Geen meldingen" as a fact.
+ */
 export function setEmptyVisible(id: string, visible: boolean): void {
   const el = document.getElementById(id);
-  if (el) el.hidden = !visible;
+  if (!el) return;
+  if (visible && el.childElementCount === 0 && el.dataset.empty) el.innerHTML = el.dataset.empty;
+  el.hidden = !visible;
+}
+
+/**
+ * Starts the list of a road or place page: the skeleton, unless the build already wrote the
+ * snapshot of the morning's data into it (`data-snapshot`); that stays until the live list
+ * replaces it.
+ */
+export function startEntityList(listEl: HTMLElement | null, renderSkeleton: (el: HTMLElement) => void): void {
+  if (listEl && !listEl.hasAttribute('data-snapshot')) renderSkeleton(listEl);
+}
+
+/**
+ * The data could not be loaded: the notice replaces the skeleton, or stands above the snapshot,
+ * which still says which moment it describes.
+ */
+export function showListNotice(listEl: HTMLElement | null, text: string, renderNotice: (el: HTMLElement, text: string) => void): void {
+  if (!listEl) return;
+  if (!listEl.hasAttribute('data-snapshot')) {
+    renderNotice(listEl, text);
+    return;
+  }
+  const holder = document.createElement('div');
+  renderNotice(holder, text);
+  listEl.prepend(...Array.from(holder.childNodes));
 }

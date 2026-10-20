@@ -25,6 +25,9 @@
       "article": ""
     }
   },
+  "seo": {
+    "alwaysIndex": ["/plaats/lexmond/"]
+  },
   "indexnow": {
     "key": "f791b00cecac717d18b06431e1c2ae69"
   },

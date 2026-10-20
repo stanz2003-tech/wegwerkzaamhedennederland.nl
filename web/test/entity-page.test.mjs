@@ -307,7 +307,9 @@ describe('the forecast block keeps its place while the data loads (CLS)', () => 
     it(`${name}: the forecast slot is reserved in the static HTML`, () => {
       const html = read(`../templates/${name}`);
       const slot = html.slice(html.indexOf('<section class="entity-forecast"'), html.indexOf('</section>', html.indexOf('<section class="entity-forecast"')));
-      assert.match(slot, /id="entity-forecast" data-pending aria-label=/);
+      // With the build's snapshot the slot holds the morning's answer (data-reserve), else the skeleton.
+      assert.match(slot, /id="entity-forecast" \{\{#if hasSnapshot\}\}data-reserve\{\{else\}\}data-pending\{\{\/if\}\} aria-label=/);
+      assert.match(slot, /\{\{#if hasSnapshot\}\}<div class="forecast__answer forecast-snapshot">\{\{\{snapshotAnswer\}\}\}<\/div>\{\{else\}\}/);
       assert.match(slot, /<div class="forecast-pending" aria-hidden="true">/);
       // Screen readers hear that the answer is coming instead of an empty region.
       assert.match(slot, /<p class="sr-only">Het antwoord wordt geladen\.<\/p>/);
@@ -320,7 +322,11 @@ describe('the forecast block keeps its place while the data loads (CLS)', () => 
     assert.match(css, /--forecast-reserve:\s*\d+px/);
     // If the page script never runs, the skeleton collapses on its own.
     assert.match(css, /\.entity-forecast\[data-pending\]\s*\{[^}]*animation-name:\s*forecast-give-up/);
-    assert.match(read('../templates/_head.html'), /<noscript><style>\.entity-forecast\[data-pending\]\s*\{\s*display:\s*none;?\s*\}<\/style><\/noscript>/);
+    assert.match(read('../templates/_head.html'), /<noscript><style>\.entity-forecast\[data-pending\]\s*\{\s*display:\s*none;?\s*\}[^<]*<\/style><\/noscript>/);
+    // A snapshot is content: the same reserve, but it never collapses, and without JavaScript no gap.
+    assert.match(css, /\.entity-forecast\[data-reserve\]\s*\{[^}]*min-height:\s*var\(--forecast-reserve\)/);
+    assert.doesNotMatch(css, /\.entity-forecast\[data-reserve\]\s*\{[^}]*animation/);
+    assert.match(read('../templates/_head.html'), /\.entity-forecast\[data-reserve\]\s*\{\s*min-height:\s*0;?\s*\}/);
   });
 
   it('the block releases its slot as soon as it has written its markup', () => {
@@ -332,8 +338,8 @@ describe('the forecast block keeps its place while the data loads (CLS)', () => 
   });
 
   /** Just enough of an element for the helper. */
-  function fakeSlot(hasPlaceholder) {
-    const attrs = new Set(['data-pending']);
+  function fakeSlot(hasPlaceholder, attr = 'data-pending') {
+    const attrs = new Set([attr]);
     let children = hasPlaceholder ? ['placeholder'] : ['block'];
     return {
       attrs,
@@ -346,6 +352,13 @@ describe('the forecast block keeps its place while the data loads (CLS)', () => 
 
   it('releasing a mounted slot drops the reservation and keeps the block', () => {
     const el = fakeSlot(false);
+    forecastSlot.releaseForecastSlot(el);
+    assert.deepEqual([...el.attrs], []);
+    assert.deepEqual(el.children, ['block']);
+  });
+
+  it('releasing a slot with the build snapshot drops the reserve and keeps the snapshot', () => {
+    const el = fakeSlot(false, 'data-reserve');
     forecastSlot.releaseForecastSlot(el);
     assert.deepEqual([...el.attrs], []);
     assert.deepEqual(el.children, ['block']);
