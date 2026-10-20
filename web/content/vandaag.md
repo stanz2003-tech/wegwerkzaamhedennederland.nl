@@ -2,8 +2,8 @@
 slug: vandaag
 layout: list
 list: vandaag
-title: Wegwerkzaamheden en afsluitingen vandaag in Nederland
-description: Alle wegwerkzaamheden, afsluitingen en omleidingen die vandaag gelden, inclusief het nachtwerk dat vanavond begint, plus de files van dit moment.
+title: Wegwerkzaamheden vandaag ({{todayLabel}}): wat is dicht?
+description: Wat is er vandaag ({{todayLabel}}) dicht? Alle wegwerkzaamheden, afsluitingen en omleidingen van vandaag, ook het nachtwerk van vanavond. Elk kwartier bijgewerkt.
 heading: Wegwerkzaamheden vandaag
 kicker: Vandaag
 lead: Alles wat vandaag hindert of vandaag nog begint: werkzaamheden, afsluitingen en omleidingen op snelwegen, N-wegen en in de bebouwde kom, plus de files en incidenten van dit moment. Eerst wat nu geldt, daarna wat later vandaag start.

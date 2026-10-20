@@ -70,6 +70,7 @@ export const routingGeoapify = await load('data/routing-geoapify.ts');
 export const afterPaint = await load('ui/after-paint.ts');
 export const roadLine = await load('data/road-line.ts');
 export const roadOutline = await load('map/road-outline.ts');
+export const share = await load('ui/share.ts');
 export const entitySections = await load('ui/entity-sections.ts');
 export const entitySnapshot = await load('ui/entity-snapshot.ts');
 export const roadQuestions = await load('ui/road-questions.ts');

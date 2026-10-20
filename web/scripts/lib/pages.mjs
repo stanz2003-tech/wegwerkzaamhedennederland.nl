@@ -15,9 +15,9 @@ import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragme
 import {
   PLANNING_REFRESH_MINUTES,
   bridgeDescription, bridgeFaq, bridgeIntro, bridgeTitle, bridgeVariants,
-  clampText, fmtDate, fmtDateTime, mapHref,
+  clampText, fmtDate, fmtDateTime, hasSameNameKern, mapHref,
   placeDescription, placeFaq, placeHeading, placeIntro, placeTitle, publisherVars,
-  roadDescription, roadFaq, roadIntro, roadKind, roadTitle,
+  roadDescription, roadFaq, roadIntro, roadKind, roadTitle, todayLabel, weekendLabel,
 } from './text.mjs';
 
 export const PAGE_TYPES = ['road', 'place', 'bridge', 'list', 'static'];
@@ -362,7 +362,7 @@ function roadContext(model, page) {
     ...snapshotVars(model, page, href),
     emptyHtml: emptyHtml(`Geen meldingen voor de ${r.road}.`, 'Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden, afsluitingen of files op deze weg bekend.', href),
     ...baseContext(model, page, {
-      title: roadTitle(r, model.site.name),
+      title: roadTitle(r),
       description: roadDescription(r),
       crumbs,
       current: `Wegwerkzaamheden ${r.road}`,
@@ -411,6 +411,10 @@ function placeContext(model, page) {
   const href = mapHref(p.lon, p.lat, zoom);
   const gemeenteName = isGemeente ? p.naam : p.gemeente ?? gemeente?.naam ?? '';
   const gemeenteLink = !isGemeente && gemeente ? ` of op de pagina van de <a href="/gemeente/${escapeHtml(gemeente.slug)}/">gemeente ${escapeHtml(gemeenteName)}</a>` : '';
+  // All woonplaatsen, the merged one included: a gemeente that took over its only kern's page
+  // (Alblasserdam) is all the more the page for that name.
+  const ownPlaces = isGemeente ? (model.index.woonplaatsenByGemeente.get(p.code) ?? []) : [];
+  const naming = { sameNameKern: isGemeente && hasSameNameKern(p, ownPlaces) };
   return {
     ...snapshotVars(model, page, href),
     emptyHtml: emptyHtml(
@@ -420,8 +424,8 @@ function placeContext(model, page) {
       gemeenteLink,
     ),
     ...baseContext(model, page, {
-      title: placeTitle(p, kind, model.site.name),
-      description: placeDescription(p, kind),
+      title: placeTitle(p, kind, naming),
+      description: placeDescription(p, kind, naming),
       crumbs,
       current: placeHeading(p, kind),
       ogType: 'article',
@@ -474,7 +478,7 @@ function bridgeContext(model, page) {
     snapshotOpenings: snap?.openingsHtml ?? '',
     emptyHtml: `<p><strong>Geen openingen aangemeld.</strong> Voor ${escapeHtml(b.name)} zijn bij NDW op dit moment geen geplande openingen bekend. Dat betekent niet dat de brug niet opengaat: veel bruggen draaien op aanvraag van de scheepvaart. Kijk op <a href="${escapeHtml(href)}">de kaart</a> voor de actuele situatie in de omgeving.</p>`,
     ...baseContext(model, page, {
-      title: bridgeTitle(b, model.site.name, variant),
+      title: bridgeTitle(b, variant),
       description: bridgeDescription(b, variant),
       crumbs,
       current: `Brugopeningen ${b.name}${variant ? ` (${variant})` : ''}`,
@@ -524,8 +528,16 @@ function contentVars(model, extra = {}) {
     refreshMinutes: model.site.refreshMinutes ?? 5,
     planningMinutes: model.site.planningRefreshMinutes ?? PLANNING_REFRESH_MINUTES,
     publisher: publisherVars(model.site.owner),
+    // Build-day dates for list titles ("di 20 okt", "23–26 okt"); '' when the build time is unusable.
+    todayLabel: todayLabel(model.buildIso),
+    weekendLabel: weekendLabel(model.buildIso),
     ...extra,
   };
+}
+
+/** Front-matter text with variables; a date that came out empty leaves no "()" behind. */
+function fillText(text, vars) {
+  return substituteVars(String(text), vars).replace(/\s*\(\s*\)/g, '');
 }
 
 function listContext(model, page) {
@@ -538,10 +550,10 @@ function listContext(model, page) {
   else if (page.list === 'plaatsen') prerendered = renderPlaatsenList(model.lists.gemeenten, model.index.woonplaatsenByGemeente, model.index.merged);
   else if (page.list === 'bruggen') prerendered = renderBruggenList(model.lists.bridges);
   const snap = !prerendered && model.snapshotFor ? model.snapshotFor(page, { mapHref: '/' }) : null;
-  const title = data.title ? `${data.title} | ${model.site.name}` : `${data.heading} | ${model.site.name}`;
-  const description = clampText(
-    data.description ? substituteVars(String(data.description), vars) : stripMarkdown(data.lead || data.heading),
-  );
+  // No " | Wegwerk" on list titles: they are written to fit 60 characters, and Google adds the
+  // site name itself.
+  const title = data.title ? fillText(data.title, vars) : `${data.heading} | ${model.site.name}`;
+  const description = clampText(data.description ? fillText(data.description, vars) : stripMarkdown(data.lead || data.heading));
   const summaryDefault = prerendered
     ? page.list === 'wegen'
       ? `${model.counts.roads} wegen met een eigen pagina`

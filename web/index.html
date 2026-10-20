@@ -4,10 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <title>Wegwerkzaamheden Nederland – alle werkzaamheden, afsluitingen en files op één kaart</title>
+    <title>Wegwerkzaamheden Nederland – live kaart met afsluitingen</title>
     <meta
       name="description"
-      content="Alle wegwerkzaamheden, wegafsluitingen, files, incidenten en brugopeningen in Nederland op één snelle kaart. Rechtstreeks van de wegbeheerders via NDW, elke tien minuten vernieuwd."
+      content="Kan ik erdoor? Alle wegwerkzaamheden, afsluitingen, files en brugopeningen van Nederland op één live kaart, voor auto, vracht en fiets. Open data van NDW."
     />
     <link rel="canonical" href="https://www.wegwerkzaamhedennederland.nl/" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
@@ -15,14 +15,18 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Wegwerkzaamheden Nederland" />
     <meta property="og:locale" content="nl_NL" />
-    <meta property="og:title" content="Wegwerkzaamheden Nederland – alles op één kaart" />
+    <meta property="og:title" content="Wegwerkzaamheden Nederland – live kaart met afsluitingen" />
     <meta
       property="og:description"
       content="Zie in één oogopslag welke wegen dicht zijn, waar gewerkt wordt en waar de files staan. Alle open data van NDW op één kaart."
     />
     <meta property="og:url" content="https://www.wegwerkzaamhedennederland.nl/" />
-    <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="Wegwerkzaamheden Nederland – alles op één kaart" />
+    <meta property="og:image" content="https://www.wegwerkzaamhedennederland.nl/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Kan ik erdoor? Wegwerk: alle wegwerkzaamheden en afsluitingen van Nederland op één kaart" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Wegwerkzaamheden Nederland – live kaart met afsluitingen" />
     <meta
       name="twitter:description"
       content="Zie in één oogopslag welke wegen dicht zijn, waar gewerkt wordt en waar de files staan."
@@ -140,7 +144,7 @@
                verdict of the melding starts right under the date field (ui/panel-layout.ts). -->
           <div class="panel__detailbar" data-detail-bar hidden>
             <button type="button" class="btn btn--ghost panel__detail-btn" data-panel-back></button>
-            <button type="button" class="btn btn--ghost panel__detail-btn" data-panel-share aria-label="Link kopiëren"></button>
+            <button type="button" class="btn btn--ghost panel__detail-btn" data-panel-share aria-label="Deel deze melding"></button>
           </div>
           <!-- ONE scroll container for everything below the grip: search, mode and Wanneer stay
                sticky at its top, the answer, the filters and the whole list scroll under them
@@ -283,6 +287,26 @@
               </li>
             </ul>
             <p class="home__updated" data-home-updated>De gegevens worden geladen.</p>
+
+            <section class="home__popular" aria-labelledby="home-popular-title">
+              <h2 class="home__h2" id="home-popular-title">Drukst bezocht</h2>
+              <ul class="home__popular-roads" aria-label="Wegen">
+                <li><a class="badge badge--a" href="/weg/a2/" title="Wegwerkzaamheden A2">A2</a></li>
+                <li><a class="badge badge--a" href="/weg/a12/" title="Wegwerkzaamheden A12">A12</a></li>
+                <li><a class="badge badge--a" href="/weg/a27/" title="Wegwerkzaamheden A27">A27</a></li>
+                <li><a class="badge badge--a" href="/weg/a28/" title="Wegwerkzaamheden A28">A28</a></li>
+              </ul>
+              <ul class="home__popular-places" aria-label="Gemeenten">
+                <li><a href="/gemeente/s-hertogenbosch/">Den Bosch</a></li>
+                <li><a href="/gemeente/arnhem/">Arnhem</a></li>
+                <li><a href="/gemeente/breda/">Breda</a></li>
+                <li><a href="/gemeente/eindhoven/">Eindhoven</a></li>
+                <li><a href="/gemeente/utrecht/">Utrecht</a></li>
+                <li><a href="/gemeente/haarlemmermeer/">Haarlemmermeer</a></li>
+                <li><a href="/gemeente/groningen/">Groningen</a></li>
+                <li><a href="/gemeente/amsterdam/">Amsterdam</a></li>
+              </ul>
+            </section>
           </nav>
         </div>
       </section>

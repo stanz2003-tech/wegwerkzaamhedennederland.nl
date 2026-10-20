@@ -10,7 +10,7 @@ import type { ItemDetail, ItemFeature } from '../data/types';
 import { detailStepBackAllowed, itemDeepLink, type HistoryMarker, type UrlState } from '../data/url-state';
 import type { AppMap } from '../map/map';
 import { renderDetail } from './detail';
-import { copyLink } from './map-page';
+import { shareLink } from './share';
 import { questionWindowOf, whenLabelOf } from './panel-answer';
 
 export interface DetailHost {
@@ -105,7 +105,7 @@ export function createDetailController(host: DetailHost): DetailController {
   };
 
   const share = async (): Promise<void> => {
-    if (selected) await copyLink(itemDeepLink(selected.properties.id));
+    if (selected) await shareLink({ url: itemDeepLink(selected.properties.id), title: selected.properties.title });
   };
 
   const load = async (feature: ItemFeature | null, open = false): Promise<void> => {
