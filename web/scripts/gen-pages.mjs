@@ -23,7 +23,7 @@ import { loadActivity } from './lib/activity.mjs';
 import { loadPartials, loadTemplates } from './lib/render.mjs';
 import { ENTITY_MANIFEST_FILE, PAGE_TYPES, buildEntityManifest, buildModel, outFileFor, renderPage, samplePages } from './lib/pages.mjs';
 import { copyLists } from './lib/lists.mjs';
-import { buildAdsTxt, buildRobots, buildSitemaps } from './lib/sitemap.mjs';
+import { MAP_STATE_DISALLOW, buildAdsTxt, buildRobots, buildSitemaps } from './lib/sitemap.mjs';
 
 const webRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(webRoot);
@@ -123,7 +123,9 @@ export function generate(opts) {
   // `/?id=…` deep links (one per roadwork, from every list) only reopen the map on one item and
   // canonicalise to `/`; Google crawled them as redirects and spent its budget there instead of on
   // the 3.900 content pages. Items also expire, so these URLs go stale by design.
-  const disallow = [...(existsSync(join(outDir, 'data')) ? ['/data/'] : []), '/*?id='];
+  // `?c=` (centre) and `?b=` (bounding box) are the "open de kaart" links on every entity page:
+  // over 4.000 variants of the homepage that Google crawled instead of the pages themselves.
+  const disallow = [...(existsSync(join(outDir, 'data')) ? ['/data/'] : []), ...MAP_STATE_DISALLOW];
   writeFile(join(outDir, 'robots.txt'), buildRobots({ siteUrl: model.site.url, disallow }));
   // Which entity pages exist, for the map's place mode and its links (web/src/data/entity-pages.ts).
   writeFile(join(outDir, ENTITY_MANIFEST_FILE), JSON.stringify(buildEntityManifest(model)));

@@ -38,6 +38,9 @@ export function buildSitemaps(entries, { siteUrl, lastmod, maxPerFile = 5000 }) 
   return [{ name: 'sitemap.xml', xml: index }, ...files];
 }
 
+/** Map deep links that only reopen `/` on an item (`?id=`), a point (`?c=`) or an area (`?b=`). */
+export const MAP_STATE_DISALLOW = ['/*?id=', '/*?c=', '/*?b='];
+
 export function buildRobots({ siteUrl, disallow = [] }) {
   const base = siteUrl.replace(/\/+$/, '');
   const lines = ['User-agent: *', 'Allow: /'];

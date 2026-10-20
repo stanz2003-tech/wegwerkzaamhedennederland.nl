@@ -160,6 +160,67 @@
   color: var(--text-3);
 }
 
+/* ------------------------------------------------------------------ drukst bezocht */
+/* The roads and gemeenten with the most search traffic (Search Console, October 2026): the home
+   linked to two roads and no gemeente at all. Roads as their red A-sign, places as pills. */
+
+.home__popular {
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--border);
+}
+
+.home__popular-roads,
+.home__popular-places {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  list-style: none;
+}
+
+.home__popular-places {
+  margin-top: var(--s-3);
+}
+
+.home__popular-roads .badge {
+  min-height: var(--touch);
+  min-width: var(--touch);
+  padding-inline: var(--s-3);
+  font-size: var(--text-base);
+  text-decoration: none;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+
+.home__popular-roads .badge:hover {
+  transform: translateY(-1px);
+}
+
+.home__popular-places a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch);
+  padding: 0 var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text);
+  text-decoration: none;
+  transition:
+    border-color var(--dur-1) var(--ease-out),
+    background var(--dur-1) var(--ease-out);
+}
+
+.home__popular-places a:hover {
+  border-color: var(--text);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.home__popular a:active {
+  transform: translateY(0);
+}
+
 /* ------------------------------------------------------------------ breakpoints */
 
 @media (min-width: 768px) {

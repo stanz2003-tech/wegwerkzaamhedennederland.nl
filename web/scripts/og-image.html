@@ -1,0 +1,102 @@
+<!doctype html>
+<!--
+  Source of web/public/og-image.png, the 1200×630 share image (WhatsApp, Facebook, X, LinkedIn).
+  Regenerate after a change, from the web folder (absolute profile dir, a relative one hands off to a running Chrome):
+
+    "C:/Program Files/Google/Chrome/Application/chrome.exe" --headless=new --hide-scrollbars \
+      --force-device-scale-factor=1 --window-size=1200,630 --user-data-dir="%TEMP%/og-chrome" \
+      --screenshot="%CD%/public/og-image.png" "file:///%CD%/scripts/og-image.html"
+-->
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face { font-family: 'Overpass'; font-weight: 800; src: url(../public/fonts/overpass-latin-d8f2e7a3.woff2) format('woff2'); }
+      @font-face { font-family: 'Overpass'; font-weight: 600; src: url(../public/fonts/overpass-latin-d8f2e7a3.woff2) format('woff2'); }
+      @font-face { font-family: 'IBM Plex Sans'; font-weight: 400; src: url(../public/fonts/ibm-plex-sans-latin-868a235a.woff2) format('woff2'); }
+      @font-face { font-family: 'IBM Plex Mono'; font-weight: 400; src: url(../public/fonts/ibm-plex-mono-latin-e2661bcc.woff2) format('woff2'); }
+
+      :root {
+        --geel: #ffc917;
+        --geel-ink: #1b1b1f;
+        --asfalt: #15171b;
+        --asfalt-3: #2a2e36;
+        --papier: #f7f4ec;
+        --stripe: repeating-linear-gradient(135deg, var(--geel) 0 28px, var(--geel-ink) 28px 56px);
+      }
+      * { box-sizing: border-box; margin: 0; }
+      html, body { width: 1200px; height: 630px; overflow: hidden; }
+      body {
+        position: relative;
+        background:
+          radial-gradient(circle at 85% 10%, rgba(255, 201, 23, 0.10), transparent 45%),
+          var(--asfalt);
+        color: var(--papier);
+        font-family: 'IBM Plex Sans', sans-serif;
+      }
+      /* Lane markings: the dashed centre line of a road running under the sign. */
+      .lane {
+        position: absolute; left: 0; right: 0; top: 300px; height: 8px;
+        background: repeating-linear-gradient(90deg, rgba(247, 244, 236, 0.16) 0 64px, transparent 64px 112px);
+      }
+      .brand { position: absolute; left: 72px; top: 60px; display: flex; align-items: center; gap: 20px; }
+      .brand svg { width: 64px; height: 64px; }
+      .brand__word { font-family: 'Overpass'; font-weight: 800; font-size: 40px; letter-spacing: 0.06em; color: var(--geel); line-height: 1; }
+      .brand__sub { font-size: 17px; letter-spacing: 0.22em; text-transform: uppercase; color: rgba(247, 244, 236, 0.62); margin-top: 6px; }
+
+      /* The sign: a yellow detour board with its black inner rule. */
+      .sign {
+        position: absolute; left: 72px; top: 150px; width: 760px; padding: 40px 48px 44px;
+        background: var(--geel); color: var(--geel-ink); border-radius: 22px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      }
+      .sign::before {
+        content: ''; position: absolute; inset: 12px; border: 5px solid var(--geel-ink); border-radius: 13px;
+      }
+      .sign h1 { font-family: 'Overpass'; font-weight: 800; font-size: 112px; line-height: 0.95; letter-spacing: -0.02em; }
+      .sign p { font-family: 'Overpass'; font-weight: 600; font-size: 34px; line-height: 1.2; margin-top: 18px; }
+      .arrow { position: absolute; right: 44px; top: 50px; width: 96px; height: 96px; }
+
+      .facts { position: absolute; left: 880px; top: 196px; width: 260px; list-style: none; padding: 0; }
+      .facts li { font-family: 'Overpass'; font-weight: 600; font-size: 27px; line-height: 1.25; padding: 14px 0; border-bottom: 2px solid var(--asfalt-3); }
+      .facts li:last-child { border-bottom: 0; }
+      .facts span { display: block; font-family: 'IBM Plex Sans'; font-weight: 400; font-size: 18px; color: rgba(247, 244, 236, 0.66); margin-top: 2px; }
+
+      .url { position: absolute; right: 60px; bottom: 60px; font-family: 'IBM Plex Mono'; font-size: 24px; color: rgba(247, 244, 236, 0.8); }
+      .stripe { position: absolute; left: 0; right: 0; bottom: 0; height: 30px; background: var(--stripe); }
+    </style>
+  </head>
+  <body>
+    <div class="lane"></div>
+    <div class="brand">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <defs><clipPath id="c"><rect width="24" height="24" rx="6" ry="6" /></clipPath></defs>
+        <g clip-path="url(#c)">
+          <rect width="24" height="24" fill="#1b1b1f" stroke="#2a2e36" />
+          <path d="M-6 24 L6 -6 L12 -6 L0 24 Z M6 24 L18 -6 L24 -6 L12 24 Z M18 24 L30 -6 L36 -6 L24 24 Z" fill="#ffc917" />
+        </g>
+      </svg>
+      <div>
+        <div class="brand__word">WEGWERK</div>
+        <div class="brand__sub">Nederland</div>
+      </div>
+    </div>
+
+    <div class="sign">
+      <svg class="arrow" viewBox="0 0 24 24" fill="none" stroke="#1b1b1f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14" /><path d="m13 6 6 6-6 6" />
+      </svg>
+      <h1>Kan ik erdoor?</h1>
+      <p>Alle wegwerkzaamheden en afsluitingen van Nederland op één kaart</p>
+    </div>
+
+    <ul class="facts">
+      <li>Auto, vracht of fiets<span>één antwoord per voertuig</span></li>
+      <li>Elke datum<span>vandaag, dit weekend of later</span></li>
+      <li>Elk kwartier nieuw<span>open data van NDW</span></li>
+    </ul>
+
+    <div class="url">wegwerkzaamhedennederland.nl</div>
+    <div class="stripe"></div>
+  </body>
+</html>
