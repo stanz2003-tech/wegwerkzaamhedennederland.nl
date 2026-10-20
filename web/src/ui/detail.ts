@@ -216,7 +216,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   root.innerHTML = `<article class="detail" data-cat="${p.cat}" data-verdict="${verdict.level}" aria-labelledby="detail-title">
       <div class="detail__top">
         <button type="button" class="btn btn--ghost detail__back" data-back>${ICONS.arrowLeft}<span>Terug</span></button>
-        <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Link kopiëren">${ICONS.share2}<span>Deel</span></button>
+        <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Deel deze melding">${ICONS.share2}<span>Deel</span></button>
       </div>
       ${renderVerdictBanner(bannerVerdict(verdict), bannerWhen, kicker)}
       <header class="detail__head">
