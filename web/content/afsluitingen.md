@@ -2,8 +2,8 @@
 slug: afsluitingen
 layout: list
 filterCat: afsluiting
-title: Actuele wegafsluitingen in Nederland – nu en komende 30 dagen
-description: Alle actuele en geplande wegafsluitingen in Nederland: snelwegen, N-wegen, op- en afritten en tunnels, met periode en omleiding. Open data van NDW.
+title: Wegafsluitingen Nederland: welke wegen zijn nu dicht?
+description: Welke wegen zijn nu dicht? Alle actuele en geplande afsluitingen in Nederland: snelwegen, N-wegen, op- en afritten en tunnels. Elk kwartier bijgewerkt.
 heading: Actuele wegafsluitingen
 kicker: Afsluitingen
 lead: Alle wegen, rijbanen, op- en afritten en tunnels die nu dicht zijn of binnen 30 dagen dichtgaan, zoals aangemeld door Rijkswaterstaat, provincies en gemeenten. Eerst wat nu geldt, daarna de geplande afsluitingen op volgorde van starttijd.

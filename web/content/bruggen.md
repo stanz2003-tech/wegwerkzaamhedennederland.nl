@@ -2,7 +2,7 @@
 slug: bruggen
 layout: list
 list: bruggen
-title: Brugopeningen in Nederland – alle bruggen met een eigen pagina
+title: Brugopeningen in Nederland – alle beweegbare bruggen
 description: Beweegbare bruggen per provincie: zie per brug of hij nu open staat en welke openingen voor de komende zeven dagen bij NDW zijn aangemeld.
 heading: Brugopeningen per brug
 kicker: Bruggen

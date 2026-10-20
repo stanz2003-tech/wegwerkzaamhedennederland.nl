@@ -6,7 +6,7 @@
   "dataBase": "/data/",
   "contactEmail": "info@wegwerkzaamhedennederland.nl",
   "locale": "nl-NL",
-  "ogImage": "",
+  "ogImage": "/og-image.png",
   "refreshMinutes": 10,
   "planningRefreshMinutes": 15,
   "owner": {

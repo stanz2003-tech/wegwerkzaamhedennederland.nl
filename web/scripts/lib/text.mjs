@@ -68,6 +68,21 @@ export function fitText(variants, max = DESCRIPTION_MAX) {
   return clampText(list[list.length - 1] ?? '', max);
 }
 
+/**
+ * Titles: Google shows about 60 characters before it cuts the title off or rewrites it (on
+ * 2026-10-20 the 76–89 character titles showed up as "Wegwerkzaamheden A12 - WEGWERK Nederland").
+ */
+export const TITLE_MAX = 60;
+
+/**
+ * First title variant that fits `TITLE_MAX`. A title is never cut off with "…": when nothing fits,
+ * the last (shortest) variant is used whole, because it carries the part that keeps it unique.
+ */
+export function fitTitle(variants) {
+  const list = variants.filter((v) => typeof v === 'string' && v.trim() !== '').map((v) => v.replace(/\s+/g, ' ').trim());
+  return list.find((v) => v.length <= TITLE_MAX) ?? list[list.length - 1] ?? '';
+}
+
 /** Trim a description to ~`max` chars at a word boundary. */
 export function clampText(text, max = DESCRIPTION_MAX) {
   const s = text.replace(/\s+/g, ' ').trim();
@@ -89,6 +104,42 @@ export function fmtDate(iso) {
 export function fmtDateTime(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : NL_DATETIME.format(d).replace(' om ', ', ');
+}
+
+const NL_DAY_PARTS = new Intl.DateTimeFormat('nl-NL', { timeZone: 'Europe/Amsterdam', weekday: 'short', day: 'numeric', month: 'short' });
+const MS_DAY = 24 * 60 * 60 * 1000;
+
+function dayParts(ms) {
+  const parts = Object.fromEntries(NL_DAY_PARTS.formatToParts(new Date(ms)).map((p) => [p.type, p.value]));
+  return { weekday: parts.weekday, day: parts.day, month: parts.month };
+}
+
+/** "di 20 okt": the Amsterdam day of `iso`, for the title of /vandaag/. '' for a bad date. */
+export function todayLabel(iso) {
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return '';
+  const { weekday, day, month } = dayParts(ms);
+  return `${weekday} ${day} ${month}`;
+}
+
+/**
+ * "23–26 okt" or "30 okt – 2 nov": Friday to Monday of the weekend /dit-weekend/ shows, for its
+ * title. The page is rebuilt once a day (deploy.yml, 04:41 UTC), so the label must hold for the
+ * whole day after the build: on Saturday and Sunday it is the weekend in progress, from Monday on
+ * the coming one (the map's own window, web/src/data/time.ts, still looks back until Monday 06:00).
+ * Noon keeps the day arithmetic clear of daylight-saving changes. '' for a bad date.
+ */
+export function weekendLabel(iso) {
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return '';
+  const [y, m, d] = new Date(ms).toLocaleDateString('en-CA', { timeZone: 'Europe/Amsterdam' }).split('-').map(Number);
+  const noon = Date.UTC(y, m - 1, d, 12);
+  const offset = [-2, 4, 3, 2, 1, 0, -1][new Date(noon).getUTCDay()]; // Sunday … Saturday → Friday
+  const friday = dayParts(noon + offset * MS_DAY);
+  const monday = dayParts(noon + (offset + 3) * MS_DAY);
+  return friday.month === monday.month
+    ? `${friday.day}–${monday.day} ${monday.month}`
+    : `${friday.day} ${friday.month} – ${monday.day} ${monday.month}`;
 }
 
 /**
@@ -187,15 +238,29 @@ export function roadRouteShort(entry) {
   return ` (${withArticle(segments[0].from)} – ${withArticle(segments[segments.length - 1].to)})`;
 }
 
-export function roadTitle(entry, siteName) {
-  return `Wegwerkzaamheden ${entry.road} – actuele werkzaamheden, afsluitingen en files | ${siteName}`;
+/**
+ * Entity-page titles and descriptions (2026-10-20, docs/groei-onderzoek-2026-10.md): the search
+ * term first, at most `TITLE_MAX` characters, a reason to click, and no " | Wegwerk" (Google adds
+ * the site name itself). Descriptions open with the question people type and end with how fresh
+ * the data is.
+ */
+const FRESHNESS = 'Elk kwartier bijgewerkt.';
+
+export function roadTitle(entry) {
+  return fitTitle([
+    `${entry.road} afsluitingen & werkzaamheden: vandaag en dit weekend`,
+    `${entry.road} afsluitingen & werkzaamheden`,
+  ]);
 }
 
 export function roadDescription(entry) {
-  const tail = ', nu en de komende 30 dagen, plus de files van dit moment. Open data van NDW.';
+  const ask = `Is de ${entry.road} dicht?`;
+  const what = `Afsluitingen en werkzaamheden op de ${entry.road}`;
+  const route = roadRouteShort(entry);
   return fitText([
-    `Wegwerkzaamheden, afsluitingen en omleidingen op de ${entry.road}${roadRouteShort(entry)}${tail}`,
-    `Wegwerkzaamheden, afsluitingen en omleidingen op de ${entry.road}${tail}`,
+    `${ask} ${what}${route}: vandaag, dit weekend en de komende 30 dagen, plus de files. ${FRESHNESS}`,
+    `${ask} ${what}${route}: vandaag, dit weekend en de komende 30 dagen. ${FRESHNESS}`,
+    `${ask} ${what}: vandaag, dit weekend en de komende 30 dagen, plus de files. ${FRESHNESS}`,
   ]);
 }
 
@@ -243,31 +308,72 @@ export function roadFaq(entry, refresh) {
 /* Places                                                                                     */
 /* ------------------------------------------------------------------------------------------ */
 
-export function placeTitle(place, kind, siteName) {
-  return kind === 'gemeente'
-    ? `Wegwerkzaamheden gemeente ${place.naam} – alle werkzaamheden en afsluitingen | ${siteName}`
-    : `Wegwerkzaamheden in ${place.naam} (${place.gemeente}) – actueel overzicht | ${siteName}`;
+/**
+ * The names people search for instead of the official one. "Den Bosch" stood nowhere on the
+ * site, while /gemeente/s-hertogenbosch/ is the page with the most clicks.
+ */
+export const PLACE_ALIASES = new Map([
+  ["'s-Hertogenbosch", 'Den Bosch'],
+  ["'s-Gravenhage", 'Den Haag'],
+]);
+
+export function placeAlias(naam) {
+  return PLACE_ALIASES.get(naam) ?? '';
 }
 
-export function placeDescription(place, kind) {
-  if (kind === 'gemeente') {
-    const tail = ': rijkswegen, provinciale wegen en straten, nu en de komende 30 dagen. Open data van NDW.';
-    return fitText([
-      `Alle wegwerkzaamheden en afsluitingen in de gemeente ${place.naam} (${place.prov})${tail}`,
-      `Alle wegwerkzaamheden en afsluitingen in de gemeente ${place.naam}${tail}`,
-      `Alle wegwerkzaamheden en afsluitingen in de gemeente ${place.naam}, nu en de komende 30 dagen. Open data van NDW.`,
-    ]);
-  }
-  const tail = ': wat nu geldt en wat binnen 30 dagen begint. Open data van NDW.';
+/** "Den Bosch ('s-Hertogenbosch)", or just the name when it has no alias. */
+function placeLabel(naam) {
+  const alias = placeAlias(naam);
+  return alias ? `${alias} (${naam})` : naam;
+}
+
+/**
+ * Whether a gemeente has a woonplaats of its own name (Eindhoven, Utrecht: 227 of 342). People
+ * then search for the place, not the gemeente, so its title and description drop "gemeente";
+ * Haarlemmermeer or Altena keep it.
+ */
+export function hasSameNameKern(gemeente, woonplaatsen) {
+  return woonplaatsen.some((w) => w.naam === gemeente.naam);
+}
+
+/**
+ * `sameNameKern` (gemeente pages, see hasSameNameKern). A woonplaats keeps its gemeente in the
+ * title: 70 woonplaats names occur twice. A woonplaats named like its gemeente (/plaats/eindhoven/)
+ * says "(woonplaats)" instead, so it does not repeat the gemeente page's title.
+ */
+export function placeTitle(place, kind, { sameNameKern = false } = {}) {
+  const name = placeAlias(place.naam) || place.naam;
+  let who;
+  if (kind === 'gemeente') who = sameNameKern ? name : `gemeente ${name}`;
+  else who = place.naam === place.gemeente ? `${name} (woonplaats)` : `${name} (${place.gemeente})`;
+  return fitTitle([`Wegwerkzaamheden ${who}: wat is nu dicht?`, `Wegwerkzaamheden ${who}: wat is dicht?`, `Wegwerkzaamheden ${who}`]);
+}
+
+/** "Welke wegen zijn nu dicht in <where>?" with the longest details that still fit. */
+function placeQuestionDescription(wheres) {
+  const what = 'Alle wegwerkzaamheden en afsluitingen, vandaag en de komende 30 dagen.';
+  const shorter = 'Werkzaamheden en afsluitingen, vandaag en de komende 30 dagen.';
   return fitText([
-    `Wegwerkzaamheden, afsluitingen en omleidingen in ${place.naam} (gemeente ${place.gemeente}, ${place.prov})${tail}`,
-    `Wegwerkzaamheden, afsluitingen en omleidingen in ${place.naam} (gemeente ${place.gemeente})${tail}`,
-    `Wegwerkzaamheden, afsluitingen en omleidingen in ${place.naam}${tail}`,
+    ...wheres.map((w) => `Welke wegen zijn nu dicht in ${w}? ${what} ${FRESHNESS}`),
+    ...wheres.map((w) => `Welke wegen zijn nu dicht in ${w}? ${shorter} ${FRESHNESS}`),
+    `Welke wegen zijn nu dicht in ${wheres[wheres.length - 1]}? ${shorter}`,
   ]);
 }
 
+export function placeDescription(place, kind, { sameNameKern = false } = {}) {
+  const label = placeLabel(place.naam);
+  const inProv = (where) => (place.prov ? [`${where} (${place.prov})`, where] : [where]);
+  if (kind === 'gemeente') return placeQuestionDescription(inProv(sameNameKern ? label : `de gemeente ${label}`));
+  if (place.naam === place.gemeente) return placeQuestionDescription(inProv(`de woonplaats ${label}`));
+  // The gemeente stays in every variant: it tells apart the 70 woonplaats names that occur twice.
+  const gem = `gemeente ${place.gemeente}`;
+  return placeQuestionDescription(place.prov ? [`${label} (${gem}, ${place.prov})`, `${label} (${gem})`] : [`${label} (${gem})`]);
+}
+
 export function placeHeading(place, kind) {
-  return kind === 'gemeente' ? `Wegwerkzaamheden gemeente ${place.naam}` : `Wegwerkzaamheden in ${place.naam}`;
+  const alias = placeAlias(place.naam);
+  if (kind === 'gemeente') return alias ? `Wegwerkzaamheden ${alias} (gemeente ${place.naam})` : `Wegwerkzaamheden gemeente ${place.naam}`;
+  return `Wegwerkzaamheden in ${placeLabel(place.naam)}`;
 }
 
 export function mapHref(lon, lat, zoom) {
@@ -277,12 +383,14 @@ export function mapHref(lon, lat, zoom) {
 export function placeIntro(place, kind, woonplaatsen, refresh) {
   const naam = escapeHtml(place.naam);
   const prov = escapeHtml(place.prov ?? '');
+  const alias = placeAlias(place.naam);
+  const aka = alias ? `, beter bekend als ${escapeHtml(alias)},` : '';
   const parts = [];
   if (kind === 'gemeente') {
     const allNames = woonplaatsen.map((w) => w.naam);
     const hasOwnName = allNames.includes(place.naam);
     const names = allNames.filter((n) => n !== place.naam);
-    parts.push(`De gemeente ${naam} ligt in de provincie ${prov}.`);
+    parts.push(`De gemeente ${naam}${aka} ligt in de provincie ${prov}.`);
     if (names.length > 0) {
       const shown = names.slice(0, 8);
       const rest = names.length - shown.length;
@@ -306,8 +414,8 @@ export function placeIntro(place, kind, woonplaatsen, refresh) {
     const sameName = place.naam === place.gemeente;
     parts.push(
       sameName
-        ? `${naam} is een woonplaats in de gelijknamige gemeente, in de provincie ${prov}.`
-        : `${naam} is een woonplaats in de gemeente ${escapeHtml(place.gemeente)}, in de provincie ${prov}.`,
+        ? `${naam}${aka} is een woonplaats in de gelijknamige gemeente, in de provincie ${prov}.`
+        : `${naam}${aka} is een woonplaats in de gemeente ${escapeHtml(place.gemeente)}, in de provincie ${prov}.`,
     );
     parts.push(
       `Op deze pagina zie je alle wegwerkzaamheden, afsluitingen, omleidingen en evenementen met verkeersmaatregelen in ${naam} die nu gelden of binnen 30 dagen beginnen.`,
@@ -403,9 +511,15 @@ export function bridgeVariants(bridges) {
   return variants;
 }
 
-export function bridgeTitle(bridge, siteName, variant = '') {
-  const where = [bridge.road || bridge.woonplaats || bridge.gemeente, variant].filter(Boolean).join(', ');
-  return `Brugopeningen ${bridge.name}${where ? ` (${where})` : ''} – actuele en geplande openingen | ${siteName}`;
+/**
+ * The variant label keeps two same-named bridges apart, so every title variant keeps it. A place
+ * the name already carries ("Hefbrug, Alphen aan den Rijn") is not repeated in brackets.
+ */
+export function bridgeTitle(bridge, variant = '') {
+  const near = bridge.road || bridge.woonplaats || bridge.gemeente;
+  const where = [near && !bridge.name.includes(near) ? near : '', variant].filter(Boolean).join(', ');
+  const base = `Brugopeningen ${bridge.name}${where ? ` (${where})` : ''}`;
+  return fitTitle([`${base}: vandaag en deze week`, base]);
 }
 
 export function bridgeDescription(bridge, variant = '') {
