@@ -1,13 +1,12 @@
 /**
  * Page-level helpers of the map page (/), moved out of main.ts so that file stays about the
  * one question and its state: the "Bijgewerkt om" line, the data-failure notice over the
- * map, the "Uitleg ↓" links and copying the link of an open melding.
+ * map and the "Uitleg ↓" links. Sharing a melding lives in ui/share.ts.
  */
 import { toMs } from '../data/time';
 import type { Meta } from '../data/types';
 import { esc, fmtTime } from './format';
 import { ICONS } from './icons';
-import { showToast } from './toast';
 
 /**
  * "Bijgewerkt om 14:20" under the map. The count tiles ("Werkzaamheden 2.177") are gone: they
@@ -50,14 +49,4 @@ export function wireUitlegLinks(reducedMotion: boolean): void {
       scrollToUitleg();
     });
   });
-}
-
-/** Copies the link of a melding, with a toast either way. */
-export async function copyLink(link: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(link);
-    showToast('Link gekopieerd naar het klembord.');
-  } catch {
-    showToast('Kopiëren lukte niet. De link staat in de adresbalk.', 'error');
-  }
 }

@@ -110,3 +110,4 @@ export const routingGeoapify = await load('data/routing-geoapify.ts');
 export const afterPaint = await load('ui/after-paint.ts');
 export const roadLine = await load('data/road-line.ts');
 export const roadOutline = await load('map/road-outline.ts');
+export const share = await load('ui/share.ts');
