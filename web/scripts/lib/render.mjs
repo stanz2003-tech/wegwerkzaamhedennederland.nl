@@ -223,6 +223,8 @@ export const FALLBACK_PARTIALS = {
   footer: `<footer class="site-footer">
   <p class="site-footer__attribution">{{site.attribution}}</p>
   <nav class="site-footer__links" aria-label="Juridisch">
+    <a href="/uitleg/">Uitleg</a>
+    <a href="/wijzigingen/">Wijzigingen</a>
     <a href="/privacy/">Privacy</a>
     <a href="/cookies/">Cookies</a>
     <a href="/disclaimer/">Disclaimer</a>

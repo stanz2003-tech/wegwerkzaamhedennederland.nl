@@ -6,7 +6,7 @@ description: Vragen over de site, samenwerking of adverteren? Mail ons. Fouten i
 heading: Contact
 kicker: Vragen en meldingen
 lead: Wegwerk wordt met weinig mensen gemaakt, dus een mail is de snelste weg. Een fout in de verkeersinformatie zelf kun je het beste direct bij de wegbeheerder melden; dan is hij ook meteen voor alle andere kaarten en navigatiesystemen hersteld.
-updated: 2026-10-16
+updated: 2026-10-25
 ---
 
 ## Mail ons

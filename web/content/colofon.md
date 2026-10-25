@@ -6,7 +6,7 @@ description: Wie Wegwerk uitgeeft en welke bronnen en software erin zitten: open
 heading: Colofon
 kicker: Over deze site
 lead: Wegwerk is gebouwd op open data en open source. Hieronder staat wie de site uitgeeft en welke bronnen, software en diensten erin zitten, met de voorgeschreven bronvermelding.
-updated: 2026-10-16
+updated: 2026-10-25
 ---
 
 ## Uitgever

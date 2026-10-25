@@ -1,7 +1,7 @@
 /**
  * Entry script for the static content pages (template `web/templates/static.html`):
- * /over/, /veelgestelde-vragen/, /privacy/, /cookies/, /disclaimer/, /colofon/, /contact/
- * and the 404 page.
+ * /over/, /veelgestelde-vragen/, /uitleg/ and its guides, /wijzigingen/, /privacy/, /cookies/,
+ * /disclaimer/, /colofon/, /contact/ and the 404 page.
  *
  * No data is needed here. `bootPage()` mounts the shared chrome (topbar with theme toggle,
  * footer cookie link, ad slot, analytics) and makes `<details>` blocks deep-linkable; the only

@@ -33,10 +33,24 @@ export const LIST_ROUTES = [
   { slug: 'bruggen', path: '/bruggen/', list: 'bruggen', priority: 0.7, changefreq: 'weekly' },
 ];
 
-export const STATIC_ROUTES = ['over', 'veelgestelde-vragen', 'privacy', 'cookies', 'disclaimer', 'colofon', 'contact'].map((slug) => ({
+const MAIN_STATIC = new Set(['over', 'veelgestelde-vragen', 'uitleg']);
+
+export const STATIC_ROUTES = ['over', 'veelgestelde-vragen', 'uitleg', 'wijzigingen', 'privacy', 'cookies', 'disclaimer', 'colofon', 'contact'].map((slug) => ({
   slug,
   path: `/${slug}/`,
-  priority: slug === 'over' || slug === 'veelgestelde-vragen' ? 0.5 : 0.3,
+  priority: MAIN_STATIC.has(slug) ? 0.5 : 0.3,
+  changefreq: 'monthly',
+}));
+
+/**
+ * The guides under /uitleg/: written by hand, one `content/uitleg-<name>.md` each, so the site has
+ * more to read than the generated pages. Order = order on the /uitleg/ page and in the sitemap.
+ */
+export const GUIDE_ROUTES = ['meldingen-lezen', 'omrijden', 'weekend-en-nachtafsluitingen', 'waar-komt-de-data-vandaan'].map((name) => ({
+  slug: `uitleg-${name}`,
+  path: `/uitleg/${name}/`,
+  parent: { name: 'Uitleg', href: '/uitleg/' },
+  priority: 0.5,
   changefreq: 'monthly',
 }));
 
@@ -95,7 +109,9 @@ export function mergedWoonplaatsen(gemeenten, woonplaatsenByGemeente) {
  * `activity` (activity.mjs, from the live data) says which place and bridge pages have nothing to
  * show today; with `indexState` (index-state.mjs: last day with activity per path, from the
  * previous deploy) a page only becomes `thin` (noindex, follow, out of the sitemap, no ads) after
- * 60 days without anything. Without activity every page is indexable.
+ * 60 days without anything. Until then it is `quiet`: still indexed, but without ads, because an
+ * ad next to "Niets gemeld" is what an AdSense reviewer calls a page without content.
+ * Without activity every page is indexable and may carry ads.
  * `snapshotFor` (snapshot.mjs) gives road and place pages their server-visible content.
  */
 export function buildModel({ webRoot, repoRoot, listsDir, activity = null, indexState = null, indexStateFailed = false, snapshotFor = null, now = new Date(), warn = console.warn }) {
@@ -152,17 +168,17 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     if (!content.has(l.slug)) warn(`[gen-pages] content/${l.slug}.md ontbreekt – lijstpagina ${l.path} krijgt standaardtekst`);
     routes.push({ type: 'list', path: l.path, slug: l.slug, list: l.list, sitemap: true, priority: l.priority, changefreq: l.changefreq });
   }
-  for (const s of STATIC_ROUTES) {
+  for (const s of [...STATIC_ROUTES, ...GUIDE_ROUTES]) {
     if (!content.has(s.slug)) {
       warn(`[gen-pages] content/${s.slug}.md ontbreekt – pagina ${s.path} overgeslagen`);
       continue;
     }
-    routes.push({ type: 'static', path: s.path, slug: s.slug, sitemap: true, priority: s.priority, changefreq: s.changefreq });
+    routes.push({ type: 'static', path: s.path, slug: s.slug, parent: s.parent, sitemap: true, priority: s.priority, changefreq: s.changefreq });
   }
   routes.push({ type: 'static', path: '/404.html', slug: NOT_FOUND_SLUG, sitemap: false, outFile: '404.html', noindex: true });
 
-  const { thin, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
-  const pages = routes.map((p) => (thin.has(p.path) ? { ...p, thin: true, sitemap: false } : p));
+  const { thin, quiet, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
+  const pages = routes.map((p) => (thin.has(p.path) ? { ...p, thin: true, sitemap: false } : quiet.has(p.path) ? { ...p, quiet: true } : p));
 
   const counts = {
     roads: lists.roads.length,
@@ -172,6 +188,7 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     lists: pages.filter((p) => p.type === 'list').length,
     statics: pages.filter((p) => p.type === 'static').length,
     thin: pages.filter((p) => p.thin).length,
+    quiet: pages.filter((p) => p.quiet).length,
   };
 
   return {
@@ -198,20 +215,22 @@ function believable(thin, gemeenteCount, warn) {
 }
 
 /**
- * Which pages are thin, and the memory for the next build. Without believable data nothing is
- * thin and the memory is carried over unchanged, so an outage never shortens a page's 60 days.
- * When the previous memory exists but could not be read, nothing is thin either; the memory then
- * holds only today's active pages.
+ * Which pages are thin, which are quiet (nothing today, so no ads), and the memory for the next
+ * build. Without believable data nothing is thin or quiet and the memory is carried over
+ * unchanged, so an outage never shortens a page's 60 days. When the previous memory exists but
+ * could not be read, nothing is thin either; the memory then holds only today's active pages.
  */
 function thinPaths({ routes, activity, indexState, indexStateFailed, site, today, gemeenteCount, warn }) {
-  const carried = { thin: new Set(), lastActive: indexState ?? new Map() };
+  const carried = { thin: new Set(), quiet: new Set(), lastActive: indexState ?? new Map() };
   if (!activity) return carried;
   const candidates = routes.filter((p) => p.type === 'place' || p.type === 'bridge');
   const emptyGemeenten = candidates.filter((p) => p.kind === 'gemeente' && isThinPage(p, activity)).length;
   if (!believable(emptyGemeenten, gemeenteCount, warn)) return carried;
   const alwaysIndex = new Set(Array.isArray(site.seo?.alwaysIndex) ? site.seo.alwaysIndex : []);
-  const decided = decideThin({ candidates, inactiveToday: (p) => isThinPage(p, activity), previous: indexState, today, alwaysIndex });
-  return indexStateFailed ? { thin: new Set(), lastActive: decided.lastActive } : decided;
+  const inactiveToday = (p) => isThinPage(p, activity);
+  const quiet = new Set(candidates.filter(inactiveToday).map((p) => p.path));
+  const decided = decideThin({ candidates, inactiveToday, previous: indexState, today, alwaysIndex });
+  return indexStateFailed ? { thin: new Set(), quiet, lastActive: decided.lastActive } : { ...decided, quiet };
 }
 
 /** File name of the entity-page manifest at the site root (web/src/data/entity-pages.ts reads it). */
@@ -316,6 +335,7 @@ function baseContext(model, page, { title, description, crumbs, current, ogType 
     ogImage,
     robots: page.noindex ? 'noindex, nofollow' : page.thin ? 'noindex, follow' : 'index, follow, max-image-preview:large',
     adsenseAccount: adsenseAccount(site),
+    adsOff: page.quiet === true,
     jsonld: jsonLd(graph),
     crumbs,
     crumbCurrent: current,
@@ -587,6 +607,24 @@ function listContext(model, page) {
   };
 }
 
+/** Article markup for a guide: who wrote it and when, which a generated page cannot claim. */
+function guideLd(model, page, { heading, description, published, updated }) {
+  const siteUrl = String(model.site.url ?? '').replace(/\/+$/, '');
+  const owner = String(model.site.owner?.name ?? '').trim();
+  const org = { '@type': 'Organization', name: model.site.longName, url: `${siteUrl}/` };
+  return {
+    '@type': 'Article',
+    headline: heading,
+    description,
+    inLanguage: 'nl-NL',
+    mainEntityOfPage: siteUrl + page.path,
+    ...(published ? { datePublished: published } : {}),
+    ...(updated ? { dateModified: updated } : {}),
+    author: owner ? { '@type': 'Person', name: owner } : org,
+    publisher: org,
+  };
+}
+
 function staticContext(model, page) {
   const entry = model.content.get(page.slug);
   const data = entry?.data ?? {};
@@ -602,13 +640,13 @@ function staticContext(model, page) {
   const heading = data.heading ?? page.slug;
   const title = data.title ? `${substituteVars(String(data.title), vars)} | ${model.site.name}` : `${heading} | ${model.site.name}`;
   const updated = data.updated ? String(data.updated) : '';
+  const description = clampText(data.description ? substituteVars(String(data.description), vars) : stripMarkdown(data.lead || heading));
+  if (page.parent) extraLd.push(guideLd(model, page, { heading, description, published: data.published ? String(data.published) : updated, updated }));
   return {
     ...baseContext(model, page, {
       title,
-      description: clampText(
-        data.description ? substituteVars(String(data.description), vars) : stripMarkdown(data.lead || heading),
-      ),
-      crumbs: [{ name: 'Kaart', href: '/' }],
+      description,
+      crumbs: [{ name: 'Kaart', href: '/' }, ...(page.parent ? [page.parent] : [])],
       current: heading,
       ogType: 'article',
       extraLd,

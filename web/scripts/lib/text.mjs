@@ -18,8 +18,10 @@ export const ROAD_KIND = {
 
 /**
  * Publisher lines for colofon, contact and over, from site.config `owner`. All fields are
- * optional: the owner chose (2026-10-12) to keep his name off the site, so with an empty
- * `owner.name` the pages call Wegwerk a private initiative. Dutch law (art. 3:15d BW) asks a site
+ * optional: since 2026-10-25 the site names its maker by first name only (for the AdSense
+ * review); with an empty `owner.name` the pages call Wegwerk a private initiative. Without a KvK
+ * number nothing is said about registration: a "once registered" promise reads as an unfinished
+ * site. Dutch law (art. 3:15d BW) asks a site
  * that earns money for the publisher's name and geographic address (`owner.address`, e.g.
  * "Dorpsstraat 1, 1234 AB Utrecht"), and the KvK and btw numbers once registered; `owner.city`
  * alone is the lighter option. Plain text: the values go into Markdown, which escapes them.
@@ -36,7 +38,7 @@ export function publisherVars(owner) {
     byline: maker ? `Wegwerk wordt gemaakt en onderhouden door ${maker}, los van de wegbeheerders.` : 'Wegwerk wordt onafhankelijk gemaakt en onderhouden, los van de wegbeheerders.',
     registration: kvk
       ? `KvK-nummer ${kvk}${btw ? `, btw-identificatienummer ${btw}` : ''}.`
-      : 'Zodra de site is ingeschreven bij de Kamer van Koophandel staan hier het KvK- en btw-nummer.',
+      : '',
   };
 }
 

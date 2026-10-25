@@ -6,7 +6,7 @@ description: Antwoorden over de kaart: wat werkzaamheden, afsluiting, omleiding 
 heading: Veelgestelde vragen
 kicker: Uitleg
 lead: Hoe de kaart werkt, wat de begrippen betekenen en wat je kunt verwachten van de gegevens. Staat je vraag er niet bij? Kijk op de contactpagina.
-updated: 2026-09-08
+updated: 2026-10-25
 ---
 
 ## Wat telt als een wegwerkzaamheid op deze kaart?
@@ -23,7 +23,7 @@ De kaart toont de **geplande periode** die de wegbeheerder heeft opgegeven. Aann
 
 ## Hoe actueel zijn de gegevens?
 
-Dat verschilt per soort melding. Het **actuele beeld** — files, incidenten, brugopeningen en de rijstrookafzettingen op de rijkswegen — halen we elke **{{refreshMinutes}} minuten** opnieuw op bij het Nationaal Dataportaal Wegverkeer (NDW). De **planning** van wegwerkzaamheden komt uit een feed die NDW ongeveer elk kwartier vernieuwt, en die we dus ook ongeveer elke {{planningMinutes}} minuten verwerken. Het tijdstip van de laatste update staat bovenaan de kaart en op elke pagina. Daarnaast speelt mee hoe snel de wegbeheerder een wijziging zelf invoert; bij grote projecten kan dat dagen duren.
+Dat verschilt per soort melding. Het **actuele beeld** — files, incidenten, brugopeningen en de rijstrookafzettingen op de rijkswegen — halen we elke **{{refreshMinutes}} minuten** opnieuw op bij het Nationaal Dataportaal Wegverkeer (NDW). De **planning** van wegwerkzaamheden komt uit een feed die NDW ongeveer elk kwartier vernieuwt, en die we dus ook ongeveer elke {{planningMinutes}} minuten verwerken. Het tijdstip van de laatste update staat bovenaan de kaart en op elke pagina. Daarnaast speelt mee hoe snel de wegbeheerder een wijziging zelf invoert; bij grote projecten kan dat dagen duren. De hele route van de gegevens staat in [waar komt de data vandaan?](/uitleg/waar-komt-de-data-vandaan/).
 
 ## Kan ik zien of er wegwerkzaamheden op mijn route liggen?
 
@@ -35,11 +35,11 @@ Bij **werkzaamheden** kun je meestal wel doorrijden, maar met hinder: een of mee
 
 ## Wat betekent "omleiding"?
 
-Een omleiding is de route die de wegbeheerder adviseert zolang een weg of afrit dicht is. Op de kaart staat de omleiding als tekst bij de melding, bijvoorbeeld "Volg de gele borden via de A27 en A15". De omleiding is een advies, geen verplichting, maar hij is wel afgestemd op de capaciteit van het onderliggende wegennet en op andere werkzaamheden in de buurt. Wie een eigen sluiproute kiest, komt regelmatig alsnog voor een afsluiting te staan.
+Een omleiding is de route die de wegbeheerder adviseert zolang een weg of afrit dicht is. Op de kaart staat de omleiding als tekst bij de melding, bijvoorbeeld "Volg de gele borden via de A27 en A15". De omleiding is een advies, geen verplichting, maar hij is wel afgestemd op de capaciteit van het onderliggende wegennet en op andere werkzaamheden in de buurt. Wie een eigen sluiproute kiest, komt regelmatig alsnog voor een afsluiting te staan. Meer tips staan in [omrijden bij een afsluiting](/uitleg/omrijden/).
 
 ## Wat betekenen de hindercategorieën A tot en met E?
 
-Wegbeheerders geven in Melvin bij elke werkzaamheid een **hindercategorie** op, van A (zeer veel hinder) tot E (nauwelijks hinder). De categorie zegt iets over de verwachte extra reistijd en het aantal weggebruikers dat er last van heeft. Grofweg: bij categorie A en B gaat het om afsluitingen van drukke wegen met een verwachte vertraging van tientallen minuten en lange omleidingen; bij C is de hinder merkbaar maar beperkt; bij D en E merk je er weinig van, bijvoorbeeld een afgezette parkeerstrook of een fietspad dat tijdelijk verlegd is. De exacte grenzen bepaalt de wegbeheerder. Op de wegpagina's staat de categorie bij elke melding, zodat je de grote klappers eruit kunt pikken.
+Wegbeheerders geven in Melvin bij elke werkzaamheid een **hindercategorie** op, van A (zeer veel hinder) tot E (nauwelijks hinder). De categorie zegt iets over de verwachte extra reistijd en het aantal weggebruikers dat er last van heeft. Grofweg: bij categorie A en B gaat het om afsluitingen van drukke wegen met een verwachte vertraging van tientallen minuten en lange omleidingen; bij C is de hinder merkbaar maar beperkt; bij D en E merk je er weinig van, bijvoorbeeld een afgezette parkeerstrook of een fietspad dat tijdelijk verlegd is. De exacte grenzen bepaalt de wegbeheerder. Op de wegpagina's staat de categorie bij elke melding, zodat je de grote klappers eruit kunt pikken. Hoe de categorie zich verhoudt tot het oordeel "weg dicht" of "doorrijden mogelijk", lees je in [zo lees je een melding](/uitleg/meldingen-lezen/).
 
 ## Wat betekenen de gele borden met letters of cijfers langs de weg?
 
@@ -51,7 +51,7 @@ Groot onderhoud aan snelwegen en provinciale wegen wordt vaak maanden tot een ja
 
 ## Waarom vinden veel werkzaamheden 's nachts of in het weekend plaats?
 
-Omdat er dan het minste verkeer is. Op snelwegen wordt asfalt- en markeringswerk meestal 's nachts gedaan, ongeveer tussen 21:00 en 05:00 uur, zodat de weg in de ochtendspits weer open is. Grotere klussen, zoals het vervangen van een viaductdek of het inhijsen van een brugdeel, worden gebundeld in een weekendafsluiting van vrijdagavond tot maandagochtend. In de zomervakantie en rond feestdagen worden ook langere afsluitingen ingepland. Let op: in de melding staat de hele periode; de werkelijke werktijden staan vaak in de beschrijving.
+Omdat er dan het minste verkeer is. Op snelwegen wordt asfalt- en markeringswerk meestal 's nachts gedaan, ongeveer tussen 21:00 en 05:00 uur, zodat de weg in de ochtendspits weer open is. Grotere klussen, zoals het vervangen van een viaductdek of het inhijsen van een brugdeel, worden gebundeld in een weekendafsluiting van vrijdagavond tot maandagochtend. In de zomervakantie en rond feestdagen worden ook langere afsluitingen ingepland. Let op: in de melding staat de hele periode; de werkelijke werktijden staan vaak in de beschrijving. Zie ook [weekend- en nachtafsluitingen](/uitleg/weekend-en-nachtafsluitingen/).
 
 ## Hoe zie ik files en ongevallen?
 
