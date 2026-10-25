@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 
 import { loadPartials, loadTemplates } from './lib/render.mjs';
 import {
-  ENTITY_MANIFEST_FILE, LIST_ROUTES, NOT_FOUND_SLUG, PAGE_TYPES, STATIC_ROUTES, buildEntityManifest, buildModel, notFoundPage, renderPage,
+  ENTITY_MANIFEST_FILE, GUIDE_ROUTES, LIST_ROUTES, NOT_FOUND_SLUG, PAGE_TYPES, STATIC_ROUTES, buildEntityManifest, buildModel, notFoundPage, renderPage,
 } from './lib/pages.mjs';
 import { copyLists } from './lib/lists.mjs';
 
@@ -19,6 +19,7 @@ const ENTITY_PREFIXES = new Map([
   ['brug', '/bruggen/'],
 ]);
 const FLAT_ROUTES = new Set([...LIST_ROUTES.map((r) => r.path), ...STATIC_ROUTES.map((r) => r.path)]);
+const GUIDE_PATHS = new Set(GUIDE_ROUTES.map((r) => r.path));
 
 /** A page-shaped request: ends in a slash, is not the app root and carries no file extension. */
 const PAGE_LIKE_RE = /^\/[^.]+\/$/;
@@ -36,6 +37,11 @@ export function matchRoute(pathname) {
     if (FLAT_ROUTES.has(withSlash)) return pathname === withSlash ? { path: withSlash } : { redirect: withSlash };
     if (ENTITY_PREFIXES.has(flat[1])) return { redirect: ENTITY_PREFIXES.get(flat[1]) };
     return PAGE_LIKE_RE.test(pathname) ? { notFound: true } : null;
+  }
+  const guide = /^\/uitleg\/([a-z-]+)\/?$/.exec(pathname);
+  if (guide && GUIDE_PATHS.has(`/uitleg/${guide[1]}/`)) {
+    const canonical = `/uitleg/${guide[1]}/`;
+    return pathname === canonical ? { path: canonical } : { redirect: canonical };
   }
   const entity = /^\/(weg|plaats|gemeente|brug)\/([^/]+)\/?$/.exec(pathname);
   if (entity) {

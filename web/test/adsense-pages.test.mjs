@@ -57,7 +57,7 @@ describe('publisher', () => {
   it('stays a private initiative until the owner fills in a name', () => {
     const v = publisherVars({ name: '', city: 'Utrecht', kvk: '', btw: '' });
     assert.equal(v.sentence, 'Wegwerk is een particulier initiatief.');
-    assert.match(v.registration, /Zodra de site is ingeschreven/);
+    assert.equal(v.registration, '', 'no "zodra ingeschreven" promise: it reads as a site that is not finished');
     assert.equal(publisherVars(undefined).sentence, v.sentence);
   });
 
@@ -91,12 +91,20 @@ describe('ads only where Google may index', () => {
     assert.equal(adPolicy.robotsAllowAds(undefined), true);
   });
 
-  it('mountAds asks the policy with the page\'s own robots meta before loading anything', () => {
+  it('an indexed page that says wegwerk-ads off loads no ads either', () => {
+    assert.equal(adPolicy.pageAllowsAds('index, follow', 'off'), false);
+    assert.equal(adPolicy.pageAllowsAds('index, follow', ' OFF '), false);
+    assert.equal(adPolicy.pageAllowsAds('index, follow', undefined), true);
+    assert.equal(adPolicy.pageAllowsAds('noindex, follow', undefined), false);
+  });
+
+  it('mountAds asks the policy with the page\'s own robots and ads meta before loading anything', () => {
     // ads.ts imports site.config.json, which Node cannot load in a test; read its source instead.
     const src = readFileSync(join(WEB_ROOT, 'src/ui/ads.ts'), 'utf8');
     const mount = src.slice(src.indexOf('export function mountAds'), src.indexOf('export function openCmp'));
     assert.match(mount, /querySelector<HTMLMetaElement>\('meta\[name="robots"\]'\)\?\.content/);
-    assert.match(mount, /const enabled = adsEnabled\(\) && robotsAllowAds\(robots\);/);
-    assert.ok(mount.indexOf('robotsAllowAds') < mount.indexOf('loadAdsenseScript'), 'the policy decides before the script loads');
+    assert.match(mount, /querySelector<HTMLMetaElement>\('meta\[name="wegwerk-ads"\]'\)\?\.content/);
+    assert.match(mount, /const enabled = adsEnabled\(\) && pageAllowsAds\(robots, adsMeta\);/);
+    assert.ok(mount.indexOf('pageAllowsAds') < mount.indexOf('loadAdsenseScript'), 'the policy decides before the script loads');
   });
 });

@@ -6,7 +6,7 @@ description: Wat Wegwerk is, waar de gegevens over werkzaamheden, afsluitingen e
 heading: Over Wegwerk
 kicker: Over deze site
 lead: Wegwerk zet alle wegwerkzaamheden, afsluitingen, omleidingen, files en incidenten van Nederland op één kaart. Gratis, zonder account en zonder app, met open data van de Nederlandse wegbeheerders.
-updated: 2026-10-16
+updated: 2026-10-25
 ---
 
 ## Wat is Wegwerk?
@@ -41,6 +41,18 @@ Bedenk wel: de kaart toont wat de wegbeheerder heeft **ingevoerd**. Werk dat eer
 
 Wegwerk is een particulier initiatief en **geen officiële website** van Rijkswaterstaat, NDW, een provincie of gemeente. De site wordt betaald uit advertenties op de tekstpagina's; op de kaart staan er geen. Gepersonaliseerde advertenties zie je alleen als je daar toestemming voor geeft. We verkopen geen gegevens over bezoekers. Hoe we met privacy omgaan, staat in de [privacyverklaring](/privacy/) en het [cookiebeleid](/cookies/).
 
+## Hoe we controleren wat je ziet
+
+Een kaart die zegt dat je erdoor kunt terwijl de weg dicht is, is erger dan geen kaart. Daarom gaat het werk van de software niet ongezien de site op:
+
+- Bij elke update vergelijken we het oordeel met de eigen woorden van de wegbeheerder. Schrijft die dat de weg dicht is, dan wordt het oordeel nooit milder dan dat.
+- Grote wijzigingen aan hoe het oordeel wordt berekend, controleren we tegen een strikte, losse lezing van de ruwe gegevens van NDW, op een groot aantal momenten tegelijk. Pas als de site nergens "erdoor" zegt waar de gegevens de weg afsluiten, gaat de wijziging live.
+- Fouten die we vinden, herstellen we en zetten we in het [logboek met wijzigingen](/wijzigingen/).
+
+Hoe dat in detail werkt, lees je in [waar komt de data vandaan?](/uitleg/waar-komt-de-data-vandaan/). Wil je weten hoe je een melding leest, begin dan bij de [uitleg](/uitleg/).
+
 ## Wie maakt Wegwerk?
 
-{{publisher.byline}} Vragen, opmerkingen of een fout gezien? Kijk op de [contactpagina](/contact/). Fouten in de verkeersinformatie zelf meld je het snelst bij de wegbeheerder; ook dat staat daar uitgelegd.
+{{publisher.byline}} Wegwerk is sinds september 2026 online en wordt sindsdien vrijwel elke week verbeterd: van een routeplanner tot een betere lezing van wat wegbeheerders precies afsluiten. De verkeersgegevens zelf worden de hele dag automatisch vernieuwd.
+
+Vragen, opmerkingen of een fout gezien? Kijk op de [contactpagina](/contact/). Fouten in de verkeersinformatie zelf meld je het snelst bij de wegbeheerder; ook dat staat daar uitgelegd.

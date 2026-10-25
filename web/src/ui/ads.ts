@@ -12,7 +12,7 @@
  */
 import site from '../../site.config.json';
 import { deferAdScript, type AdScript } from './ad-loader';
-import { robotsAllowAds } from './ad-policy';
+import { pageAllowsAds } from './ad-policy';
 import { createCmpOpener, type GoogleFc } from './cmp';
 
 type SlotName = 'panel' | 'list' | 'article';
@@ -84,7 +84,8 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
 /** Wires every `[data-ad-slot]` in `root`. Safe to call more than once (idempotent per slot). */
 export function mountAds(root: ParentNode = document): void {
   const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content;
-  const enabled = adsEnabled() && robotsAllowAds(robots);
+  const adsMeta = document.querySelector<HTMLMetaElement>('meta[name="wegwerk-ads"]')?.content;
+  const enabled = adsEnabled() && pageAllowsAds(robots, adsMeta);
   window.__ADS_ENABLED__ = enabled;
   const slots = root.querySelectorAll<HTMLElement>('[data-ad-slot]');
   if (!enabled) {

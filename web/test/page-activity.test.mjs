@@ -207,6 +207,25 @@ describe('generated pages', () => {
     assert.ok(bridges.filter((p) => p.entity.id !== busyBridge.id).every((p) => p.thin === true));
   });
 
+  it('an empty page that had roadworks within 60 days stays indexed, but without ads', () => {
+    const path = `/plaats/${empty.slug}/`;
+    const recent = buildModel({
+      webRoot: WEB_ROOT, repoRoot: REPO_ROOT, activity, indexState: new Map([[path, '2026-10-01']]), now: new Date('2026-10-25T12:00:00Z'), warn: quiet,
+    });
+    const page = recent.byPath.get(path);
+    assert.equal(page.thin, undefined);
+    assert.equal(page.quiet, true);
+    const html = renderPage(page, recent, templates);
+    assert.match(robotsOf(html), /^index, follow/);
+    assert.match(html, /<meta name="wegwerk-ads" content="off">/);
+    assert.doesNotMatch(renderPage(recent.byPath.get(`/plaats/${busy.slug}/`), recent, templates), /wegwerk-ads/);
+    assert.doesNotMatch(renderPage(recent.byPath.get('/over/'), recent, templates), /wegwerk-ads/);
+  });
+
+  it('without data no page is quiet: an outage never switches ads off', () => {
+    assert.equal(model0.counts.quiet, 0);
+  });
+
   it('without data every page is indexable, as before', () => {
     assert.equal(model0.pages.filter((p) => p.thin).length, 0);
     assert.equal(model0.counts.thin, 0);
