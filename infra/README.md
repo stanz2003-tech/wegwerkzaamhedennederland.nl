@@ -285,3 +285,22 @@ without pushing code, run it manually the same way.
   `public, max-age=0, must-revalidate`. This too needs the zone's *Respect Existing Headers*.
 
 Details with click paths: `docs/handleiding.md`.
+
+## The daily status mail (`infra/daily-report.mjs`)
+
+A Claude cloud routine ("Wegwerk dagrapport", daily at 18:00 UTC) checks out this repo,
+runs `node infra/daily-report.mjs` and mails Stan a short Dutch summary of the JSON it
+prints. Nothing here runs in GitHub Actions. The script has two sections, each fetched on
+its own: **visitors** (Cloudflare Web Analytics, Dutch visits only; China is reported
+separately because of the bot traffic that the WAF rule challenges since 2026-10-25) and
+**search** (Search Console, the newest 7 days with data against the 7 before). A section
+that fails carries `{ "error": "…" }` instead, and the exit code is 1 only when both fail.
+
+The secrets live in the routine's cloud environment, never in the repo:
+
+- `CF_API_TOKEN`: a Cloudflare API token with *Account → Account Analytics → Read*.
+- `GSC_SA_JSON`: the JSON key of a Google service account. The account is added in Search
+  Console (*Instellingen → Gebruikers en rechten*) as a user with *Beperkt* access.
+
+The environment must allow outbound traffic to `api.cloudflare.com`, `oauth2.googleapis.com`
+and `www.googleapis.com`. Tests: `node --test "infra/test/daily-report.test.mjs"`.
