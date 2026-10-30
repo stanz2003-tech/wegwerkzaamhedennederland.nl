@@ -11,10 +11,11 @@ import '../styles/pages.css';
 import { itemsWithinKm, mapFeatures, parseCoord } from '../data/entity';
 import { loadIndexAll, rowsToItems, type IndexItem } from '../data/index';
 import { loadBridges } from '../data/load';
-import { startOfDay, toMs } from '../data/time';
+import { startOfDay } from '../data/time';
 import type { BridgeEntry, ItemFeature, Severity } from '../data/types';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
-import { esc, fmtDay, fmtDayTime, fmtDuration, fmtTime, plural } from '../ui/format';
+import { openingsHtml, parseOpenings, type Opening } from '../ui/bridge-openings';
+import { esc, fmtDayTime, fmtTime } from '../ui/format';
 import { bodyAttr, bootPage, setEmptyVisible, stampUpdated } from '../ui/page-boot';
 
 /** Radius around the bridge for the roadworks shown on the map. */
@@ -40,28 +41,11 @@ function noticeOpenings(el: HTMLElement, text: string): void {
   el.innerHTML = `<li class="bridge-openings__notice" role="status">${esc(text)}</li>`;
 }
 
-// The build may have written the morning's next opening into the list (scripts/lib/snapshot.mjs);
-// it stays until the live openings replace it.
+// The build may have written the morning's openings into the list (scripts/lib/snapshot.mjs);
+// they stay until the live openings replace them.
 if (openingsEl && !openingsEl.hasAttribute('data-snapshot')) placeholderOpenings(openingsEl);
 
 const boot = bootPage();
-
-interface Opening {
-  start: number;
-  end: number;
-}
-
-function parseOpenings(entry: BridgeEntry, now: number): Opening[] {
-  const out: Opening[] = [];
-  for (const pair of entry.openings ?? []) {
-    const start = toMs(pair[0]);
-    const end = toMs(pair[1]);
-    if (Number.isNaN(start) || Number.isNaN(end) || end < start) continue;
-    if (end < now) continue;
-    out.push({ start, end });
-  }
-  return out.sort((a, b) => a.start - b.start);
-}
 
 function setStatus(state: string, text: string): void {
   if (!statusEl) return;
@@ -84,15 +68,6 @@ function renderStatus(entry: BridgeEntry, openings: readonly Opening[], now: num
   setStatus('closed', `Nu dicht voor scheepvaart, volgende opening ${when}`);
 }
 
-/** Day label in the openings list: "Vandaag", "Morgen" or "Za 13 sep". */
-function dayLabel(ms: number, now: number): string {
-  const day = startOfDay(ms);
-  if (day === startOfDay(now)) return 'Vandaag';
-  if (day === startOfDay(now, 1)) return 'Morgen';
-  const label = fmtDay(ms);
-  return label.charAt(0).toUpperCase() + label.slice(1);
-}
-
 function renderOpenings(openings: readonly Opening[], now: number): void {
   if (!openingsEl) return;
   if (openings.length === 0) {
@@ -102,35 +77,7 @@ function renderOpenings(openings: readonly Opening[], now: number): void {
     return;
   }
   setEmptyVisible('entity-empty', false);
-
-  const groups = new Map<number, Opening[]>();
-  for (const o of openings) {
-    const day = startOfDay(o.start);
-    const list = groups.get(day);
-    if (list) list.push(o);
-    else groups.set(day, [o]);
-  }
-
-  const html = [...groups.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([day, list]) => {
-      const rows = list
-        .map((o) => {
-          const duration = fmtDuration(o.end - o.start);
-          const running = o.start <= now && o.end >= now;
-          return `<li class="bridge-openings__slot${running ? ' is-now' : ''}">
-            <time datetime="${esc(new Date(o.start).toISOString())}">${esc(fmtTime(o.start))}</time>–<time datetime="${esc(new Date(o.end).toISOString())}">${esc(fmtTime(o.end))}</time>
-            ${duration ? `<span class="bridge-openings__duration">${esc(duration)}</span>` : ''}
-            ${running ? '<span class="bridge-openings__now">nu open</span>' : ''}
-          </li>`;
-        })
-        .join('');
-      return `<li class="bridge-openings__day">
-        <h3 class="bridge-openings__day-title">${esc(dayLabel(day, now))} <span class="bridge-openings__count">${esc(plural(list.length, 'opening', 'openingen'))}</span></h3>
-        <ul class="bridge-openings__slots">${rows}</ul>
-      </li>`;
-    })
-    .join('');
+  const html = openingsHtml(openings, now);
 
   openingsEl.setAttribute('aria-busy', 'false');
   openingsEl.innerHTML = html;

@@ -371,9 +371,8 @@ function emptyHtml(strong, text, mapHrefValue, tail = '') {
 
 function roadContext(model, page) {
   const r = page.entity;
-  const refresh = model.site.refreshMinutes ?? 5;
   const kind = roadKind(r.type);
-  const faq = roadFaq(r, refresh);
+  const faq = roadFaq(r);
   const related = nearestRoads(r, model.lists.roads, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
@@ -397,7 +396,7 @@ function roadContext(model, page) {
     lat: r.lat,
     bbox,
     heading: `Wegwerkzaamheden ${r.road}`,
-    intro: roadIntro(r, refresh),
+    intro: roadIntro(r),
     faq,
     related,
     hasRelated: related.length > 0,
@@ -408,11 +407,10 @@ function roadContext(model, page) {
 function placeContext(model, page) {
   const p = page.entity;
   const kind = page.kind;
-  const refresh = model.site.refreshMinutes ?? 5;
   const isGemeente = kind === 'gemeente';
   const gemeente = isGemeente ? p : model.index.gemeenteByCode.get(p.gemeenteCode) ?? model.index.gemeenteByName.get((p.gemeente ?? '').toLowerCase());
   const siblings = (model.index.woonplaatsenByGemeente.get(isGemeente ? p.code : p.gemeenteCode) ?? []).filter((w) => w !== p && !model.index.merged.has(w));
-  const faq = placeFaq(p, kind, refresh);
+  const faq = placeFaq(p, kind);
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Plaatsen', href: '/plaatsen/' }];
   if (!isGemeente && gemeente) crumbs.push({ name: `Gemeente ${gemeente.naam}`, href: `/gemeente/${gemeente.slug}/` });
 
@@ -463,7 +461,7 @@ function placeContext(model, page) {
     lon: p.lon,
     lat: p.lat,
     zoom,
-    intro: placeIntro(p, kind, siblings, refresh),
+    intro: placeIntro(p, kind, siblings),
     faq,
     relatedPlaces,
     hasRelatedPlaces: relatedPlaces.length > 0,
@@ -477,9 +475,8 @@ function placeContext(model, page) {
 
 function bridgeContext(model, page) {
   const b = page.entity;
-  const refresh = model.site.refreshMinutes ?? 5;
   const variant = model.index.bridgeVariants.get(b.id) ?? '';
-  const faq = bridgeFaq(b, refresh);
+  const faq = bridgeFaq(b);
   const pool = [...(b.gemeente ? model.index.bridgesByGemeente.get(b.gemeente) ?? [] : [])];
   if (pool.length < 7 && b.prov) for (const o of model.index.bridgesByProv.get(b.prov) ?? []) if (!pool.includes(o)) pool.push(o);
   const relatedBridges = nearestByCentroid(b, pool, 8).map((o) => ({
@@ -524,7 +521,7 @@ function bridgeContext(model, page) {
     prov: b.prov ?? '',
     lon: b.lon,
     lat: b.lat,
-    intro: bridgeIntro(b, refresh),
+    intro: bridgeIntro(b),
     faq,
     relatedBridges,
     hasRelatedBridges: relatedBridges.length > 0,

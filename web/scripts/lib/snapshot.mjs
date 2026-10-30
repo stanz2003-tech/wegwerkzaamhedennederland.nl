@@ -1,10 +1,11 @@
 /**
  * Server-visible content: at build time, road and place pages get the answer card, the count, the
- * first 20 roadworks and (roads) the question block, from the same data files the pages load in
+ * first 20 roadworks and the question block ("Is de A2 vandaag dicht?", "Is er morgen een weg dicht
+ * in Mildam?"), from the same data files the pages load in
  * the browser (`DATA_BASE` roads/<slug>.json and gemeenten/<slug>.json), computed with the same
  * TypeScript functions (web/src/ui/entity-snapshot.ts, ui/road-questions.ts). The lists
  * /afsluitingen/, /vandaag/ and /dit-weekend/ get their summary and first rows (ui/list-sections.ts),
- * bridge pages their next opening.
+ * bridge pages their openings of the coming week (ui/bridge-openings.ts).
  *
  * Why: search engines and AI crawlers read the HTML as served. Until 2026-10 that held only
  * template text and a hidden "Geen meldingen voor …", while ~90% of the clicks come from searches
@@ -89,7 +90,7 @@ export async function loadEntityFiles({ dataBase, roads, gemeenten, fetchImpl = 
 
 /** The TypeScript modules the snapshots are computed with. */
 export async function loadSnapshotModules() {
-  const [snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList] = await Promise.all([
+  const [snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList, bridgeOpenings] = await Promise.all([
     importSrc('ui/entity-snapshot.ts'),
     importSrc('ui/road-questions.ts'),
     importSrc('data/entity.ts'),
@@ -101,13 +102,16 @@ export async function loadSnapshotModules() {
     importSrc('data/load.ts'),
     importSrc('ui/list-sections.ts'),
     importSrc('ui/entity-list.ts'),
+    importSrc('ui/bridge-openings.ts'),
   ]);
-  return { snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList };
+  return { snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList, bridgeOpenings };
 }
 
 /** The list pages with a snapshot; /files/ has none: a traffic jam of 06:41 says nothing later. */
 const SNAPSHOT_LISTS = new Set(['afsluitingen', 'vandaag', 'weekend']);
 const BRIDGE_DAYS = 7;
+/** Openings written into a bridge page; a busy bridge has well over a hundred a week. */
+export const BRIDGE_SNAPSHOT_SLOTS = 30;
 
 const LIST_WHEN = { vandaag: 'voor vandaag', weekend: 'voor dit weekend' };
 
@@ -179,19 +183,19 @@ export function createSnapshotter({ mods, live, files, now }) {
   const bridgeSnapshot = (page) => {
     const entry = bridgeList?.find((b) => b && b.id === page.entity.id);
     if (!entry) return null;
-    const until = now + BRIDGE_DAYS * 86_400_000;
-    const starts = (Array.isArray(entry.openings) ? entry.openings : [])
-      .map((pair) => [Date.parse(pair?.[0]), Date.parse(pair?.[1])])
-      .filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && b >= now && a <= until)
-      .map(([a]) => a)
-      .sort((a, b) => a - b);
+    const openings = mods.bridgeOpenings.parseOpenings(entry, now, BRIDGE_DAYS);
     let text;
     if (entry.openNow === true) text = `Stand van ${asOf}: de brug stond open voor de scheepvaart.`;
-    else if (starts.length > 0) {
-      const n = starts.length === 1 ? '1 geplande opening' : `${starts.length} geplande openingen`;
-      text = `Stand van ${asOf}: ${n} in de komende ${BRIDGE_DAYS} dagen, de eerste ${mods.format.fmtDayTime(starts.find((t) => t >= now) ?? starts[0])}.`;
+    else if (openings.length > 0) {
+      const n = openings.length === 1 ? '1 geplande opening' : `${openings.length} geplande openingen`;
+      text = `Stand van ${asOf}: ${n} in de komende ${BRIDGE_DAYS} dagen, de eerste ${mods.format.fmtDayTime(openings.find((o) => o.start >= now)?.start ?? openings[0].start)}.`;
     } else return null;
-    return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>`, asOf };
+    // The openings themselves, by date: the page names "vandaag" and "nu open" once its script runs.
+    const shown = openings.slice(0, BRIDGE_SNAPSHOT_SLOTS);
+    const rest = openings.length - shown.length;
+    const days = mods.bridgeOpenings.openingsHtml(shown, now, { relativeDays: false });
+    const more = rest > 0 ? `<li class="bridge-openings__notice">En nog ${rest === 1 ? '1 opening' : `${rest} openingen`} later deze week.</li>` : '';
+    return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>${days}${more}`, asOf };
   };
 
   return (page, { mapHref }) => {
@@ -204,8 +208,15 @@ export function createSnapshotter({ mods, live, files, now }) {
     const subject = page.type === 'road' ? { kind: 'road', name: e.road } : { kind: page.kind, name: e.naam };
     const roadType = page.type === 'road' && ['A', 'N', 'S', 'E', 'lokaal'].includes(e.type) ? e.type : null;
     const snap = mods.snapshot.entitySnapshot({ items, subject, roadType, now, horizonMs, asOf, mapHref });
-    const questionsHtml =
-      page.type === 'road' ? mods.questions.renderRoadQuestions(mods.questions.roadQuestions(items, e.road, now, horizonMs), `stand van ${asOf}`) : '';
+    // A place with nothing reported gets no question block: its card already says "Niets gemeld",
+    // and four times "Nee, … in <plaats>" would be the same sentences on ~2,000 pages again.
+    const questions =
+      page.type === 'road'
+        ? mods.questions.roadQuestions(items, e.road, now, horizonMs)
+        : snap.count > 0
+          ? mods.questions.placeQuestions(items, subject, now, horizonMs)
+          : [];
+    const questionsHtml = questions.length > 0 ? mods.questions.renderRoadQuestions(questions, `stand van ${asOf}`) : '';
     return { ...snap, questionsHtml, asOf };
   };
 }

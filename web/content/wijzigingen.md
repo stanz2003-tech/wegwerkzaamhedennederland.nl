@@ -6,10 +6,12 @@ description: Logboek van Wegwerk: nieuwe functies, verbeterde oordelen en herste
 heading: Wijzigingen
 kicker: Over deze site
 lead: Wegwerk wordt elke week beter. Hier staan de belangrijkste veranderingen, de nieuwste bovenaan. De verkeersgegevens zelf worden los daarvan elke {{refreshMinutes}} minuten (actueel beeld) en ongeveer elk kwartier (planning) vernieuwd; de pagina's per weg, plaats en brug twee keer per dag.
-updated: 2026-10-25
+updated: 2026-10-30
 ---
 
 ## Oktober 2026
+
+**30 oktober** — Op elke plaats- en gemeentepagina staat nu meteen of er **vandaag, morgen of dit weekend** een weg dicht is, en wanneer de eerstvolgende afsluiting begint. Brugpagina's tonen de geplande openingen van de komende week per dag, ook als de pagina nog laadt. De uitleg die op elke pagina opnieuw stond, staat nu één keer in de [uitleg](/uitleg/meldingen-lezen/); het menu-item **Uitleg** gaat daar ook heen.
 
 **25 oktober** — Nieuwe [uitleg](/uitleg/) met vier gidsen: meldingen lezen, omrijden, weekend- en nachtafsluitingen en waar de gegevens vandaan komen. Pagina's van plaatsen en bruggen waar vandaag niets gemeld is, tonen geen advertenties meer.
 
