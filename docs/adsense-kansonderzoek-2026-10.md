@@ -308,7 +308,8 @@ beantwoordt.
 
   Voorbeeld uit Warmond: "Is er vandaag een weg dicht in Warmond? Ja. Herenweg dicht (tot vr 30 okt
   20:00)." Na het laden werkt de pagina het blok live bij, net als het vergelijkbare blok op
-  wegpagina's.
+  wegpagina's. Een plaats zonder meldingen krijgt het blok niet. Daar zegt de antwoordkaart al
+  "Niets gemeld", en vier keer "nee" zou weer dezelfde tekst op ±2.000 pagina's zijn.
 
 **Gemeten effect** (dezelfde steekproef van 65 pagina's als in §2.1, build met live data van
 30 oktober). Het percentage is het deel van de tekst dat woordelijk op andere pagina's terugkomt.
@@ -317,8 +318,8 @@ beantwoordt.
 |---|---|---|
 | Plaats | ±44% | ±18% |
 | Gemeente | ±32% | ±11% |
-| N-weg | ±50% | ±32% |
-| Brug | ±80% | ±52% |
+| N-weg | ±50% | ±27% |
+| Brug | ±80% | ±44% |
 
 De pagina's zijn ook ongeveer 250 woorden korter, en dat is op de telefoon alleen maar prettiger.
 

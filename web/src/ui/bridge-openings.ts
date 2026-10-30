@@ -63,17 +63,20 @@ export function openingsHtml(openings: readonly Opening[], now: number, opts: Op
         .map((o) => {
           const duration = fmtDuration(o.end - o.start);
           const running = relative && o.start <= now && o.end >= now;
-          return `<li class="bridge-openings__slot${running ? ' is-now' : ''}">
-            <time datetime="${esc(new Date(o.start).toISOString())}">${esc(fmtTime(o.start))}</time>–<time datetime="${esc(new Date(o.end).toISOString())}">${esc(fmtTime(o.end))}</time>
-            ${duration ? `<span class="bridge-openings__duration">${esc(duration)}</span>` : ''}
-            ${running ? '<span class="bridge-openings__now">nu open</span>' : ''}
-          </li>`;
+          return (
+            `<li class="bridge-openings__slot${running ? ' is-now' : ''}">` +
+            `<time datetime="${esc(new Date(o.start).toISOString())}">${esc(fmtTime(o.start))}</time>–<time datetime="${esc(new Date(o.end).toISOString())}">${esc(fmtTime(o.end))}</time>` +
+            (duration ? ` <span class="bridge-openings__duration">${esc(duration)}</span>` : '') +
+            (running ? ' <span class="bridge-openings__now">nu open</span>' : '') +
+            '</li>'
+          );
         })
         .join('');
-      return `<li class="bridge-openings__day">
-        <h3 class="bridge-openings__day-title">${esc(dayLabel(day, now, relative))} <span class="bridge-openings__count">${esc(plural(list.length, 'opening', 'openingen'))}</span></h3>
-        <ul class="bridge-openings__slots">${rows}</ul>
-      </li>`;
+      return (
+        '<li class="bridge-openings__day">' +
+        `<h3 class="bridge-openings__day-title">${esc(dayLabel(day, now, relative))} <span class="bridge-openings__count">${esc(plural(list.length, 'opening', 'openingen'))}</span></h3>` +
+        `<ul class="bridge-openings__slots">${rows}</ul></li>`
+      );
     })
     .join('');
 }

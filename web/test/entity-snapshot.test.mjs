@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 
 import { loadFixtureData, readJson } from './helpers/fixtures.mjs';
 import { entityFile, entityList, entitySections, entitySnapshot, roadQuestions, time } from './helpers/src.mjs';
-import { createSnapshotter, loadEntityFiles, loadSnapshotModules } from '../scripts/lib/snapshot.mjs';
+import { BRIDGE_SNAPSHOT_SLOTS, createSnapshotter, loadEntityFiles, loadSnapshotModules } from '../scripts/lib/snapshot.mjs';
 
 const NOW = loadFixtureData().now;
 const road = (slug) => readJson(`roads/${slug}.json`).items;
@@ -185,6 +185,23 @@ describe('snapshot.mjs (build side)', () => {
     assert.ok(wp.count > 0 && wp.count <= utrecht.count);
 
     assert.equal(snapshotFor({ type: 'bridge', entity: { id: 'x' } }, { mapHref: '/' }), null);
+
+    // A place with nothing reported: the answer card already says "Niets gemeld"; four times
+    // "Nee, … in X" would only be the same sentences again on ~2,000 pages.
+    const empty = snapshotFor({ type: 'place', kind: 'woonplaats', entity: { naam: 'Nergensdorp', gemeente: 'Utrecht', slug: 'x' } }, { mapHref: '/' });
+    assert.equal(empty.count, 0);
+    assert.equal(empty.questionsHtml, '');
+  });
+
+  it('writes at most BRIDGE_SNAPSHOT_SLOTS openings of a busy bridge into the HTML', async () => {
+    const mods = await loadSnapshotModules();
+    const openings = Array.from({ length: 60 }, (_, i) => [new Date(NOW + (i + 1) * 3_600_000).toISOString(), new Date(NOW + (i + 1) * 3_600_000 + 600_000).toISOString()]);
+    const live = { index: readJson('index/all.json'), meta: readJson('meta.json'), bridges: { bridges: [{ id: 'B', openNow: false, openings }] } };
+    const html = createSnapshotter({ mods, live, files: null, now: NOW })({ type: 'bridge', entity: { id: 'B' } }, { mapHref: '/' }).openingsHtml;
+    assert.equal((html.match(/class="bridge-openings__slot"/g) ?? []).length, BRIDGE_SNAPSHOT_SLOTS);
+    assert.match(html, /60 geplande openingen/);
+    assert.match(html, new RegExp(`En nog ${60 - BRIDGE_SNAPSHOT_SLOTS} openingen`));
+    assert.doesNotMatch(html, />\s{2,}</, 'no indentation whitespace between the tags');
   });
 
   it('gives /afsluitingen/ and /dit-weekend/ their summary and first rows, /files/ nothing', async () => {

@@ -275,7 +275,9 @@ export function roadDescription(entry) {
 export function roadFaq(entry) {
   const { road, type } = entry;
   const r = escapeHtml(road);
-  const announce = type === 'A' ? 'Rijkswaterstaat doet dat doorgaans één tot twee weken vooraf' : 'wegbeheerders doen dat meestal minstens een week vooraf';
+  const announce = type === 'A'
+    ? `Rijkswaterstaat meldt afsluitingen op de ${r} doorgaans één tot twee weken vooraf aan`
+    : `Wegbeheerders melden afsluitingen op de ${r} meestal minstens een week vooraf aan`;
   let authority;
   switch (type) {
     case 'A':
@@ -293,7 +295,7 @@ export function roadFaq(entry) {
   return [
     {
       q: `Hoe ver vooruit staan afsluitingen op de ${road}?`,
-      a: `Zodra de wegbeheerder ze heeft aangemeld; ${announce}. Alle afsluitingen van dit weekend in heel Nederland vind je op de pagina <a href="/dit-weekend/">dit weekend</a>.`,
+      a: `${announce}; hierboven staan ze zodra dat is gebeurd. Alle afsluitingen van dit weekend in heel Nederland vind je op de pagina <a href="/dit-weekend/">dit weekend</a>.`,
     },
     { q: `Wie is de wegbeheerder van de ${road}?`, a: authority },
   ];

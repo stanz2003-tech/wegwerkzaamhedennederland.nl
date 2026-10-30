@@ -65,7 +65,7 @@ describe('place titles', () => {
     assert.equal(placeHeading(bosch, 'gemeente'), "Wegwerkzaamheden Den Bosch (gemeente 's-Hertogenbosch)");
     assert.equal(placeHeading({ ...bosch, gemeente: bosch.naam }, 'woonplaats'), "Wegwerkzaamheden in Den Bosch ('s-Hertogenbosch)");
     assert.match(placeDescription(bosch, 'gemeente', { sameNameKern: true }), /Den Bosch \('s-Hertogenbosch\)/);
-    assert.match(placeIntro(bosch, 'gemeente', [], 15), /De gemeente &#39;s-Hertogenbosch, beter bekend als Den Bosch, ligt/);
+    assert.match(placeIntro(bosch, 'gemeente', []), /De gemeente &#39;s-Hertogenbosch, beter bekend als Den Bosch, ligt/);
     assert.equal(placeHeading(eindhoven, 'gemeente'), 'Wegwerkzaamheden gemeente Eindhoven');
   });
 

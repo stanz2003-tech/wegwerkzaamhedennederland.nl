@@ -110,6 +110,8 @@ export async function loadSnapshotModules() {
 /** The list pages with a snapshot; /files/ has none: a traffic jam of 06:41 says nothing later. */
 const SNAPSHOT_LISTS = new Set(['afsluitingen', 'vandaag', 'weekend']);
 const BRIDGE_DAYS = 7;
+/** Openings written into a bridge page; a busy bridge has well over a hundred a week. */
+export const BRIDGE_SNAPSHOT_SLOTS = 30;
 
 const LIST_WHEN = { vandaag: 'voor vandaag', weekend: 'voor dit weekend' };
 
@@ -189,8 +191,11 @@ export function createSnapshotter({ mods, live, files, now }) {
       text = `Stand van ${asOf}: ${n} in de komende ${BRIDGE_DAYS} dagen, de eerste ${mods.format.fmtDayTime(openings.find((o) => o.start >= now)?.start ?? openings[0].start)}.`;
     } else return null;
     // The openings themselves, by date: the page names "vandaag" and "nu open" once its script runs.
-    const days = mods.bridgeOpenings.openingsHtml(openings, now, { relativeDays: false });
-    return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>${days}`, asOf };
+    const shown = openings.slice(0, BRIDGE_SNAPSHOT_SLOTS);
+    const rest = openings.length - shown.length;
+    const days = mods.bridgeOpenings.openingsHtml(shown, now, { relativeDays: false });
+    const more = rest > 0 ? `<li class="bridge-openings__notice">En nog ${rest === 1 ? '1 opening' : `${rest} openingen`} later deze week.</li>` : '';
+    return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>${days}${more}`, asOf };
   };
 
   return (page, { mapHref }) => {
@@ -203,9 +208,15 @@ export function createSnapshotter({ mods, live, files, now }) {
     const subject = page.type === 'road' ? { kind: 'road', name: e.road } : { kind: page.kind, name: e.naam };
     const roadType = page.type === 'road' && ['A', 'N', 'S', 'E', 'lokaal'].includes(e.type) ? e.type : null;
     const snap = mods.snapshot.entitySnapshot({ items, subject, roadType, now, horizonMs, asOf, mapHref });
+    // A place with nothing reported gets no question block: its card already says "Niets gemeld",
+    // and four times "Nee, … in <plaats>" would be the same sentences on ~2,000 pages again.
     const questions =
-      page.type === 'road' ? mods.questions.roadQuestions(items, e.road, now, horizonMs) : mods.questions.placeQuestions(items, subject, now, horizonMs);
-    const questionsHtml = mods.questions.renderRoadQuestions(questions, `stand van ${asOf}`);
+      page.type === 'road'
+        ? mods.questions.roadQuestions(items, e.road, now, horizonMs)
+        : snap.count > 0
+          ? mods.questions.placeQuestions(items, subject, now, horizonMs)
+          : [];
+    const questionsHtml = questions.length > 0 ? mods.questions.renderRoadQuestions(questions, `stand van ${asOf}`) : '';
     return { ...snap, questionsHtml, asOf };
   };
 }
