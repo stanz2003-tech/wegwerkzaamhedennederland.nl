@@ -33,7 +33,10 @@ const fakeSnapshot = (page) => ({
   listHtml: `<p class="entity-snapshot__stamp">Stand van di 20 okt 06:41: 3 meldingen.</p><a class="item">Teststraat · ${page.entity.naam ?? page.entity.road}</a>`,
   count: 3,
   headline: 'Rijbaan dicht bij Teststraat',
-  questionsHtml: page.type === 'road' ? '<dl class="road-questions__list"><div><dt>Is de A2 vandaag dicht?</dt><dd>Ja.</dd></div></dl>' : '',
+  questionsHtml:
+    page.type === 'road'
+      ? '<dl class="road-questions__list"><div><dt>Is de A2 vandaag dicht?</dt><dd>Ja.</dd></div></dl>'
+      : `<dl class="road-questions__list"><div><dt>Is er morgen een weg dicht in ${page.entity.naam}?</dt><dd>Nee.</dd></div></dl>`,
   asOf: 'di 20 okt 06:41',
 });
 
@@ -55,6 +58,13 @@ describe('the snapshot in the HTML', () => {
     assert.match(visibleText(page), /Is de A2 dicht\? Is de A2 vandaag dicht\? Ja\./);
   });
 
+  it('a place page carries its own question block: today, tomorrow, the weekend', () => {
+    const page = html('/gemeente/eindhoven/');
+    assert.match(page, /<section class="road-questions" id="road-questions" aria-labelledby="rq-title">/);
+    assert.match(visibleText(page), /Is er iets dicht in de gemeente Eindhoven\? Is er morgen een weg dicht in Eindhoven\? Nee\./);
+    assert.match(visibleText(html('/plaats/lexmond/')), /Is er iets dicht in Lexmond\?/);
+  });
+
   it('without a snapshot the page renders as before: skeleton slot, question block hidden', () => {
     const plain = buildModel({ webRoot: WEB_ROOT, repoRoot: REPO_ROOT, warn: quiet });
     const page = renderPage(plain.byPath.get('/weg/a2/'), plain, templates);
@@ -62,6 +72,27 @@ describe('the snapshot in the HTML', () => {
     assert.match(page, /<section class="road-questions" id="road-questions" aria-labelledby="rq-title" hidden>/);
     assert.match(page, /<div id="entity-list" class="entity-list"><\/div>/);
   });
+});
+
+describe('no template text repeated on every page (AdSense: "low value content")', () => {
+  const model = buildModel({ webRoot: WEB_ROOT, repoRoot: REPO_ROOT, warn: quiet });
+  const pick = (pred) => model.pages.find(pred);
+
+  for (const [label, page] of [
+    ['road', model.byPath.get('/weg/a2/')],
+    ['gemeente', pick((p) => p.kind === 'gemeente')],
+    ['woonplaats', pick((p) => p.kind === 'woonplaats')],
+    ['bridge', pick((p) => p.type === 'bridge')],
+  ]) {
+    it(`${label}: the reading guide is one link to the uitleg, not the same paragraphs again`, () => {
+      const text = visibleText(renderPage(page, model, templates));
+      assert.doesNotMatch(text, /Zo lees je dit overzicht|De rode badge geeft aan|Wat een brugopening betekent voor het wegverkeer/);
+      assert.doesNotMatch(text, /Hoe actueel is/, 'the stamp on the page says how fresh it is');
+      assert.match(renderPage(page, model, templates), /href="\/uitleg\/meldingen-lezen\/"/);
+      const refreshes = text.match(/elke \d+ minuten/g) ?? [];
+      assert.ok(refreshes.length <= 1, `${label}: the refresh rate is said ${refreshes.length} times`);
+    });
+  }
 });
 
 describe('no hidden "nothing here" text', () => {

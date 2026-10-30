@@ -16,7 +16,7 @@ const gemeente = (slug) => readJson(`gemeenten/${slug}.json`).items;
 const text = (html) => html.replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 const { entitySnapshot: snapshotOf, SNAPSHOT_ROWS } = entitySnapshot;
-const { roadQuestions: questionsOf, renderRoadQuestions, nightWindow } = roadQuestions;
+const { roadQuestions: questionsOf, placeQuestions, renderRoadQuestions, nightWindow } = roadQuestions;
 
 describe('entitySnapshot', () => {
   it('a road: the answer card for nu, the stamp with the count and the roadworks as text', () => {
@@ -82,6 +82,31 @@ describe('roadQuestions', () => {
     const early = Date.parse('2026-09-10T02:00:00Z'); // 04:00 CEST
     assert.equal(nightWindow(early).from, early);
     assert.equal(time.wallClockKey(nightWindow(early).to + 1), '06:00');
+  });
+
+  it('a place: today, tomorrow, the weekend and the next closure, from the same answers as the card', () => {
+    const qs = placeQuestions(road('a2'), { kind: 'woonplaats', name: 'Vinkeveen' }, NOW);
+    assert.deepEqual(qs.map((q) => q.id), ['vandaag', 'morgen', 'weekend', 'volgende']);
+    assert.deepEqual(qs.map((q) => q.q), [
+      'Is er vandaag een weg dicht in Vinkeveen?',
+      'Is er morgen een weg dicht in Vinkeveen?',
+      'Is er dit weekend een weg dicht in Vinkeveen?',
+      'Wanneer is de eerstvolgende afsluiting in Vinkeveen?',
+    ]);
+    const by = Object.fromEntries(qs.map((q) => [q.id, q.a]));
+    // A place page names the road of a closure: "A2 rijbaan dicht tussen Hintham en Vught".
+    assert.match(by.vandaag, /^Ja\. A2 rijbaan dicht /);
+    assert.match(by.morgen, /^Ja\. A2 rijbaan dicht /, 'closed until 04:00 tomorrow');
+    assert.equal(by.weekend, 'Nee, voor dit weekend is in Vinkeveen geen afsluiting gemeld.');
+    assert.match(by.volgende, /^Er is nu al een afsluiting: A2 rijbaan dicht .*\(/);
+  });
+
+  it('a gemeente says "in de gemeente"; nothing reported is a no for every question', () => {
+    const qs = placeQuestions([], { kind: 'gemeente', name: 'Lopik' }, NOW);
+    assert.equal(qs[0].q, 'Is er vandaag een weg dicht in de gemeente Lopik?');
+    assert.equal(qs[0].a, 'Nee, voor vandaag is in de gemeente Lopik geen afsluiting gemeld.');
+    assert.equal(qs[1].a, 'Nee, voor morgen is in de gemeente Lopik geen afsluiting gemeld.');
+    assert.equal(qs[3].a, 'Voor de komende 30 dagen is in de gemeente Lopik geen afsluiting gemeld.');
   });
 
   it('renders a definition list with the moment of the data', () => {
@@ -150,7 +175,8 @@ describe('snapshot.mjs (build side)', () => {
 
     const utrecht = snapshotFor({ type: 'place', kind: 'gemeente', entity: { naam: 'Utrecht', slug: 'utrecht' } }, { mapHref: '/' });
     assert.ok(utrecht.count > 0);
-    assert.equal(utrecht.questionsHtml, '');
+    assert.match(utrecht.questionsHtml, /Is er vandaag een weg dicht in de gemeente Utrecht\?/);
+    assert.match(utrecht.questionsHtml, /stand van /);
 
     const all = files.gemeenten.get('utrecht');
     const villages = new Set(all.map((it) => it.f.properties.woonplaats).filter(Boolean));
@@ -181,7 +207,14 @@ describe('snapshot.mjs (build side)', () => {
     const open = bridges.bridges.find((b) => b.openNow);
     assert.match(snapshotFor({ type: 'bridge', entity: { id: open.id } }, { mapHref: '/' }).openingsHtml, /de brug stond open voor de scheepvaart/);
     const planned = bridges.bridges.find((b) => !b.openNow && b.openings.length > 0);
-    if (planned) assert.match(snapshotFor({ type: 'bridge', entity: { id: planned.id } }, { mapHref: '/' }).openingsHtml, /geplande opening/);
+    if (planned) {
+      const html = snapshotFor({ type: 'bridge', entity: { id: planned.id } }, { mapHref: '/' }).openingsHtml;
+      assert.match(html, /geplande opening/);
+      // The openings themselves, per day with their times: what a reader of the HTML came for.
+      assert.match(html, /<li class="bridge-openings__day">/);
+      assert.match(html, /<time datetime="[^"]+">\d\d:\d\d<\/time>–<time/);
+      assert.doesNotMatch(html, /Vandaag|Morgen/, 'the HTML outlives the day it was built: no relative day names');
+    }
     assert.equal(snapshotFor({ type: 'bridge', entity: { id: 'ONBEKEND' } }, { mapHref: '/' }), null);
   });
 

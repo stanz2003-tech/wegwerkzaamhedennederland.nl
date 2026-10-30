@@ -26,10 +26,9 @@ import { readUrlState } from '../data/url-state';
 import { renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
 import { bodyAttr, bootPage, dataAsOfLabel, showListNotice, stampUpdated, startEntityList } from '../ui/page-boot';
 import { releaseForecastSlot } from '../ui/forecast-slot';
-import { fmtDayTime } from '../ui/format';
-import { renderRoadQuestions, roadQuestions } from '../ui/road-questions';
+import { updateQuestionBlock } from '../ui/question-block';
+import { roadQuestions } from '../ui/road-questions';
 import { horizonMs } from '../data/horizon';
-import type { Meta } from '../data/types';
 import { loadEntitySource, runEntityPage, sourceFromIndex, type EntitySource } from './entity-page';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
@@ -59,19 +58,6 @@ async function fallbackSource(roadNumber: string): Promise<EntitySource | null> 
   return sourceFromIndex(rows, liveRes.status === 'fulfilled' ? liveRes.value : []);
 }
 
-/** The question block with the live answers ("Is de A2 vannacht dicht?"); the build wrote the morning's. */
-function updateQuestions(source: EntitySource, roadName: string, meta: Meta | null): void {
-  const section = document.getElementById('road-questions');
-  const body = document.getElementById('road-questions-body');
-  // Only where the build wrote the block: appearing late it would push the page below it down.
-  if (!section || !body || section.hidden) return;
-  const now = Date.now();
-  const generated = meta ? Date.parse(meta.generated) : Number.NaN;
-  const stamp = `stand van ${fmtDayTime(Number.isFinite(generated) ? generated : now)}`;
-  body.innerHTML = renderRoadQuestions(roadQuestions(source.items, roadName, now, horizonMs()), stamp);
-  section.hidden = false;
-}
-
 async function main(): Promise<void> {
   const meta = await boot.meta;
   stampUpdated(meta);
@@ -89,7 +75,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  updateQuestions(source, road, meta);
+  updateQuestionBlock((now) => roadQuestions(source.items, road, now, horizonMs()), meta);
 
   const bbox =
     parseBbox(bodyAttr('bbox')) ??

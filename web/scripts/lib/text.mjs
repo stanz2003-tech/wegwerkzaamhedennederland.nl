@@ -205,7 +205,7 @@ function roadTypeSentence(road, type, hasRoute) {
         ? `Als autosnelweg is de ${road} bijna overal in beheer bij Rijkswaterstaat; groot onderhoud wordt meestal 's nachts of in het weekend uitgevoerd en ruim vooraf aangemeld.`
         : `De ${road} is een autosnelweg (rijksweg), bijna overal in beheer bij Rijkswaterstaat; groot onderhoud wordt meestal 's nachts of in het weekend uitgevoerd en ruim vooraf aangemeld.`;
     case 'N':
-      return `${hasRoute ? 'De weg is een N-weg' : `De ${road} is een N-weg`}: meestal een provinciale weg, bij de lagere nummers vaak een rijksweg van Rijkswaterstaat. Werkzaamheden op N-wegen gaan vaker gepaard met een volledige afsluiting en een omleiding, omdat er weinig ruimte is om het verkeer langs het werk te leiden.`;
+      return `${hasRoute ? 'De weg is een N-weg' : `De ${road} is een N-weg`}: meestal een provinciale weg, bij de lagere nummers vaak een rijksweg van Rijkswaterstaat.`;
     case 'S':
       return `${hasRoute ? 'De route is een stadsroute (s-weg)' : `De ${road} is een stadsroute (s-weg)`} in beheer bij de gemeente. Werkzaamheden worden door de gemeente en haar aannemers aangemeld in Melvin, het landelijke meldsysteem van de Nederlandse wegbeheerders.`;
     case 'E':
@@ -215,8 +215,11 @@ function roadTypeSentence(road, type, hasRoute) {
   }
 }
 
-/** Pre-rendered intro paragraph (HTML) for a road page. */
-export function roadIntro(entry, refresh) {
+/**
+ * Pre-rendered intro paragraph (HTML) for a road page. How fresh the data is stands in the stamp
+ * above the list; saying it again here made the same sentence part of ~600 road pages.
+ */
+export function roadIntro(entry) {
   const { road, type, names } = entry;
   const { segments, eCodes, local } = analyseRoadNames(names);
   const parts = [];
@@ -229,8 +232,7 @@ export function roadIntro(entry, refresh) {
   const first = `<p>${escapeHtml(parts.join(' '))}</p>`;
   const second =
     `<p>Op deze pagina zie je alle werkzaamheden, afsluitingen, omleidingen en evenementen met verkeersmaatregelen op de ${escapeHtml(road)} ` +
-    `die nu gelden of binnen 30 dagen beginnen, plus de files van dit moment. De gegevens komen van het Nationaal Dataportaal Wegverkeer (NDW) ` +
-    `en worden automatisch bijgewerkt: files, incidenten en brugopeningen elke ${refresh} minuten, de planning van werkzaamheden ongeveer elk kwartier.</p>`;
+    `die nu gelden of binnen 30 dagen beginnen, plus de files van dit moment, uit de open data van het Nationaal Dataportaal Wegverkeer (NDW).</p>`;
   return first + second;
 }
 
@@ -266,15 +268,11 @@ export function roadDescription(entry) {
   ]);
 }
 
-function refreshAnswer(refresh) {
-  return (
-    `Wegwerk haalt de gegevens automatisch op bij het Nationaal Dataportaal Wegverkeer (NDW): files, incidenten en brugopeningen elke ${refresh} minuten, ` +
-    `de planning van werkzaamheden ongeveer elk kwartier. Het tijdstip van de laatste update staat bovenaan de pagina. Je ziet wat de wegbeheerder heeft ingevoerd; ` +
-    `werk kan eerder klaar zijn of uitlopen zonder dat de melding meteen wordt aangepast. Volg onderweg altijd de borden.`
-  );
-}
-
-export function roadFaq(entry, refresh) {
+/**
+ * The questions that differ per road type. "Is de A2 dit weekend dicht?" and "how fresh" are
+ * answered with data above the FAQ (the question block and the stamp), not with template text.
+ */
+export function roadFaq(entry) {
   const { road, type } = entry;
   const r = escapeHtml(road);
   const announce = type === 'A' ? 'Rijkswaterstaat doet dat doorgaans één tot twee weken vooraf' : 'wegbeheerders doen dat meestal minstens een week vooraf';
@@ -294,14 +292,9 @@ export function roadFaq(entry, refresh) {
   }
   return [
     {
-      q: `Is de ${road} dit weekend dicht?`,
-      a: `Weekendafsluitingen op de ${r} staan in het overzicht hierboven zodra de wegbeheerder ze heeft aangemeld; ${announce}. Kijk bij de geplande meldingen naar een afsluiting die op vrijdagavond begint en maandagochtend eindigt. Alle afsluitingen van dit weekend in heel Nederland vind je op de pagina <a href="/dit-weekend/">dit weekend</a>.`,
+      q: `Hoe ver vooruit staan afsluitingen op de ${road}?`,
+      a: `Zodra de wegbeheerder ze heeft aangemeld; ${announce}. Alle afsluitingen van dit weekend in heel Nederland vind je op de pagina <a href="/dit-weekend/">dit weekend</a>.`,
     },
-    {
-      q: `Waar vind ik de omleiding bij een afsluiting op de ${road}?`,
-      a: `Klik op de afsluiting in de lijst: bij de details staat de omleidingsroute zoals de wegbeheerder die heeft aangemeld, bijvoorbeeld welke gele borden (letter of nummer) je volgt. Onderweg gaan de gele omleidingsborden altijd vóór op je navigatie; die kent de afsluiting niet altijd op tijd.`,
-    },
-    { q: `Hoe actueel is de informatie over de ${road}?`, a: refreshAnswer(refresh) },
     { q: `Wie is de wegbeheerder van de ${road}?`, a: authority },
   ];
 }
@@ -382,7 +375,12 @@ export function mapHref(lon, lat, zoom) {
   return `/?c=${lon.toFixed(4)},${lat.toFixed(4)}&z=${zoom}`;
 }
 
-export function placeIntro(place, kind, woonplaatsen, refresh) {
+/**
+ * Pre-rendered intro of a place page: where it lies and, for a gemeente, its places. How the
+ * meldingen get here (Melvin, NDW) is told once, in /uitleg/waar-komt-de-data-vandaan/; on every
+ * place page it was ~60 identical words.
+ */
+export function placeIntro(place, kind, woonplaatsen) {
   const naam = escapeHtml(place.naam);
   const prov = escapeHtml(place.prov ?? '');
   const alias = placeAlias(place.naam);
@@ -423,33 +421,23 @@ export function placeIntro(place, kind, woonplaatsen, refresh) {
       `Op deze pagina zie je alle wegwerkzaamheden, afsluitingen, omleidingen en evenementen met verkeersmaatregelen in ${naam} die nu gelden of binnen 30 dagen beginnen.`,
     );
   }
-  const gemeente = escapeHtml(kind === 'gemeente' ? place.naam : place.gemeente);
-  const second =
-    `<p>Gemeentelijke werkzaamheden, van een rioolvervanging in een woonstraat tot een afgesloten kruispunt, worden door de gemeente ${gemeente} en haar aannemers aangemeld in Melvin, ` +
-    `het landelijke meldsysteem van de Nederlandse wegbeheerders. Via het Nationaal Dataportaal Wegverkeer (NDW) komen die meldingen automatisch op deze pagina, samen met het werk van Rijkswaterstaat en de provincie. ` +
-    `De planning wordt ongeveer elk kwartier vernieuwd, files en incidenten elke ${refresh} minuten.</p>`;
-  return `<p>${parts.join(' ')}</p>${second}`;
+  return `<p>${parts.join(' ')}</p>`;
 }
 
-export function placeFaq(place, kind, refresh) {
+/**
+ * Questions about a place that the data above them does not answer. Why something may be missing
+ * from the map is answered once, on /veelgestelde-vragen/.
+ */
+export function placeFaq(place, kind) {
   const naam = escapeHtml(place.naam);
   const gemeente = escapeHtml(kind === 'gemeente' ? place.naam : place.gemeente);
   const prov = escapeHtml(place.prov ?? '');
   const here = kind === 'gemeente' ? `in de gemeente ${naam}` : `in ${naam}`;
   return [
     {
-      q: `Welke wegwerkzaamheden zijn er nu ${kind === 'gemeente' ? `in de gemeente ${place.naam}` : `in ${place.naam}`}?`,
-      a: `Het overzicht hierboven toont alle meldingen ${here} die op dit moment gelden, gevolgd door de werkzaamheden die binnen 30 dagen beginnen. Klik op een melding voor de periode, de verwachte hinder en de omleiding, of <a href="${mapHref(place.lon, place.lat, kind === 'gemeente' ? 11 : 13)}">open de kaart</a> om ook de omgeving te bekijken.`,
-    },
-    {
-      q: `Waarom staat een afsluiting ${here} niet op de kaart?`,
-      a: `Wegwerk toont wat wegbeheerders in Melvin hebben aangemeld. Kleine, kortdurende klussen, zoals een nutsbedrijf dat een paar uur een parkeerstrook gebruikt, hoeven niet altijd te worden gemeld, en soms voert een gemeente een werk pas laat in. Werk op particulier terrein of bij spoorwegovergangen (ProRail) zit meestal niet in de gegevens. Klopt er iets structureel niet, meld het dan bij de gemeente ${gemeente}.`,
-    },
-    {
       q: `Wie voert de werkzaamheden ${here} uit en waar kan ik terecht met vragen?`,
       a: `Bij elke melding staat de wegbeheerder die haar heeft aangemeld: de gemeente ${gemeente} voor straten binnen de bebouwde kom, de provincie ${prov} voor provinciale N-wegen en Rijkswaterstaat voor rijkswegen. Vragen over planning, bereikbaarheid of overlast stel je aan die wegbeheerder; de gemeente heeft daarvoor meestal een meldpunt openbare ruimte op haar website.`,
     },
-    { q: 'Hoe actueel is deze pagina?', a: refreshAnswer(refresh) },
   ];
 }
 
@@ -545,7 +533,8 @@ export function bridgeDescription(bridge, variant = '') {
   return fitText(variants);
 }
 
-export function bridgeIntro(bridge, refresh) {
+/** Where the bridge is. When openings are announced and how fresh the data is: the FAQ and the footer. */
+export function bridgeIntro(bridge) {
   const name = escapeHtml(bridge.name);
   const bits = [];
   if (bridge.road) bits.push(`in de ${escapeHtml(bridge.road)}`);
@@ -558,12 +547,10 @@ export function bridgeIntro(bridge, refresh) {
   } else if (bridge.prov) {
     where += ` (${escapeHtml(bridge.prov)})`;
   }
-  const first = `<p>${name} is een beweegbare brug${where}. Gaat de brug open voor de scheepvaart, dan staat het wegverkeer erover stil; op deze pagina zie je of de brug nu open is en welke openingen voor de komende zeven dagen bij het Nationaal Dataportaal Wegverkeer (NDW) zijn aangemeld.</p>`;
-  const second = `<p>De actuele status komt uit het verkeersbeeld van NDW en wordt elke ${refresh} minuten vernieuwd; de planning van openingen ongeveer elk kwartier. Niet elke brug meldt al zijn openingen vooraf: veel bruggen gaan open op aanvraag van de scheepvaart of op vaste tijden buiten de spits. Onder de openingen staan de wegwerkzaamheden in de buurt van de brug.</p>`;
-  return first + second;
+  return `<p>${name} is een beweegbare brug${where}. Gaat de brug open voor de scheepvaart, dan staat het wegverkeer erover stil; op deze pagina zie je of de brug nu open is en welke openingen voor de komende zeven dagen bij het Nationaal Dataportaal Wegverkeer (NDW) zijn aangemeld.</p>`;
 }
 
-export function bridgeFaq(bridge, refresh) {
+export function bridgeFaq(bridge) {
   const name = escapeHtml(bridge.name);
   const road = bridge.road ? ` op de ${escapeHtml(bridge.road)}` : '';
   return [
@@ -572,16 +559,8 @@ export function bridgeFaq(bridge, refresh) {
       a: `De geplande openingen voor de komende zeven dagen staan hierboven, zoals de brugbeheerder ze bij NDW heeft aangemeld. Veel bruggen gaan alleen open op aanvraag van de scheepvaart of op vaste tijden buiten de spits, en niet elke opening wordt vooraf gemeld. Staat ${name} nu open, dan zie je dat bovenaan de pagina.`,
     },
     {
-      q: 'Hoe lang duurt een brugopening?',
-      a: 'Meestal enkele minuten tot een kwartier, afhankelijk van het aantal schepen en van het type brug. Bij elke geplande opening staat de verwachte begin- en eindtijd. Houd er rekening mee dat het verkeer na een opening nog even nodig heeft om weer op gang te komen.',
-    },
-    {
       q: `Wat betekent een brugopening voor het wegverkeer${bridge.road ? ` op de ${bridge.road}` : ''}?`,
       a: `Tijdens een opening is de weg over de brug${road} in beide richtingen dicht. Er is geen omleiding: je wacht voor de slagbomen tot de brug weer gesloten is. Op drukke routes ontstaat daardoor soms een korte file die na de opening weer oplost. Fietsers en voetgangers wachten net als het overige verkeer.`,
-    },
-    {
-      q: 'Hoe actueel is deze informatie?',
-      a: `Of de brug nu open is, komt uit het actuele verkeersbeeld van NDW en wordt elke ${refresh} minuten vernieuwd; de planning van openingen ongeveer elk kwartier. Het tijdstip van de laatste update staat bovenaan de pagina. Een opening kan korter of langer duren dan gepland; volg ter plaatse altijd de slagbomen en de verkeerslichten.`,
     },
   ];
 }

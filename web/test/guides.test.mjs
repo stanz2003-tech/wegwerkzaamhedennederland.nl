@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -90,5 +91,17 @@ describe('guides', () => {
     assert.deepEqual(matchRoute(path.slice(0, -1)), { redirect: path });
     assert.deepEqual(matchRoute('/uitleg/'), { path: '/uitleg/' });
     assert.deepEqual(matchRoute('/uitleg/bestaat-niet/'), { notFound: true });
+  });
+});
+
+describe('the menu leads to the uitleg', () => {
+  it('"Uitleg" in the main menu opens /uitleg/, on every page and on the map', () => {
+    const header = readFileSync(new URL('../templates/partials/header.html', import.meta.url), 'utf8');
+    const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+    for (const [name, doc] of [['header.html', header], ['index.html', index]]) {
+      const nav = /<nav class="topbar__nav"[\s\S]*?<\/nav>/.exec(doc)?.[0] ?? '';
+      assert.match(nav, /<a href="\/uitleg\/">Uitleg<\/a>/, name);
+      assert.doesNotMatch(nav, /#uitleg/, name);
+    }
   });
 });

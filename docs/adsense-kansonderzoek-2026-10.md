@@ -269,6 +269,61 @@ Twee daarvan (2 en 3) verbeteren vanzelf met de tijd. Daarom liever over 2–3 w
 
 ---
 
+## 7. Wat er op 30 oktober al is gedaan
+
+Stan vroeg om de punten uit te werken, met als harde eis: de site blijft snel op een telefoon en
+draait om "kan ik er nu of de komende dagen door?". Daarom is er geen opvultekst bijgekomen.
+Algemene tekst is weggehaald, en nieuwe tekst is alleen toegevoegd als die per pagina die vraag
+beantwoordt.
+
+| # | Punt | Stand |
+|---|---|---|
+| 1 | Data stond stil | **Opgelost.** Het lag aan de storing bij GitHub. Om 18:47 UTC draaide de reserve-cron weer, en om 18:58 UTC liep de keten van 10 minuten weer. |
+| 2 | Menu "Uitleg" | **Gedaan.** Het menu linkt op alle pagina's en op de kaart naar /uitleg/. |
+| 3 | Indexering aanvragen | **Voor Stan, na de deploy.** Vraag het aan voor /uitleg/ en de gidsen, /over/ en /wijzigingen/. |
+| 4 | Naam en woonplaats | **Wacht op Stan.** Zet ze in `web/site.config.json` → `owner.name` / `owner.city`. De teksten op /over/, /colofon/ en /contact/ passen zich dan vanzelf aan. |
+| 5 | Logboek | **Gedaan.** Er is een regel voor 30 oktober bijgekomen. |
+| 6 | Brugpagina's | **Gedaan.** De openingen van de komende 7 dagen staan per dag, met tijden, in de HTML. |
+| 7 | info@ testen | **Voor Stan.** Het MX-record wijst nog niet naar Cloudflare Email Routing. |
+| 8 | Betaalgegevens AdSense | **Voor Stan.** |
+| 9 | Standaardtekst | **Gedaan,** zie hieronder. |
+| 10 | Wekelijks eigen stuk | **Niet gedaan.** Dit werkt alleen als Stan het elke week zelf schrijft of nakijkt. Een automatisch stuk is precies de "content zonder handmatige curatie" waar het beleid voor waarschuwt. |
+| 11 | Sitemap kleiner | **Bewust nog niet.** De meting van SEO-fase 2 loopt tot ±10 november. Bovendien houdt de 60-dagenregel nu al 1.297 rustige pagina's buiten Google. |
+| 12 | Externe vermeldingen | **Voor Stan.** Plaatsen op Reddit, forums of LinkedIn gebeurt onder zijn eigen naam. |
+
+**Standaardtekst, wat er veranderd is**
+
+- **Weggehaald:** het blok "Zo lees je dit overzicht" (twee à drie alinea's op elke weg- en
+  plaatspagina), de Melvin/NDW-alinea op plaatspagina's, de zinnen over hoe vaak de data ververst
+  (die staan al in de stempel en de footer), en de algemene FAQ's. Die FAQ's waren "Hoe
+  actueel…?", "Waar vind ik de omleiding?", "Waarom staat het niet op de kaart?" en "Hoe lang duurt
+  een brugopening?". Ze worden nu op één plek beantwoord, in /uitleg/ of /veelgestelde-vragen/,
+  met één link ernaartoe.
+- **Toegevoegd** op plaats- en gemeentepagina's: een blok "Is er iets dicht in …?" met vier
+  echte antwoorden uit de data van die plaats:
+  - vandaag;
+  - morgen;
+  - dit weekend;
+  - wanneer de eerstvolgende afsluiting begint.
+
+  Voorbeeld uit Warmond: "Is er vandaag een weg dicht in Warmond? Ja. Herenweg dicht (tot vr 30 okt
+  20:00)." Na het laden werkt de pagina het blok live bij, net als het vergelijkbare blok op
+  wegpagina's.
+
+**Gemeten effect** (dezelfde steekproef van 65 pagina's als in §2.1, build met live data van
+30 oktober). Het percentage is het deel van de tekst dat woordelijk op andere pagina's terugkomt.
+
+| Soort pagina | Vóór | Na |
+|---|---|---|
+| Plaats | ±44% | ±18% |
+| Gemeente | ±32% | ±11% |
+| N-weg | ±50% | ±32% |
+| Brug | ±80% | ±52% |
+
+De pagina's zijn ook ongeveer 250 woorden korter, en dat is op de telefoon alleen maar prettiger.
+
+---
+
 *Bronnen in de site:*
 - `web/src/ui/ad-policy.ts`, `web/src/ui/ads.ts`, `web/site.config.json`;
 - `web/content/*.md`;

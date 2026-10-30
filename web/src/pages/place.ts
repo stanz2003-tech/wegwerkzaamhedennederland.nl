@@ -25,6 +25,9 @@ import { readUrlState } from '../data/url-state';
 import { renderEntityNotice, renderEntitySkeleton } from '../ui/entity-list';
 import { bodyAttr, bootPage, dataAsOfLabel, showListNotice, stampUpdated, startEntityList } from '../ui/page-boot';
 import { releaseForecastSlot } from '../ui/forecast-slot';
+import { updateQuestionBlock } from '../ui/question-block';
+import { placeQuestions } from '../ui/road-questions';
+import { horizonMs } from '../data/horizon';
 import { loadEntitySource, runEntityPage, sourceFromIndex, type EntitySource } from './entity-page';
 
 const DATA_NOTICE = 'De actuele meldingen konden niet worden geladen. Probeer het later nog eens of bekijk de kaart.';
@@ -87,6 +90,8 @@ async function main(): Promise<void> {
     showListNotice(listEl, DATA_NOTICE, renderEntityNotice);
     return;
   }
+
+  updateQuestionBlock((now) => placeQuestions(source.items, { kind, name }, now, horizonMs()), meta);
 
   const lon = parseCoord(bodyAttr('lon'), 3.2, 7.3);
   const lat = parseCoord(bodyAttr('lat'), 50.5, 53.7);

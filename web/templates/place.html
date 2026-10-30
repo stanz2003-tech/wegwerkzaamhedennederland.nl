@@ -38,6 +38,11 @@
     <div id="entity-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
   </section>
 
+  <section class="road-questions" id="road-questions" aria-labelledby="rq-title"{{#unless hasQuestions}} hidden{{/unless}}>
+    <h2 class="road-questions__title" id="rq-title">Is er iets dicht in {{#if isGemeente}}de gemeente {{/if}}{{name}}?</h2>
+    <div id="road-questions-body">{{{questionsHtml}}}</div>
+  </section>
+
   <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
 
   <article class="prose prose--entity">
@@ -46,10 +51,7 @@
       <h2 id="over-title">Over {{#if isGemeente}}de gemeente {{/if}}{{name}}</h2>
       <div class="entity-about__intro">{{{intro}}}</div>
     </section>
-    <h2 id="uitleg">Zo lees je dit overzicht</h2>
-    <p>Bovenaan staat alles wat wegbeheerders voor {{#if isGemeente}}de gemeente {{/if}}{{name}} hebben aangemeld bij het Nationaal Dataportaal Wegverkeer (NDW): <strong>werkzaamheden</strong> aan straten en wegen, <strong>afsluitingen</strong> met de bijbehorende <strong>omleidingen</strong>, en <strong>evenementen</strong> met verkeersmaatregelen, zoals een markt, kermis of wielerronde. Meldingen die nu gelden staan bovenaan; daaronder volgen de geplande werkzaamheden voor de komende 30 dagen op volgorde van starttijd. Een melding telt mee voor {{name}} als de wegbeheerder die plaats of gemeente bij de melding heeft opgegeven of als de locatie erbinnen ligt.</p>
-    <p>Bij elke melding zie je een badge met het wegnummer (rood voor A-wegen, geel voor N-wegen) of een neutrale badge voor een straat, de periode, de verwachte hinder en wie het werk heeft aangemeld. Klik erop voor de omleiding en de details. Gemeentelijk werk staat vaak korter van tevoren in het systeem dan werk aan snelwegen; kijk dus vlak voor vertrek nog even. De planning wordt ongeveer elk kwartier vernieuwd, files en incidenten elke {{refreshMinutes}} minuten.</p>
-
+    <p class="entity-about__more">Wat <strong>weg dicht</strong>, <strong>rijbaan dicht</strong> en <strong>doorrijden mogelijk</strong> betekenen en hoe je een melding leest, staat in de <a href="/uitleg/meldingen-lezen/">uitleg</a>; hoe je het best omrijdt, in <a href="/uitleg/omrijden/">omrijden bij een afsluiting</a>. Waarom een afsluiting soms niet op de kaart staat, lees je bij de <a href="/veelgestelde-vragen/">veelgestelde vragen</a>.</p>
     </div>
 
     <section class="faq" aria-labelledby="faq-title">
