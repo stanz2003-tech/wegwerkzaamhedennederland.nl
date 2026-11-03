@@ -16,6 +16,7 @@
  * without data no page gets a snapshot (the page then renders as before).
  */
 
+import { fingerprint, itemsFingerprint } from './lastmod.mjs';
 import { importSrc } from './ts-loader.mjs';
 
 const FETCH_TIMEOUT_MS = 30_000;
@@ -127,23 +128,11 @@ function listStampText(id, view, format) {
 const escapeHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 /**
- * Builds `snapshotFor(page, { mapHref })` for buildModel: the snapshot of a road, place, list or
- * bridge page, or null when there is nothing to base it on.
- * @param {object} p
- * @param {Awaited<ReturnType<typeof loadSnapshotModules>>} p.mods
- * @param {{ index: any, meta: any } | null} p.live   loadLiveFiles() result
- * @param {Awaited<ReturnType<typeof loadEntityFiles>> | null} p.files
- * @param {number} p.now
+ * The items a road or place page shows (`{ f, d }`), from its entity file or, like the page script
+ * does without one, from the index points; null for other pages.
  */
-export function createSnapshotter({ mods, live, files, now }) {
-  if (!live) return null;
+function createItemSource({ mods, live, files }) {
   const rows = Array.isArray(live.index?.rows) ? mods.index.rowsToItems(live.index.rows) : [];
-  const generated = Date.parse(live.meta?.generated ?? live.index?.generated ?? '');
-  const asOf = mods.format.fmtDayTime(Number.isFinite(generated) ? generated : now);
-  const horizon = Date.parse(live.meta?.horizon?.until ?? '');
-  const horizonMs = Number.isFinite(horizon) ? horizon : undefined;
-
-  // Same fallback as the page script: index points without detail when there is no file.
   const fromIndex = (list) => list.map((it) => ({ f: mods.entity.featureFromIndexItem(it), d: null }));
   const sanitize = (items) => mods.entityFile.sanitizeEntityItems({ items }).map((it) => ({ f: it.f, d: it.d }));
   const fileItems = (kind, slug) => {
@@ -168,6 +157,47 @@ export function createSnapshotter({ mods, live, files, now }) {
     }
     return null;
   };
+  return { rows, itemsFor };
+}
+
+/**
+ * Builds `fingerprintFor(page)` for the sitemap's <lastmod> (lastmod.mjs): what a road, place or
+ * bridge page shows, as a short hash; null without data to judge (that build changes nothing).
+ * @param {object} p   as for createSnapshotter
+ */
+export function createFingerprinter({ mods, live, files, now }) {
+  if (!live) return null;
+  const { itemsFor } = createItemSource({ mods, live, files });
+  const bridgeList = Array.isArray(live.bridges?.bridges) ? live.bridges.bridges : null;
+  return (page) => {
+    if (page.type === 'bridge') {
+      if (!bridgeList) return null;
+      // The schedule as the feed publishes it: the 7-day window around `now` and `openNow` move
+      // with the clock alone, which made every busy bridge "changed" on every build.
+      const entry = bridgeList.find((b) => b && b.id === page.entity.id);
+      return fingerprint(['brug', Array.isArray(entry?.openings) ? entry.openings : []]);
+    }
+    const items = page.type === 'road' || page.type === 'place' ? itemsFor(page) : null;
+    return items ? itemsFingerprint(items, now) : null;
+  };
+}
+
+/**
+ * Builds `snapshotFor(page, { mapHref })` for buildModel: the snapshot of a road, place, list or
+ * bridge page, or null when there is nothing to base it on.
+ * @param {object} p
+ * @param {Awaited<ReturnType<typeof loadSnapshotModules>>} p.mods
+ * @param {{ index: any, meta: any } | null} p.live   loadLiveFiles() result
+ * @param {Awaited<ReturnType<typeof loadEntityFiles>> | null} p.files
+ * @param {number} p.now
+ */
+export function createSnapshotter({ mods, live, files, now }) {
+  if (!live) return null;
+  const { rows, itemsFor } = createItemSource({ mods, live, files });
+  const generated = Date.parse(live.meta?.generated ?? live.index?.generated ?? '');
+  const asOf = mods.format.fmtDayTime(Number.isFinite(generated) ? generated : now);
+  const horizon = Date.parse(live.meta?.horizon?.until ?? '');
+  const horizonMs = Number.isFinite(horizon) ? horizon : undefined;
 
   const listSnapshot = (page) => {
     if (!SNAPSHOT_LISTS.has(page.list) || rows.length === 0) return null;

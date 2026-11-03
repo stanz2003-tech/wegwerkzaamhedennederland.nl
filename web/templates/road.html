@@ -65,6 +65,20 @@
     </section>
   </article>
 
+  {{#if hasAlong}}<section class="related" aria-labelledby="along-title">
+    <h2 id="along-title">Langs de {{road}}</h2>
+    {{#if hasAlongGemeenten}}<h3 class="related__sub">Gemeenten</h3>
+    <ul class="related__list chips">
+      {{#each alongGemeenten}}<li><a class="chip chip--gemeente" href="{{href}}">{{name}}</a></li>
+      {{/each}}
+    </ul>{{/if}}
+    {{#if hasAlongPlaces}}<h3 class="related__sub">Plaatsen</h3>
+    <ul class="related__list chips">
+      {{#each alongPlaces}}<li><a class="chip" href="{{href}}">{{name}}</a></li>
+      {{/each}}
+    </ul>{{/if}}
+  </section>{{/if}}
+
   {{#if hasRelated}}<section class="related" aria-labelledby="related-title">
     <h2 id="related-title">Andere wegen</h2>
     <ul class="related__list chips chips--badges">

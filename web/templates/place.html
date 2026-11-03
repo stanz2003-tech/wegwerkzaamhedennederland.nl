@@ -66,6 +66,11 @@
 
   <section class="related" aria-labelledby="related-title">
     <h2 id="related-title">In de buurt</h2>
+    {{#if hasNearbyRoads}}<h3 class="related__sub">{{nearbyRoadsTitle}}</h3>
+    <ul class="related__list chips chips--badges">
+      {{#each nearbyRoads}}<li><a class="badge badge--{{badgeClass}}" href="{{href}}" title="Wegwerkzaamheden {{road}}">{{road}}</a></li>
+      {{/each}}
+    </ul>{{/if}}
     {{#if hasRelatedGemeenten}}<h3 class="related__sub">{{relatedGemeentenTitle}}</h3>
     <ul class="related__list chips">
       {{#each relatedGemeenten}}<li><a class="chip chip--gemeente" href="{{href}}">{{name}}</a></li>

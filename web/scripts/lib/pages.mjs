@@ -12,6 +12,7 @@ import { isThinPage, normalizeName } from './activity.mjs';
 import { decideThin } from './index-state.mjs';
 import { loadLists, nearestByCentroid, nearestRoads } from './lists.mjs';
 import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragments.mjs';
+import { placesAlongRoad, roadPlacesFor, roadsThroughPlace } from './road-places.mjs';
 import {
   PLANNING_REFRESH_MINUTES,
   bridgeDescription, bridgeFaq, bridgeIntro, bridgeTitle, bridgeVariants,
@@ -191,12 +192,15 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     quiet: pages.filter((p) => p.quiet).length,
   };
 
+  // Which roads run through which places (road-places.mjs): worked out on first use, once per process.
+  const roadPlaces = () => roadPlacesFor({ dir: join(webRoot, 'public', 'road-lines'), roads: lists.roads, woonplaatsen: lists.woonplaatsen, warn });
+
   return {
     site, now, buildIso: now.toISOString(), lists, content, pages, counts, redirects, lastActive, snapshotFor,
     byPath: new Map(pages.map((p) => [p.path, p])),
     index: {
-      woonplaatsenByGemeente, gemeenteByCode, gemeenteByName, roadBySlug, roadByNumber,
-      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), merged,
+      woonplaatsenByGemeente, woonplaatsBySlug: new Map(lists.woonplaatsen.map((w) => [w.slug, w])), gemeenteByCode, gemeenteByName, roadBySlug, roadByNumber,
+      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), merged, roadPlaces,
     },
     warn,
   };
@@ -374,6 +378,7 @@ function roadContext(model, page) {
   const kind = roadKind(r.type);
   const faq = roadFaq(r);
   const related = nearestRoads(r, model.lists.roads, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
+  const { alongGemeenten, alongPlaces } = placesAlongRoad(model, r);
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
   const href = bbox ? `/?b=${bbox}` : mapHref(r.lon, r.lat, 9);
@@ -400,6 +405,11 @@ function roadContext(model, page) {
     faq,
     related,
     hasRelated: related.length > 0,
+    alongGemeenten,
+    hasAlongGemeenten: alongGemeenten.length > 0,
+    alongPlaces,
+    hasAlongPlaces: alongPlaces.length > 0,
+    hasAlong: alongGemeenten.length + alongPlaces.length > 0,
     mapHref: href,
   };
 }
@@ -424,6 +434,7 @@ function placeContext(model, page) {
     : gemeente
       ? [{ name: `Gemeente ${gemeente.naam}`, href: `/gemeente/${gemeente.slug}/` }]
       : [];
+  const nearbyRoads = roadsThroughPlace(model, page);
   const provName = p.prov ?? gemeente?.prov ?? '';
   const zoom = isGemeente ? 11 : 12;
   const href = mapHref(p.lon, p.lat, zoom);
@@ -469,6 +480,9 @@ function placeContext(model, page) {
     relatedGemeenten,
     hasRelatedGemeenten: relatedGemeenten.length > 0,
     relatedGemeentenTitle: isGemeente ? 'Buurgemeenten' : 'Gemeente',
+    nearbyRoads,
+    hasNearbyRoads: nearbyRoads.length > 0,
+    nearbyRoadsTitle: isGemeente ? `Wegen in en rond ${p.naam}` : `Wegen bij ${p.naam}`,
     mapHref: href,
   };
 }
