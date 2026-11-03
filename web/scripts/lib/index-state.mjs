@@ -13,7 +13,12 @@
  * inactive, which keeps the noindex set as it was. When the file exists but cannot be read (an
  * error or a timeout, three times), the build makes no page thin at all: a hiccup must never take
  * pages out of Google. Without usable data the memory is carried over unchanged (pages.mjs).
+ *
+ * The same file carries the memory of the sitemap's <lastmod> (`lastmod`, see lastmod.mjs); a
+ * file without it, from before 2026-11, simply means no lastmod memory yet.
  */
+
+import { lastmodMemoryJson, parseLastmodMemory } from './lastmod.mjs';
 
 export const INDEX_STATE_FILE = 'index-state.json';
 export const NOINDEX_AFTER_DAYS = 60;
@@ -38,18 +43,21 @@ export function parseIndexState(json) {
   return map;
 }
 
-export function serializeIndexState(lastActive, generatedIso) {
+export function serializeIndexState(lastActive, generatedIso, lastmodMemory = null) {
   const sorted = Object.fromEntries([...lastActive.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
-  return JSON.stringify({ v: 1, generated: generatedIso, noindexAfterDays: NOINDEX_AFTER_DAYS, lastActive: sorted });
+  return JSON.stringify({
+    v: 1, generated: generatedIso, noindexAfterDays: NOINDEX_AFTER_DAYS, lastActive: sorted,
+    ...(lastmodMemory ? { lastmod: lastmodMemoryJson(lastmodMemory) } : {}),
+  });
 }
 
 /**
  * The state the live site publishes. Never throws.
- * @returns {Promise<{ status: 'ok' | 'missing' | 'failed', state: Map<string, string> | null }>}
+ * @returns {Promise<{ status: 'ok' | 'missing' | 'failed', state: Map<string, string> | null, lastmod: Map<string, { h: string, d: string }> | null }>}
  *   'missing': there is no file yet (404, the first run); 'failed': it exists but could not be read
  */
 export async function loadIndexState({ siteUrl, fetchImpl = globalThis.fetch, warn = console.warn, retryDelayMs = RETRY_DELAY_MS }) {
-  if (!siteUrl) return { status: 'missing', state: null };
+  if (!siteUrl) return { status: 'missing', state: null, lastmod: null };
   const url = `${String(siteUrl).replace(/\/+$/, '')}/${INDEX_STATE_FILE}`;
   let last = '';
   for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
@@ -58,19 +66,20 @@ export async function loadIndexState({ siteUrl, fetchImpl = globalThis.fetch, wa
       const res = await fetchImpl(`${url}?t=${Date.now()}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
       if (res.status === 404) {
         warn(`[gen-pages] ${INDEX_STATE_FILE} bestaat nog niet op de site – geheugen voor noindex begint vandaag`);
-        return { status: 'missing', state: null };
+        return { status: 'missing', state: null, lastmod: null };
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const state = parseIndexState(await res.json());
+      const json = await res.json();
+      const state = parseIndexState(json);
       if (!state) throw new Error('onleesbaar');
-      return { status: 'ok', state };
+      return { status: 'ok', state, lastmod: parseLastmodMemory(json) };
     } catch (err) {
       last = err?.message ?? String(err);
       if (attempt < ATTEMPTS) await new Promise((r) => setTimeout(r, retryDelayMs));
     }
   }
   warn(`[gen-pages] ${INDEX_STATE_FILE} niet geladen (${last}) – deze build zet geen enkele pagina op noindex`);
-  return { status: 'failed', state: null };
+  return { status: 'failed', state: null, lastmod: null };
 }
 
 /**

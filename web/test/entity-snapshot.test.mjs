@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 
 import { loadFixtureData, readJson } from './helpers/fixtures.mjs';
 import { entityFile, entityList, entitySections, entitySnapshot, roadQuestions, time } from './helpers/src.mjs';
-import { BRIDGE_SNAPSHOT_SLOTS, createSnapshotter, loadEntityFiles, loadSnapshotModules } from '../scripts/lib/snapshot.mjs';
+import { BRIDGE_SNAPSHOT_SLOTS, createFingerprinter, createSnapshotter, loadEntityFiles, loadSnapshotModules } from '../scripts/lib/snapshot.mjs';
 
 const NOW = loadFixtureData().now;
 const road = (slug) => readJson(`roads/${slug}.json`).items;
@@ -233,6 +233,18 @@ describe('snapshot.mjs (build side)', () => {
       assert.doesNotMatch(html, /Vandaag|Morgen/, 'the HTML outlives the day it was built: no relative day names');
     }
     assert.equal(snapshotFor({ type: 'bridge', entity: { id: 'ONBEKEND' } }, { mapHref: '/' }), null);
+  });
+
+  it("a bridge's fingerprint follows its published schedule, not the clock", async () => {
+    const mods = await loadSnapshotModules();
+    const openings = [[new Date(NOW + 3_600_000).toISOString(), new Date(NOW + 4_200_000).toISOString()]];
+    const live = (list, openNow = false) => ({ index: readJson('index/all.json'), meta: readJson('meta.json'), bridges: { bridges: [{ id: 'B', openNow, openings: list }] } });
+    const page = { type: 'bridge', entity: { id: 'B' } };
+    const at = (l, now) => createFingerprinter({ mods, live: l, files: null, now })(page);
+    assert.equal(at(live(openings), NOW), at(live(openings), NOW + 10 * 3_600_000), 'ten hours later, same feed');
+    assert.equal(at(live(openings), NOW), at(live(openings, true), NOW), '"open now" flips by the minute');
+    assert.notEqual(at(live(openings), NOW), at(live([]), NOW));
+    assert.equal(createFingerprinter({ mods, live: { index: readJson('index/all.json') }, files: null, now: NOW })(page), null, 'no bridge feed: unknown');
   });
 
   it('stops fetching when its time budget is used up: the rest falls back to the index', async () => {

@@ -12,7 +12,8 @@
  *   - road and place pages get the morning's answer, count and first roadworks in their HTML
  *     (lib/snapshot.mjs), which the page script replaces with the live data;
  *   - place and bridge pages without anything to show for 60 days get noindex and leave the
- *     sitemap (lib/activity.mjs, lib/index-state.mjs; the memory is /index-state.json on the site).
+ *     sitemap (lib/activity.mjs, lib/index-state.mjs; the memory is /index-state.json on the site);
+ *   - each sitemap URL's <lastmod> is the day its content last changed (lib/lastmod.mjs, same memory).
  *
  * Never throws on missing data: it warns and keeps going.
  */
@@ -24,8 +25,9 @@ import { performance } from 'node:perf_hooks';
 
 import { buildActivity, loadLiveFiles } from './lib/activity.mjs';
 import { INDEX_STATE_FILE, loadIndexState, serializeIndexState } from './lib/index-state.mjs';
+import { decideLastmod, pageFingerprint } from './lib/lastmod.mjs';
 import { loadLists } from './lib/lists.mjs';
-import { createSnapshotter, loadEntityFiles, loadSnapshotModules } from './lib/snapshot.mjs';
+import { createFingerprinter, createSnapshotter, loadEntityFiles, loadSnapshotModules } from './lib/snapshot.mjs';
 import { loadPartials, loadTemplates } from './lib/render.mjs';
 import { ENTITY_MANIFEST_FILE, PAGE_TYPES, buildEntityManifest, buildModel, loadSite, outFileFor, renderPage, samplePages } from './lib/pages.mjs';
 import { copyLists } from './lib/lists.mjs';
@@ -113,6 +115,7 @@ export function generate(opts) {
   const placeKinds = { woonplaats: 0, gemeente: 0 };
   let failures = 0;
   const sitemapEntries = [{ path: '/', priority: 1.0, changefreq: 'hourly' }];
+  const fingerprints = new Map();
 
   for (const page of pages) {
     if (!templates[page.type]) continue;
@@ -121,7 +124,10 @@ export function generate(opts) {
       writeFile(join(outDir, outFileFor(page)), html);
       written[page.type]++;
       if (page.kind) placeKinds[page.kind]++;
-      if (page.sitemap) sitemapEntries.push({ path: page.path, priority: page.priority, changefreq: page.changefreq });
+      if (page.sitemap) {
+        sitemapEntries.push({ path: page.path, priority: page.priority, changefreq: page.changefreq });
+        fingerprints.set(page.path, pageFingerprint(page, model, opts.fingerprintFor ?? null));
+      }
     } catch (err) {
       failures++;
       if (failures <= 10) warn(`[gen-pages] ${page.path}: ${err.message}`);
@@ -130,8 +136,10 @@ export function generate(opts) {
   if (failures > 10) warn(`[gen-pages] … en nog ${failures - 10} mislukte pagina's`);
 
   // sitemap, robots, entity manifest, ads.txt
-  const lastmod = model.buildIso.slice(0, 10);
-  const sitemaps = buildSitemaps(sitemapEntries, { siteUrl: model.site.url, lastmod });
+  const today = model.buildIso.slice(0, 10);
+  const { lastmod: lastmodOf, memory: lastmodMemory } = decideLastmod({ fingerprints, previous: opts.lastmodState ?? null, today });
+  const datedEntries = sitemapEntries.map((e) => (lastmodOf.has(e.path) ? { ...e, lastmod: lastmodOf.get(e.path) } : e));
+  const sitemaps = buildSitemaps(datedEntries, { siteUrl: model.site.url, lastmod: today });
   for (const f of sitemaps) writeFile(join(outDir, f.name), f.xml);
   // `/?id=…` deep links (one per roadwork, from every list) only reopen the map on one item and
   // canonicalise to `/`; Google crawled them as redirects and spent its budget there instead of on
@@ -142,8 +150,8 @@ export function generate(opts) {
   writeFile(join(outDir, 'robots.txt'), buildRobots({ siteUrl: model.site.url, disallow }));
   // Which entity pages exist, for the map's place mode and its links (web/src/data/entity-pages.ts).
   writeFile(join(outDir, ENTITY_MANIFEST_FILE), JSON.stringify(buildEntityManifest(model)));
-  // The memory of the noindex decision, read back by the next build (lib/index-state.mjs).
-  writeFile(join(outDir, INDEX_STATE_FILE), serializeIndexState(model.lastActive, model.buildIso));
+  // The memory of the noindex decision and of <lastmod>, read back by the next build (lib/index-state.mjs).
+  writeFile(join(outDir, INDEX_STATE_FILE), serializeIndexState(model.lastActive, model.buildIso, lastmodMemory));
   // Cloudflare Pages redirects: woonplaatsen whose page is the gemeente page (pages.mjs).
   writeFile(join(outDir, '_redirects'), buildRedirects(model.redirects));
   let adsTxt = false;
@@ -219,12 +227,13 @@ async function loadLive(opts) {
     loadLiveFiles({ dataBase, warn: console.warn }),
     loadIndexState({ siteUrl: site.url, warn: console.warn }),
   ]);
-  const state = { indexState: memory.state, indexStateFailed: memory.status === 'failed', now };
+  const state = { indexState: memory.state, indexStateFailed: memory.status === 'failed', lastmodState: memory.lastmod, now };
   const activity = files ? buildActivity(files, { warn: console.warn }) : null;
   // Data the build does not believe gives no snapshot either: "Niets gemeld" from a broken index
-  // would be the very false fact the snapshot exists to avoid.
+  // would be the very false fact the snapshot exists to avoid. Nor a fingerprint: <lastmod> stays.
   if (!activity) return { activity: null, ...state };
   let snapshotFor = null;
+  let fingerprintFor = null;
   try {
     const t0 = performance.now();
     const mods = await loadSnapshotModules();
@@ -237,11 +246,12 @@ async function loadLive(opts) {
       warn: console.warn,
     });
     snapshotFor = createSnapshotter({ mods, live: files, files: entityFiles, now: now.getTime() });
+    fingerprintFor = createFingerprinter({ mods, live: files, files: entityFiles, now: now.getTime() });
     console.log(`[gen-pages] momentopname: ${lists.roads.length + lists.gemeenten.length} entiteitsbestanden in ${Math.round(performance.now() - t0)} ms (${entityFiles.failed} niet geladen)`);
   } catch (err) {
     console.warn(`[gen-pages] momentopname niet gemaakt (${err?.message ?? err}) – pagina's zonder meldingen in de HTML`);
   }
-  return { activity, snapshotFor, ...state };
+  return { activity, snapshotFor, fingerprintFor, ...state };
 }
 
 const isMain = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);

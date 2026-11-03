@@ -87,7 +87,7 @@ describe('the state file', () => {
 
   it('a 404 is the first run ("missing"); anything else, after three tries, is "failed"', async () => {
     const missing = await loadIndexState({ siteUrl: 'https://www.example.nl', fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({}) }), warn: quiet });
-    assert.deepEqual(missing, { status: 'missing', state: null });
+    assert.deepEqual(missing, { status: 'missing', state: null, lastmod: null });
 
     for (const fetchImpl of [
       async () => ({ ok: false, status: 503, json: async () => ({}) }),
@@ -103,7 +103,7 @@ describe('the state file', () => {
         return fetchImpl(...a);
       };
       const result = await loadIndexState({ siteUrl: 'https://www.example.nl', fetchImpl: counted, warn: (m) => warnings.push(m), retryDelayMs: 0 });
-      assert.deepEqual(result, { status: 'failed', state: null });
+      assert.deepEqual(result, { status: 'failed', state: null, lastmod: null });
       assert.equal(calls, 3);
       assert.equal(warnings.length, 1);
     }
