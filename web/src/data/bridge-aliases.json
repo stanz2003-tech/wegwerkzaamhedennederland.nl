@@ -1,0 +1,20 @@
+{
+  "uitleg": "Gegevens over grote bruggen in een weg die het bruggenregister (pipeline/static/bruggen.json) niet heeft: de namen waaronder mensen zoeken (aliases) en, voor lange bruggen, tot hoe ver van het brugpunt een melding op die weg nog meetelt (radiusKm: de halve lengte van de brug plus de standaardmarge, naar boven afgerond). Sleutel is de slug van de brugpagina. Alleen namen waarvan we zeker zijn. Een brug in deze lijst is altijd indexeerbaar. Zie web/src/data/bridge-select.ts.",
+  "defaultRadiusKm": 1.2,
+  "bridges": {
+    "merwedebrug-bij-gorinchem": { "aliases": ["Gorkumse brug", "Gorinchemse brug", "Merwedebrug A27"] },
+    "van-brienenoordbrug": { "aliases": ["Brienenoordbrug", "Brienenoord"], "radiusKm": 1.5 },
+    "moerdijkbrug": { "aliases": ["Moerdijkbruggen", "Moerdijk brug"], "radiusKm": 1.5 },
+    "martinus-nijhoffbrug": { "aliases": ["Nijhoffbrug", "brug bij Zaltbommel"], "radiusKm": 2 },
+    "hollandse-brug": { "aliases": ["Hollandsebrug", "brug Muiderberg–Almere"], "radiusKm": 1.5 },
+    "ketelbrug": {},
+    "haringvlietbrug": { "radiusKm": 1.5 },
+    "volkerakbrug": { "radiusKm": 1.5 },
+    "zeelandbrug": { "radiusKm": 3 },
+    "keizersveerbrug": { "aliases": ["Keizersveer"] },
+    "stichtse-brug": { "aliases": ["Stichtsebrug"] },
+    "galecopperbrug": { "aliases": ["Galecopper brug"] },
+    "brug-in-de-rijksweg-a15-bij-botlek-rotterdam": {},
+    "kreekrakbrug": {}
+  }
+}

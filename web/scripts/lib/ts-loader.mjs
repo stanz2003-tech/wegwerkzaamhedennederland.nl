@@ -8,7 +8,10 @@
  * bridge that gap:
  *   1. a relative specifier without an extension resolves to the `.ts` file;
  *   2. `<pkg>/x.svg?raw` is loaded as a module exporting the file contents as a string,
- *      exactly like Vite does, so ui/icons.ts works unchanged.
+ *      exactly like Vite does, so ui/icons.ts works unchanged;
+ *   3. a `.json` file of web/src/ is loaded as a module exporting the parsed data, as Vite and
+ *      tsc (`resolveJsonModule`) read `import data from './x.json'` without an import attribute
+ *      (data/bridge-aliases.json).
  *
  * The hooks must be installed before any TS module is resolved, so import TS modules with
  * `importSrc()` (dynamic import), never statically.
@@ -18,6 +21,7 @@ import { registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
 const RAW_FORMAT = 'wegwerk-raw';
+const SRC_HREF = new URL('../../src/', import.meta.url).href;
 const INSTALLED = Symbol.for('wegwerk.ts-loader');
 
 if (!globalThis[INSTALLED]) {
@@ -40,6 +44,10 @@ if (!globalThis[INSTALLED]) {
       if (context.format === RAW_FORMAT || url.endsWith('.svg?raw')) {
         const file = fileURLToPath(url.replace(/\?raw$/, ''));
         return { format: 'module', source: `export default ${JSON.stringify(readFileSync(file, 'utf8'))};`, shortCircuit: true };
+      }
+      if (url.startsWith(SRC_HREF) && url.endsWith('.json')) {
+        const json = JSON.parse(readFileSync(fileURLToPath(url), 'utf8'));
+        return { format: 'module', source: `export default ${JSON.stringify(json)};`, shortCircuit: true };
       }
       return nextLoad(url, context);
     },

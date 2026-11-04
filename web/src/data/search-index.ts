@@ -2,6 +2,7 @@
  * Search: local matching over index rows (road, title, gemeente, woonplaats) plus the PDOK
  * Locatieserver suggest/lookup. The local part is pure; the PDOK part uses fetch + AbortSignal.
  */
+import { BRIDGE_EXTRAS, type BridgeExtra } from './bridge-aliases';
 import { normalizeRoad, normalizeText } from './filter';
 import type { IndexItem } from './index';
 import type { Category, RoadType } from './types';
@@ -38,7 +39,63 @@ export interface PlaceHit {
   didYouMean?: boolean;
 }
 
-export type SearchHit = LocalHit | PlaceHit;
+/** A bridge page: by its name or a name people use for it ("Gorkumse brug"). */
+export interface BridgeHit {
+  kind: 'bridge';
+  slug: string;
+  name: string;
+  road: string | null;
+  /** The alias the query matched, when it was not the name itself. */
+  alias: string | null;
+  score: number;
+}
+
+export type SearchHit = LocalHit | PlaceHit | BridgeHit;
+
+/** What the bridge search needs of a bridge page (data/entity-pages.ts BridgePage). */
+export interface BridgeEntryLike {
+  slug: string;
+  name: string;
+  road: string | null;
+}
+
+export const MAX_BRIDGE_OPTIONS = 3;
+
+/** How well one name matches: exact, at the start, at a word, anywhere (only for longer queries). */
+function nameScore(name: string, q: string): number {
+  const n = normalizeText(name).replace(/\s+/g, ' ');
+  if (n === q) return 100;
+  if (n.startsWith(q)) return 60;
+  if (n.includes(` ${q}`) || n.includes(`-${q}`)) return 40;
+  if (q.length >= 4 && n.includes(q)) return 20;
+  const terms = q.split(' ').filter(Boolean);
+  return terms.length > 1 && terms.every((t) => n.includes(t)) ? 15 : 0;
+}
+
+/**
+ * Bridges whose name or alias matches the query (Gorkumse brug → Merwedebrug bij Gorinchem). A
+ * bridge in a road wins a tie: its page answers "kan ik erover?". A road number is not searched
+ * here: that query has its own road option.
+ */
+export function searchBridges(bridges: readonly BridgeEntryLike[], query: string, limit = MAX_BRIDGE_OPTIONS, extras: Readonly<Record<string, BridgeExtra>> = BRIDGE_EXTRAS): BridgeHit[] {
+  const q = normalizeText(query).replace(/\s+/g, ' ');
+  if (q.length < 3 || normalizeRoadQuery(q)) return [];
+  const hits: BridgeHit[] = [];
+  for (const b of bridges) {
+    let best = nameScore(b.name, q);
+    let alias: string | null = null;
+    for (const a of extras[b.slug]?.aliases ?? []) {
+      const score = nameScore(a, q);
+      if (score > best) {
+        best = score;
+        alias = a;
+      }
+    }
+    if (best > 0) hits.push({ kind: 'bridge', slug: b.slug, name: b.name, road: b.road, alias, score: best + (b.road ? 5 : 0) });
+  }
+  hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'nl'));
+  return hits.slice(0, limit);
+}
 
 const ROAD_RE = /^([ansANSE])\s?0*(\d{1,3})$/;
 
@@ -219,7 +276,7 @@ export function roadFromName(name: string): string | null {
   return m ? normalizeRoadQuery(m[1] ?? '') : null;
 }
 
-export type SearchOption = { kind: 'query'; query: string } | { kind: 'road'; road: string } | LocalHit | PlaceHit;
+export type SearchOption = { kind: 'query'; query: string } | { kind: 'road'; road: string } | LocalHit | PlaceHit | BridgeHit;
 
 /** A line of the dropdown: a selectable option, or a heading / note that arrow keys skip. */
 export type SearchRow = { kind: 'option'; index: number } | { kind: 'heading'; label: string } | { kind: 'note'; text: string };
@@ -236,6 +293,8 @@ export interface OrderInput {
   streets: readonly PlaceHit[];
   /** The typo retry, only asked when everything else came back empty. */
   fuzzy?: readonly PlaceHit[];
+  /** Bridge pages by name or alias (`searchBridges`). */
+  bridges?: readonly BridgeHit[];
 }
 
 export interface OrderedOptions {
@@ -256,6 +315,7 @@ export function noResultText(query: string): string {
  * The dropdown, in the order people mean (zoek-4, zoek-5, zoek-8):
  *   (a) the road option when the query is a road number (preselected);
  *   (b) places whose name starts with the query, the town first, preselected on an exact name;
+ *   (b2) "Bruggen": bridge pages by name or alias, preselected on an exact name ("Gorkumse brug");
  *   (c) "Meldingen": up to three items; places that only contain the query come after them;
  *   (d) "Straten": PDOK streets, without the ones that lead to the road option already shown
  *       ("A27, Almere", "A27, Baarn" … all opened the same road mode) and one per road number;
@@ -284,7 +344,8 @@ export function orderOptions(input: OrderInput): OrderedOptions {
     seenRoads.add(r);
     return true;
   });
-  const found = input.road !== null || input.places.length + local.length + streets.length > 0;
+  const bridges = (input.bridges ?? []).slice(0, MAX_BRIDGE_OPTIONS);
+  const found = input.road !== null || input.places.length + local.length + streets.length + bridges.length > 0;
 
   if (input.road) active = add({ kind: 'road', road: input.road });
 
@@ -294,6 +355,14 @@ export function orderOptions(input: OrderInput): OrderedOptions {
   for (const p of leading) {
     const i = add(p);
     if (active < 0 && normalizeText(p.label) === q) active = i;
+  }
+
+  if (bridges.length > 0) {
+    rows.push({ kind: 'heading', label: 'Bruggen' });
+    for (const b of bridges) {
+      const i = add(b);
+      if (active < 0 && b.score >= 100) active = i;
+    }
   }
 
   if (!found) {

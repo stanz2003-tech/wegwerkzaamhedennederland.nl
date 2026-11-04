@@ -7,6 +7,7 @@
 import { escapeHtml as esc } from './render.mjs';
 import { roadNumber } from './lists.mjs';
 import { roadKind } from './text.mjs';
+import { isRoadBridge, orderAlong } from './bridge-pages.mjs';
 
 const ROAD_GROUP_ORDER = ['A', 'N', 'S', 'E', 'overig'];
 
@@ -96,26 +97,55 @@ export function renderPlaatsenList(gemeenten, woonplaatsenByGemeente, merged = n
   return out.join('\n');
 }
 
-/** Bridges grouped by provincie, alphabetically. */
-export function renderBruggenList(bridges) {
-  const byProv = new Map();
+function bridgeLink(b, sub) {
+  return `<li><a href="/brug/${esc(b.slug)}/" data-bridge-id="${esc(b.id)}"><span class="entity-links__name">${esc(b.name)}</span>${sub ? `<span class="entity-links__sub">${sub}</span>` : ''}</a></li>`;
+}
+
+const ROAD_LETTER_ORDER = { A: 0, N: 1 };
+
+/**
+ * "Bruggen in snelwegen en provinciale wegen": the bridges in a road, per road (A-roads first,
+ * then N-roads, then the rest), each road's bridges in order along it. Their pages answer "kan ik
+ * erover?"; people look for them by road ("de brug in de A27") rather than by provincie.
+ */
+function renderRoadBridges(bridges) {
+  const byRoad = new Map();
   for (const b of bridges) {
+    const key = b.road.toUpperCase();
+    if (!byRoad.has(key)) byRoad.set(key, []);
+    byRoad.get(key).push(b);
+  }
+  const roads = [...byRoad.keys()].sort(
+    (a, b) => (ROAD_LETTER_ORDER[a[0]] ?? 2) - (ROAD_LETTER_ORDER[b[0]] ?? 2) || roadNumber(a) - roadNumber(b) || a.localeCompare(b, 'nl'),
+  );
+  const out = [`<section class="list-group" aria-labelledby="bruggen-wegen"><h2 id="bruggen-wegen">Bruggen in snelwegen en provinciale wegen <span class="list-group__count">${bridges.length}</span></h2>`];
+  for (const road of roads) {
+    const list = orderAlong(byRoad.get(road));
+    out.push(`<h3 class="list-group__sub">${esc(list[0].road)}</h3><ul class="entity-links">`);
+    for (const b of list) out.push(bridgeLink(b, [b.water, b.woonplaats || b.gemeente].filter(Boolean).map(esc).join(' · ')));
+    out.push('</ul>');
+  }
+  out.push('</section>');
+  return out.join('');
+}
+
+/** Bridges in a road per road; the other (movable) bridges grouped by provincie, alphabetically. */
+export function renderBruggenList(bridges) {
+  const inRoad = bridges.filter(isRoadBridge);
+  const others = bridges.filter((b) => !isRoadBridge(b));
+  const byProv = new Map();
+  for (const b of others) {
     const prov = b.prov || 'Provincie onbekend';
     if (!byProv.has(prov)) byProv.set(prov, []);
     byProv.get(prov).push(b);
   }
   const provs = [...byProv.keys()].sort((a, b) => (a === 'Provincie onbekend') - (b === 'Provincie onbekend') || a.localeCompare(b, 'nl'));
-  const out = [];
+  const out = inRoad.length ? [renderRoadBridges(inRoad)] : [];
   for (const prov of provs) {
     const list = byProv.get(prov).sort((a, b) => a.name.localeCompare(b.name, 'nl'));
     const id = `bruggen-${prov.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
     out.push(`<section class="list-group" aria-labelledby="${id}"><h2 id="${id}">${esc(prov)} <span class="list-group__count">${list.length}</span></h2><ul class="entity-links">`);
-    for (const b of list) {
-      const sub = [b.road, b.water, b.woonplaats || b.gemeente].filter(Boolean).map(esc).join(' · ');
-      out.push(
-        `<li><a href="/brug/${esc(b.slug)}/" data-bridge-id="${esc(b.id)}"><span class="entity-links__name">${esc(b.name)}</span>${sub ? `<span class="entity-links__sub">${sub}</span>` : ''}</a></li>`,
-      );
-    }
+    for (const b of list) out.push(bridgeLink(b, [b.water, b.woonplaats || b.gemeente].filter(Boolean).map(esc).join(' · ')));
     out.push('</ul></section>');
   }
   return out.join('\n');

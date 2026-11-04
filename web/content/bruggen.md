@@ -6,12 +6,16 @@ title: Brugopeningen in Nederland – alle beweegbare bruggen
 description: Beweegbare bruggen per provincie: zie per brug of hij nu open staat en welke openingen voor de komende zeven dagen bij NDW zijn aangemeld.
 heading: Brugopeningen per brug
 kicker: Bruggen
-lead: Beweegbare bruggen waarvan de openingen bij het Nationaal Dataportaal Wegverkeer worden gemeld, per provincie. Elke brug heeft een eigen pagina met de actuele status en de geplande openingen voor de komende zeven dagen.
+lead: Bovenaan de bruggen in snelwegen en provinciale wegen, per weg, met per brug of je er nu en de komende twee weken overheen kunt. Daaronder de andere beweegbare bruggen waarvan de openingen bij het Nationaal Dataportaal Wegverkeer worden gemeld, per provincie, met de actuele status en de geplande openingen voor de komende zeven dagen.
 ---
 
 ## Welke bruggen staan hier?
 
 Nederland telt duizenden beweegbare bruggen; hier staan de bruggen waarvoor de beheerder de openingen doorgeeft aan het Nationaal Dataportaal Wegverkeer (NDW), of waarvan een opening in het actuele verkeersbeeld is gezien. Dat zijn vooral bruggen in rijkswegen en in drukke provinciale en gemeentelijke wegen. Een brug die er niet bij staat, kan dus wel degelijk opengaan; de beheerder meldt de openingen dan alleen niet landelijk. Nieuwe bruggen die in de gegevens opduiken, krijgen automatisch een pagina.
+
+## Bruggen in snelwegen en provinciale wegen
+
+Een brug in een weg, zoals de Merwedebrug in de A27 bij Gorinchem of de Van Brienenoordbrug in de A16, heeft een pagina die antwoord geeft op de vraag **kan ik over de brug?**, voor de auto, het vrachtverkeer en de fiets, nu en per dag voor de komende twee weken. Daarbij telt ook werk vlak voor en na de brug mee, zoals een dichte op- of afrit. Gaat de brug ook open voor de scheepvaart, dan staan de geplande openingen eronder.
 
 ## Wat zie je per brug?
 

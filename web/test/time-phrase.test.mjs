@@ -317,3 +317,11 @@ describe('randomised: the stated end never suggests a reopening that is not ther
     assert.ok(checked > 2000, `enough moments were checked (${checked})`);
   });
 });
+
+it('a date more than ten months away carries its year (Merwedebrug cycle path until 2032)', () => {
+  const far = Date.parse('2032-12-19T16:00:00Z');
+  const label = timePhrase.dayTimeLabel(far);
+  assert.match(label, /19 dec 2032 17:00$/);
+  const near = Date.now() + 30 * 86_400_000;
+  assert.doesNotMatch(timePhrase.dayTimeLabel(near), /20\d\d/);
+});

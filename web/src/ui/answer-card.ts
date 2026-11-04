@@ -19,6 +19,11 @@ export interface AnswerCardModel {
   roadType?: RoadType | null;
   /** Question subject when there is no road: "de gemeente Utrecht", "Breda". */
   subject?: string;
+  /**
+   * A bridge page asks about the bridge, not its road: "de Merwedebrug bij Gorinchem" (with its
+   * article). The road badge stays; the answer is that of the selected items on the road.
+   */
+  bridge?: string;
   /** "nu" / "vandaag" / "za 20 sep 14:00" */
   whenLabel: string;
   /**
@@ -101,7 +106,7 @@ export function cardHeadline(m: Pick<AnswerCardModel, 'answer' | 'total'>): stri
  * than the one on screen; the stale-data moment is spoken too.
  */
 export function answerAnnouncement(m: AnswerCardModel): string {
-  const raw = m.road ?? m.subject ?? 'dit gebied';
+  const raw = m.bridge ?? m.road ?? m.subject ?? 'dit gebied';
   const subject = raw.charAt(0).toUpperCase() + raw.slice(1);
   return `${subject}, ${MODE_LABEL[m.mode]}, ${whenText(m)}: ${cardHeadline(m).replace(/[.s]+$/, '')}.`;
 }

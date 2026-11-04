@@ -3,7 +3,7 @@
 <head>
 <!-- @head -->
 </head>
-<body data-page="bridge" data-bridge-id="{{id}}" data-lon="{{lon}}" data-lat="{{lat}}">
+<body data-page="bridge" data-bridge-id="{{id}}" data-lon="{{lon}}" data-lat="{{lat}}"{{#if isRoadBridge}} data-road="{{road}}" data-road-type="{{roadType}}" data-road-slug="{{roadSlug}}" data-gemeente-slug="{{gemeenteSlug}}" data-bridge-slug="{{slug}}" data-bridge-name="{{name}}"{{/if}}>
 <a class="skip-link" href="#main">Naar de inhoud</a>
 <!-- @header -->
 <main id="main" class="page page--wide">
@@ -19,6 +19,7 @@
     <div class="entity-hero__text">
       <p class="entity-hero__kicker">{{kicker}}</p>
       <h1>{{heading}}</h1>
+      {{#if hasAliases}}<p class="entity-hero__aka">Ook bekend als {{aliasText}}</p>{{/if}}
       <div class="entity-hero__intro">{{{intro}}}</div>
       <dl class="entity-facts">
         {{#if road}}<div class="entity-facts__item"><dt>Weg</dt><dd>{{#if roadHref}}<a href="{{roadHref}}">{{road}}</a>{{else}}{{road}}{{/if}}</dd></div>{{/if}}
@@ -28,14 +29,34 @@
         {{#if prov}}<div class="entity-facts__item"><dt>Provincie</dt><dd>{{prov}}</dd></div>{{/if}}
       </dl>
       <p class="entity-hero__meta">
-        <span id="bridge-status" class="bridge-status" data-state="loading">Status wordt geladen…</span>
+        {{#unless isRoadBridge}}<span id="bridge-status" class="bridge-status" data-state="loading">Status wordt geladen…</span>
         <span class="entity-hero__sep" aria-hidden="true">·</span>
-        <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
+        {{/unless}}        <span>Pagina bijgewerkt <time id="entity-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span>
       </p>
     </div>
   </header>
 
-  <section class="entity-live" aria-label="Openingen van {{name}}">
+  {{#if isRoadBridge}}<section class="entity-forecast" id="entity-forecast" {{#if hasSnapshot}}data-reserve{{else}}data-pending{{/if}} aria-label="{{question}}">{{#if hasSnapshot}}<div class="forecast__answer forecast-snapshot">{{{snapshotAnswer}}}</div>{{else}}<div class="forecast-pending" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Het antwoord wordt geladen.</p>{{/if}}</section>
+
+  <p class="entity-scope">{{{scopeHtml}}}</p>
+
+  <section class="entity-live" aria-label="Meldingen op en rond {{theName}}">
+    <div class="entity-mapcol">
+      <div id="entity-map" class="entity-map">
+        <p class="entity-map__fallback">Kaart met de meldingen op en rond {{theName}}. <a href="{{mapHref}}">Open de brug op de grote kaart</a>.</p>
+      </div>
+      <a class="btn btn--secondary entity-mapcol__open" id="entity-map-link" href="{{mapHref}}">Op de grote kaart</a>
+    </div>
+    <div id="entity-list" class="entity-list"{{#if hasSnapshot}} data-snapshot{{/if}}>{{{snapshotList}}}</div>
+    <div id="entity-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
+  </section>
+
+  {{#if isMovable}}<section class="entity-openings entity-openings--road" id="bridge-openings-block" aria-labelledby="openingen"{{#unless hasOpeningsSnapshot}} hidden{{/unless}}>
+    <h2 id="openingen">Geplande openingen (komende 7 dagen)</h2>
+    <p class="entity-openings__status"><span id="bridge-status" class="bridge-status" data-state="loading" hidden></span></p>
+    <ol id="bridge-openings" class="bridge-openings"{{#if hasOpeningsSnapshot}} data-snapshot{{/if}}>{{{snapshotOpenings}}}</ol>
+  </section>{{/if}}
+  {{else}}<section class="entity-live" aria-label="Openingen van {{name}}">
     <div id="entity-map" class="entity-map">
       <p class="entity-map__fallback">Kaart met de ligging van {{name}}. <a href="{{mapHref}}">Open de brug op de grote kaart</a>.</p>
     </div>
@@ -44,17 +65,17 @@
       <ol id="bridge-openings" class="bridge-openings"{{#if hasSnapshot}} data-snapshot{{/if}}>{{{snapshotOpenings}}}</ol>
       <div id="entity-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
     </div>
-  </section>
+  </section>{{/if}}
 
   <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
 
   <article class="prose prose--entity">
     <div class="prose__body">
-    <p>Wat er tijdens een opening met het verkeer gebeurt, staat hieronder bij de vragen. Hoe je de meldingen in de buurt leest, staat in de <a href="/uitleg/meldingen-lezen/">uitleg</a>.</p>
+    {{#if isRoadBridge}}<p>Wat <strong>weg dicht</strong>, <strong>rijbaan dicht</strong> en <strong>doorrijden mogelijk</strong> betekenen en hoe je een melding leest, staat in de <a href="/uitleg/meldingen-lezen/">uitleg</a>; hoe je het best omrijdt, in <a href="/uitleg/omrijden/">omrijden bij een afsluiting</a>.</p>{{else}}<p>Wat er tijdens een opening met het verkeer gebeurt, staat hieronder bij de vragen. Hoe je de meldingen in de buurt leest, staat in de <a href="/uitleg/meldingen-lezen/">uitleg</a>.</p>{{/if}}
     </div>
 
     <section class="faq" aria-labelledby="faq-title">
-      <h2 id="faq-title">Veelgestelde vragen over {{name}}</h2>
+      <h2 id="faq-title">Veelgestelde vragen over {{#if isRoadBridge}}{{theName}}{{else}}{{name}}{{/if}}</h2>
       {{#each faq}}<details class="faq__item">
         <summary>{{q}}</summary>
         <div class="faq__answer"><p>{{{a}}}</p></div>

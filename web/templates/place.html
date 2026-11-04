@@ -71,6 +71,11 @@
       {{#each nearbyRoads}}<li><a class="badge badge--{{badgeClass}}" href="{{href}}" title="Wegwerkzaamheden {{road}}">{{road}}</a></li>
       {{/each}}
     </ul>{{/if}}
+    {{#if hasPlaceBridges}}<h3 class="related__sub">{{placeBridgesTitle}}</h3>
+    <ul class="related__list entity-links">
+      {{#each placeBridges}}<li><a href="{{href}}"><span class="entity-links__name">{{name}}</span>{{#if sub}}<span class="entity-links__sub">{{sub}}</span>{{/if}}</a></li>
+      {{/each}}
+    </ul>{{/if}}
     {{#if hasRelatedGemeenten}}<h3 class="related__sub">{{relatedGemeentenTitle}}</h3>
     <ul class="related__list chips">
       {{#each relatedGemeenten}}<li><a class="chip chip--gemeente" href="{{href}}">{{name}}</a></li>

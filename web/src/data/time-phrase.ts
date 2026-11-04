@@ -42,13 +42,28 @@ function clean(s: string): string {
   return s.replace(/\./g, '').replace(/,\s*/g, ' ').replace(' om ', ' ').trim();
 }
 
-/** "za 3 okt 10:00" */
+/**
+ * Beyond this, "zo 19 dec" stops being unambiguous: the cycle-path closure on the Merwedebrug read
+ * "Tot zo 19 dec 17:00" while it runs until 19 December 2032.
+ */
+const YEAR_AFTER_MS = 300 * DAY_MS;
+const YEAR_FMT = new Intl.DateTimeFormat('nl-NL', { timeZone: TZ, year: 'numeric' });
+
+function withYear(label: string, ms: number): string {
+  return ms - Date.now() > YEAR_AFTER_MS ? `${label} ${YEAR_FMT.format(ms)}` : label;
+}
+
+/** "za 3 okt 10:00"; "zo 19 dec 17:00 2032" when the date is more than ~10 months away */
 export function dayTimeLabel(ms: number): string {
-  return clean(DAY_TIME_FMT.format(ms));
+  const label = clean(DAY_TIME_FMT.format(ms));
+  if (ms - Date.now() <= YEAR_AFTER_MS) return label;
+  // The year goes with the date, not after the clock: "zo 19 dec 2032 17:00".
+  const clock = clockLabel(ms);
+  return `${withYear(label.slice(0, label.length - clock.length).trim(), ms)} ${clock}`;
 }
 
 function dayLabel(ms: number): string {
-  return clean(DAY_FMT.format(ms));
+  return withYear(clean(DAY_FMT.format(ms)), ms);
 }
 
 function clockLabel(ms: number): string {

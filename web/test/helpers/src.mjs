@@ -75,3 +75,4 @@ export const entitySections = await load('ui/entity-sections.ts');
 export const entitySnapshot = await load('ui/entity-snapshot.ts');
 export const roadQuestions = await load('ui/road-questions.ts');
 export const bridgeOpenings = await load('ui/bridge-openings.ts');
+export const bridgeSelect = await load('data/bridge-select.ts');

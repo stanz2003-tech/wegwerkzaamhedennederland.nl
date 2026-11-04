@@ -50,6 +50,8 @@ export interface ForecastState {
 export interface ForecastBlockOptions {
   items: readonly ForecastItem[];
   subject: AnswerSubject;
+  /** A bridge page: the question names the bridge ("de Merwedebrug bij Gorinchem"), see AnswerCardModel.bridge. */
+  bridge?: string;
   /** Road badge type for the answer card (road pages). */
   roadType?: 'A' | 'N' | 'S' | 'E' | 'lokaal' | null;
   mode: VehicleMode;
@@ -172,6 +174,7 @@ export function mountForecastBlock(root: HTMLElement, opts: ForecastBlockOptions
       road: opts.subject.kind === 'road' ? opts.subject.name : null,
       roadType: opts.roadType ?? null,
       subject: opts.subject.kind === 'gemeente' ? `de gemeente ${opts.subject.name}` : opts.subject.name,
+      ...(opts.bridge ? { bridge: opts.bridge } : {}),
       whenLabel: whenLabelOf(selection, now),
       questionWhen: questionWhenOf(selection, now),
       backToNow: selection.kind !== 'all',

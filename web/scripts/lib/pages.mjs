@@ -14,6 +14,9 @@ import { loadLists, nearestByCentroid, nearestRoads } from './lists.mjs';
 import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragments.mjs';
 import { placesAlongRoad, roadPlacesFor, roadsThroughPlace } from './road-places.mjs';
 import {
+  alwaysIndexedBridge, bridgesInPlace, bridgesOnRoad, isRoadBridge, loadBridgeExtras, roadBridgeDescription, roadBridgeFaq, roadBridgeTitle, roadBridgeVars,
+} from './bridge-pages.mjs';
+import {
   PLANNING_REFRESH_MINUTES,
   bridgeDescription, bridgeFaq, bridgeIntro, bridgeTitle, bridgeVariants,
   clampText, fmtDate, fmtDateTime, hasSameNameKern, mapHref,
@@ -162,8 +165,15 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     }
     routes.push({ type: 'place', kind: 'woonplaats', path: `/plaats/${w.slug}/`, entity: w, sitemap: true, priority: 0.5, changefreq: 'daily' });
   }
+  const bridgeExtras = loadBridgeExtras(webRoot, warn);
   for (const b of lists.bridges) {
-    routes.push({ type: 'bridge', path: `/brug/${b.slug}/`, entity: b, sitemap: true, priority: 0.5, changefreq: 'daily' });
+    // A bridge in a road reads its road's file and the file of its gemeente (snapshot.mjs, bridge-road.ts).
+    const road = isRoadBridge(b) ? roadByNumber.get(b.road.toUpperCase()) ?? null : null;
+    const gemeente = b.gemeente ? gemeenteByName.get(b.gemeente.toLowerCase()) ?? null : null;
+    routes.push({
+      type: 'bridge', path: `/brug/${b.slug}/`, entity: b, sitemap: true, priority: isRoadBridge(b) ? 0.6 : 0.5, changefreq: 'daily',
+      ...(isRoadBridge(b) ? { roadSlug: road?.slug ?? null, roadType: road?.type ?? null, gemeenteSlug: gemeente?.slug ?? null } : {}),
+    });
   }
   for (const l of LIST_ROUTES) {
     if (!content.has(l.slug)) warn(`[gen-pages] content/${l.slug}.md ontbreekt – lijstpagina ${l.path} krijgt standaardtekst`);
@@ -178,7 +188,9 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
   }
   routes.push({ type: 'static', path: '/404.html', slug: NOT_FOUND_SLUG, sitemap: false, outFile: '404.html', noindex: true });
 
-  const { thin, quiet, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
+  // Bridges in an A-road and the curated ones carry the road's status: indexable on a quiet day too.
+  const bridgesAlways = lists.bridges.filter((b) => alwaysIndexedBridge(b, bridgeExtras)).map((b) => `/brug/${b.slug}/`);
+  const { thin, quiet, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, alsoAlways: bridgesAlways, today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
   const pages = routes.map((p) => (thin.has(p.path) ? { ...p, thin: true, sitemap: false } : quiet.has(p.path) ? { ...p, quiet: true } : p));
 
   const counts = {
@@ -200,7 +212,7 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     byPath: new Map(pages.map((p) => [p.path, p])),
     index: {
       woonplaatsenByGemeente, woonplaatsBySlug: new Map(lists.woonplaatsen.map((w) => [w.slug, w])), gemeenteByCode, gemeenteByName, roadBySlug, roadByNumber,
-      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), merged, roadPlaces,
+      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), bridgeExtras, merged, roadPlaces,
     },
     warn,
   };
@@ -224,13 +236,13 @@ function believable(thin, gemeenteCount, warn) {
  * unchanged, so an outage never shortens a page's 60 days. When the previous memory exists but
  * could not be read, nothing is thin either; the memory then holds only today's active pages.
  */
-function thinPaths({ routes, activity, indexState, indexStateFailed, site, today, gemeenteCount, warn }) {
+function thinPaths({ routes, activity, indexState, indexStateFailed, site, alsoAlways = [], today, gemeenteCount, warn }) {
   const carried = { thin: new Set(), quiet: new Set(), lastActive: indexState ?? new Map() };
   if (!activity) return carried;
   const candidates = routes.filter((p) => p.type === 'place' || p.type === 'bridge');
   const emptyGemeenten = candidates.filter((p) => p.kind === 'gemeente' && isThinPage(p, activity)).length;
   if (!believable(emptyGemeenten, gemeenteCount, warn)) return carried;
-  const alwaysIndex = new Set(Array.isArray(site.seo?.alwaysIndex) ? site.seo.alwaysIndex : []);
+  const alwaysIndex = new Set([...(Array.isArray(site.seo?.alwaysIndex) ? site.seo.alwaysIndex : []), ...alsoAlways]);
   const inactiveToday = (p) => isThinPage(p, activity);
   const quiet = new Set(candidates.filter(inactiveToday).map((p) => p.path));
   const decided = decideThin({ candidates, inactiveToday, previous: indexState, today, alwaysIndex });
@@ -253,6 +265,9 @@ export function buildEntityManifest(model) {
     roads: model.lists.roads.map((r) => r.slug),
     woonplaatsen: model.lists.woonplaatsen.map((w) => ({ slug: w.slug, name: w.naam, gemeente: w.gemeente ?? null })),
     gemeenten: model.lists.gemeenten.map((g) => ({ slug: g.slug, name: g.naam })),
+    // Every bridge page, for the search box ("Gorkumse brug") and the map's detail view, which
+    // links a melding to the page of the road bridge it touches (web/src/data/entity-pages.ts).
+    bridges: model.lists.bridges.map((b) => ({ slug: b.slug, name: b.name, ...(isRoadBridge(b) ? { road: b.road } : {}), gemeente: b.gemeente ?? null, lon: b.lon, lat: b.lat })),
   };
 }
 
@@ -379,6 +394,7 @@ function roadContext(model, page) {
   const faq = roadFaq(r);
   const related = nearestRoads(r, model.lists.roads, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
   const { alongGemeenten, alongPlaces } = placesAlongRoad(model, r);
+  const roadBridges = bridgesOnRoad(model, r);
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
   const href = bbox ? `/?b=${bbox}` : mapHref(r.lon, r.lat, 9);
@@ -410,6 +426,8 @@ function roadContext(model, page) {
     alongPlaces,
     hasAlongPlaces: alongPlaces.length > 0,
     hasAlong: alongGemeenten.length + alongPlaces.length > 0,
+    roadBridges,
+    hasRoadBridges: roadBridges.length > 0,
     mapHref: href,
   };
 }
@@ -435,6 +453,7 @@ function placeContext(model, page) {
       ? [{ name: `Gemeente ${gemeente.naam}`, href: `/gemeente/${gemeente.slug}/` }]
       : [];
   const nearbyRoads = roadsThroughPlace(model, page);
+  const placeBridges = bridgesInPlace(model, page);
   const provName = p.prov ?? gemeente?.prov ?? '';
   const zoom = isGemeente ? 11 : 12;
   const href = mapHref(p.lon, p.lat, zoom);
@@ -483,6 +502,9 @@ function placeContext(model, page) {
     nearbyRoads,
     hasNearbyRoads: nearbyRoads.length > 0,
     nearbyRoadsTitle: isGemeente ? `Wegen in en rond ${p.naam}` : `Wegen bij ${p.naam}`,
+    placeBridges,
+    hasPlaceBridges: placeBridges.length > 0,
+    placeBridgesTitle: isGemeente ? `Bruggen in de gemeente ${p.naam}` : `Bruggen bij ${p.naam}`,
     mapHref: href,
   };
 }
@@ -504,27 +526,10 @@ function bridgeContext(model, page) {
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Bruggen', href: '/bruggen/' }];
   const href = mapHref(b.lon, b.lat, 14);
   const snap = model.snapshotFor ? model.snapshotFor(page, { mapHref: href }) : null;
-  return {
-    hasSnapshot: Boolean(snap),
-    snapshotOpenings: snap?.openingsHtml ?? '',
-    emptyHtml: `<p><strong>Geen openingen aangemeld.</strong> Voor ${escapeHtml(b.name)} zijn bij NDW op dit moment geen geplande openingen bekend. Dat betekent niet dat de brug niet opengaat: veel bruggen draaien op aanvraag van de scheepvaart. Kijk op <a href="${escapeHtml(href)}">de kaart</a> voor de actuele situatie in de omgeving.</p>`,
-    ...baseContext(model, page, {
-      title: bridgeTitle(b, variant),
-      description: bridgeDescription(b, variant),
-      crumbs,
-      current: `Brugopeningen ${b.name}${variant ? ` (${variant})` : ''}`,
-      ogType: 'article',
-    }),
+  const common = {
     id: b.id,
     name: b.name,
     variant,
-    heading: `Brugopeningen ${b.name}${variant ? ` (${variant})` : ''}`,
-    kicker: [
-      b.road ? `Brug in de ${b.road}` : 'Beweegbare brug',
-      b.water ? `over ${b.water}` : '',
-      variant ? variant.charAt(0).toUpperCase() + variant.slice(1) : '',
-      b.prov ?? '',
-    ].filter(Boolean).join(' · '),
     road: b.road ?? '',
     roadHref: road ? `/weg/${road.slug}/` : '',
     water: b.water ?? '',
@@ -535,11 +540,48 @@ function bridgeContext(model, page) {
     prov: b.prov ?? '',
     lon: b.lon,
     lat: b.lat,
-    intro: bridgeIntro(b),
-    faq,
     relatedBridges,
     hasRelatedBridges: relatedBridges.length > 0,
     mapHref: href,
+  };
+  if (isRoadBridge(b)) {
+    const vars = roadBridgeVars(model, page, { variant, snap, href, roadEntry: road });
+    return {
+      ...common,
+      ...vars,
+      ...baseContext(model, page, {
+        title: roadBridgeTitle(b, variant),
+        description: roadBridgeDescription(b, { variant, aliases: vars.aliases, headline: snap?.headline ?? '', asOf: snap?.asOf ?? '' }),
+        crumbs,
+        current: vars.heading,
+        ogType: 'article',
+      }),
+      kicker: [`Brug in de ${b.road}`, b.water ? `over ${b.water}` : '', variant ? variant.charAt(0).toUpperCase() + variant.slice(1) : '', b.prov ?? ''].filter(Boolean).join(' · '),
+      faq: roadBridgeFaq(b, { radiusKm: vars.radiusKm, roadHref: common.roadHref, openingsFaq: faq }),
+    };
+  }
+  return {
+    ...common,
+    isRoadBridge: false,
+    hasSnapshot: Boolean(snap),
+    snapshotOpenings: snap?.openingsHtml ?? '',
+    emptyHtml: `<p><strong>Geen openingen aangemeld.</strong> Voor ${escapeHtml(b.name)} zijn bij NDW op dit moment geen geplande openingen bekend. Dat betekent niet dat de brug niet opengaat: veel bruggen draaien op aanvraag van de scheepvaart. Kijk op <a href="${escapeHtml(href)}">de kaart</a> voor de actuele situatie in de omgeving.</p>`,
+    ...baseContext(model, page, {
+      title: bridgeTitle(b, variant),
+      description: bridgeDescription(b, variant),
+      crumbs,
+      current: `Brugopeningen ${b.name}${variant ? ` (${variant})` : ''}`,
+      ogType: 'article',
+    }),
+    heading: `Brugopeningen ${b.name}${variant ? ` (${variant})` : ''}`,
+    kicker: [
+      b.road ? `Brug in de ${b.road}` : 'Beweegbare brug',
+      b.water ? `over ${b.water}` : '',
+      variant ? variant.charAt(0).toUpperCase() + variant.slice(1) : '',
+      b.prov ?? '',
+    ].filter(Boolean).join(' · '),
+    intro: bridgeIntro(b),
+    faq,
   };
 }
 

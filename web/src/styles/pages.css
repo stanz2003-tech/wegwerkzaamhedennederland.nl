@@ -129,6 +129,13 @@
   color: var(--text-3);
 }
 
+/* "Ook bekend als Gorkumse brug": the names people search for, right under the bridge's name. */
+.entity-hero__aka {
+  margin: var(--s-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
 .page-head__sep,
 .entity-hero__sep {
   margin: 0 var(--s-1);
@@ -518,6 +525,30 @@
   gap: var(--s-2);
   min-width: 0;
 }
+
+/* A road bridge: what counts as "on the bridge", said plainly between the answer and the list. */
+.entity-scope {
+  max-width: 72ch;
+  margin: 0 0 var(--s-6);
+  padding-left: var(--s-3);
+  border-left: 3px solid var(--c-brug);
+  font-size: var(--text-sm);
+  color: var(--text-2);
+}
+
+/* The openings of a movable road bridge: their own block under the meldingen. */
+.entity-openings--road {
+  max-width: 72ch;
+  margin: 0 0 var(--s-6);
+}
+
+.entity-openings--road[hidden] { display: none; }
+
+.entity-openings__status {
+  margin: 0 0 var(--s-3);
+}
+
+.entity-openings__status:has(.bridge-status[hidden]) { display: none; }
 
 .entity-openings h2 {
   margin: 0 0 var(--s-3);

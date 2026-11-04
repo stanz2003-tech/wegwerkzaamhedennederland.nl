@@ -19,7 +19,7 @@ import { renderEntityList } from '../ui/entity-list';
 import { entitySections } from '../ui/entity-sections';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
 import { fmtDay } from '../ui/format';
-import { cameraParams, dayFromUrl, entityMapHref, mapContextQuery, whenParamsOf, type MapTarget } from '../ui/map-link';
+import { cameraParams, dayFromUrl, entityMapHref, mapContextQuery, whenParamsOf, withQuery, type MapTarget } from '../ui/map-link';
 import { setEmptyVisible } from '../ui/page-boot';
 
 export interface EntitySource {
@@ -73,6 +73,8 @@ export interface EntityPageOptions {
   listEl: HTMLElement | null;
   forecastEl: HTMLElement | null;
   linkQuery?: string;
+  /** A bridge page: the bridge with its article, for the question of the answer card. */
+  bridge?: string;
   /** What "Op de grote kaart" opens: road mode, or place mode for a woonplaats / gemeente. */
   mapTarget?: MapTarget;
   /** "20:17" while the data is stale: the answer for "nu" then names that moment. */
@@ -162,6 +164,8 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
   const camera = cameraParams(mapLink?.getAttribute('href'));
   const syncMapLink = (state: ForecastState): void => {
     if (mapLink && opts.mapTarget) mapLink.setAttribute('href', entityMapHref(opts.mapTarget, mapContextQuery(state.mode, state.selection), opts.mapTarget.kind === 'road' ? '' : camera));
+    // A bridge: the big map on the same spot, with the same question (no road mode: that frames the whole road).
+    else if (mapLink && camera) mapLink.setAttribute('href', withQuery(`/?${camera}`, mapContextQuery(state.mode, state.selection)));
   };
 
   const bar = opts.forecastEl ? mountAnswerBar(opts.forecastEl, opts.subject.kind === 'road' ? roadBadge(opts.subject.name, opts.roadType ?? null, { size: 'sm' }) : '') : null;
@@ -194,6 +198,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
       items: source.items,
       subject: opts.subject,
       roadType: opts.roadType ?? null,
+      ...(opts.bridge ? { bridge: opts.bridge } : {}),
       mode: state.mode,
       moment: opts.url.moment,
       // `?dag=` (+ `&deel=`), or the strip day of the map's `?t=vandaag` / `?t=morgen`.

@@ -7,7 +7,9 @@
  * origin, never from `dataBase()`. When it cannot be loaded every lookup answers "no page": links
  * are then hidden, never broken.
  */
+import { bridgeMatch, bridgeProfile, type BridgeProfile } from './bridge-select';
 import { normalizeText } from './filter';
+import type { ForecastItem } from './forecast';
 
 export const ENTITY_PAGES_URL = '/entity-pages.json';
 
@@ -22,7 +24,24 @@ export interface GemeentePage {
   name: string;
 }
 
+/** A /brug/<slug>/ page; `road` only for a bridge in a road (its page answers "kan ik erover?"). */
+export interface BridgePage {
+  slug: string;
+  name: string;
+  road: string | null;
+  gemeente: string | null;
+  lon: number;
+  lat: number;
+}
+
 export interface EntityPages {
+  /** Every bridge page (empty for a manifest from before 2026-11). */
+  bridges: readonly BridgePage[];
+  /**
+   * The road bridges whose page counts this melding (data/bridge-select.ts): the detail view links
+   * to them ("Alles over de Merwedebrug bij Gorinchem").
+   */
+  bridgesForItem(item: ForecastItem): BridgePage[];
   hasRoadPage(slug: string): boolean;
   /**
    * The page of a woonplaats by name. About 70 names occur in more than one gemeente ("Alteveer"
@@ -52,6 +71,14 @@ function gemeenteOf(v: unknown): GemeentePage | null {
   return isStr(o.slug) && isStr(o.name) ? { slug: o.slug, name: o.name } : null;
 }
 
+function bridgeOf(v: unknown): BridgePage | null {
+  if (!v || typeof v !== 'object') return null;
+  const o = v as Record<string, unknown>;
+  if (!isStr(o.slug) || !isStr(o.name) || typeof o.lon !== 'number' || typeof o.lat !== 'number') return null;
+  if (!Number.isFinite(o.lon) || !Number.isFinite(o.lat)) return null;
+  return { slug: o.slug, name: o.name, road: isStr(o.road) ? o.road : null, gemeente: isStr(o.gemeente) ? o.gemeente : null, lon: o.lon, lat: o.lat };
+}
+
 function group<T>(list: readonly T[], key: (t: T) => string): Map<string, T[]> {
   const out = new Map<string, T[]>();
   for (const t of list) {
@@ -75,7 +102,14 @@ export function entityPagesFrom(json: unknown): EntityPages | null {
   const gmByName = new Map(gemeenten.map((g) => [normalizeText(g.name), g]));
   const wpBySlug = new Map(woonplaatsen.map((w) => [w.slug, w]));
   const gmBySlug = new Map(gemeenten.map((g) => [g.slug, g]));
+  const bridges = (Array.isArray(o.bridges) ? o.bridges : []).map(bridgeOf).filter((b): b is BridgePage => b !== null);
+  let profiles: { page: BridgePage; profile: BridgeProfile }[] | null = null;
   return {
+    bridges,
+    bridgesForItem(item) {
+      profiles ??= bridges.filter((b) => b.road !== null).map((page) => ({ page, profile: bridgeProfile(page) }));
+      return profiles.filter((x) => bridgeMatch(item, x.profile) !== null).map((x) => x.page);
+    },
     hasRoadPage: (slug) => roads.has(slug),
     findWoonplaats(name, gemeente) {
       const candidates = wpByName.get(normalizeText(name)) ?? [];

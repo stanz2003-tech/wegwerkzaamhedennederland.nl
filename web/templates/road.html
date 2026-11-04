@@ -79,6 +79,14 @@
     </ul>{{/if}}
   </section>{{/if}}
 
+  {{#if hasRoadBridges}}<section class="related" aria-labelledby="bridges-title">
+    <h2 id="bridges-title">Bruggen op de {{road}}</h2>
+    <ul class="related__list entity-links">
+      {{#each roadBridges}}<li><a href="{{href}}"><span class="entity-links__name">{{name}}</span>{{#if sub}}<span class="entity-links__sub">{{sub}}</span>{{/if}}</a></li>
+      {{/each}}
+    </ul>
+  </section>{{/if}}
+
   {{#if hasRelated}}<section class="related" aria-labelledby="related-title">
     <h2 id="related-title">Andere wegen</h2>
     <ul class="related__list chips chips--badges">

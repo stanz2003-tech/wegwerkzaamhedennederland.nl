@@ -67,8 +67,13 @@ export function windowQuestionWords(id: TimeWindowId, now: number): string {
   }
 }
 
-/** The question itself: "Kan ik zaterdag 3 oktober om 08:00 over de A27?" (`when` from the helpers above). */
-export function questionText(subject: { road?: string | null; subject?: string }, mode: 'auto' | 'vracht' | 'fiets', when: string): string {
+/**
+ * The question itself: "Kan ik zaterdag 3 oktober om 08:00 over de A27?" (`when` from the helpers
+ * above). A bridge page asks about the bridge, with its article: "Kan ik nu over de Merwedebrug
+ * bij Gorinchem?" (`bridge` from data/bridge-select.ts bridgeWithArticle).
+ */
+export function questionText(subject: { road?: string | null; subject?: string; bridge?: string }, mode: 'auto' | 'vracht' | 'fiets', when: string): string {
   const at = when ? ` ${when}` : '';
+  if (subject.bridge) return `Kan ik${at} over ${subject.bridge}?`;
   return subject.road ? `Kan ik${at} ${mode === 'fiets' ? 'langs' : 'over'} de ${subject.road}?` : `Kan ik${at} door ${subject.subject ?? 'dit gebied'}?`;
 }

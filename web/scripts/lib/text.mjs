@@ -248,7 +248,7 @@ export function roadRouteShort(entry) {
  * the site name itself). Descriptions open with the question people type and end with how fresh
  * the data is.
  */
-const FRESHNESS = 'Elk kwartier bijgewerkt.';
+export const FRESHNESS = 'Elk kwartier bijgewerkt.';
 
 export function roadTitle(entry) {
   return fitTitle([

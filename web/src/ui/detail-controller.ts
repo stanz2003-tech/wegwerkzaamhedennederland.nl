@@ -84,6 +84,7 @@ export function createDetailController(host: DetailHost): DetailController {
       {
         props: selected.properties,
         center: midpointOf(selected.geometry),
+        geometry: selected.geometry,
         detail: data,
         loading: data === null && !failed,
         error: failed,

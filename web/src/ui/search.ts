@@ -7,6 +7,8 @@
  * `role="presentation"` rows outside the options, so arrow keys and aria-activedescendant skip
  * them. A status line tells screen readers what Enter does and how many suggestions there are.
  */
+import { bridgeWithArticle } from '../data/bridge-select';
+import { loadEntityPages } from '../data/entity-pages';
 import type { IndexItem } from '../data/index';
 import {
   applyAlias,
@@ -15,9 +17,11 @@ import {
   orderOptions,
   noResultText,
   roadFromName,
+  searchBridges,
   searchLocal,
   suggestPlaces,
   zoomForPlaceType,
+  type BridgeHit,
   type LocalHit,
   type PlaceHit,
   type PlaceLocation,
@@ -63,6 +67,8 @@ export interface SearchCallbacks {
    * woonplaats or gemeente can then still enter place mode, it only cannot frame the map).
    */
   onPickPlace(loc: PlaceLocation | null, zoom: number, hit: PlaceHit): void;
+  /** A bridge was chosen: its page (default: go there). */
+  onPickBridge?(hit: BridgeHit): void;
   /** A road number was chosen (typed, or a PDOK "weg" result): enter road mode. */
   onPickRoad?(road: string): void;
   /** Enter without a highlighted option → filter the list on the text. */
@@ -140,6 +146,10 @@ function renderOption(o: SearchOption, i: number, active: boolean, ctx: SearchCo
   if (o.kind === 'road') {
     return `<li ${base} data-kind="road">${roadBadge(o.road, null, { size: 'sm' })}<span class="search__opt-main">Alleen de ${esc(o.road)}: kan ik erdoor?</span><span class="search__opt-sub">weg</span></li>`;
   }
+  if (o.kind === 'bridge') {
+    const sub = [o.alias ? `ook: ${o.alias}` : '', o.road ? `brug in de ${o.road}` : 'brug'].filter(Boolean).join(' · ');
+    return `<li ${base} data-kind="bridge">${ICONS.ship}<span class="search__opt-main">${esc(o.name)}</span><span class="search__opt-sub">${esc(sub)}</span></li>`;
+  }
   if (o.kind === 'item') {
     const place = o.woonplaats ?? o.gemeente;
     return `<li ${base} data-kind="item">${roadBadge(o.road, o.roadType, { size: 'sm', place })}<span class="search__opt-main">${esc(o.title)}</span><span class="search__opt-sub search__opt-sub--item">${itemSub(o, ctx, now)}</span></li>`;
@@ -164,6 +174,7 @@ export function statusText(options: readonly SearchOption[], active: number, que
   if (chosen?.kind === 'road') return `Enter: alleen de ${chosen.road} tonen.${others}`;
   if (chosen?.kind === 'place' && chosen.didYouMean) return `Bedoelde je ${chosen.label}? Enter om die te kiezen.${others}`;
   if (chosen?.kind === 'place') return `Enter: ${chosen.label} tonen.${others}`;
+  if (chosen?.kind === 'bridge') return `Enter: de pagina over ${bridgeWithArticle(chosen.name)}.${others}`;
   return `${options.length === 1 ? '1 suggestie' : `${options.length} suggesties`}, pijl omlaag om te kiezen.`;
 }
 
@@ -283,6 +294,13 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
       cb.onPickRoad?.(o.road);
       return;
     }
+    if (o.kind === 'bridge') {
+      input.value = o.name;
+      close();
+      if (cb.onPickBridge) cb.onPickBridge(o);
+      else window.location.assign(`/brug/${encodeURIComponent(o.slug)}/`);
+      return;
+    }
     if (o.kind === 'item') {
       input.value = o.title;
       cb.onPickItem(o);
@@ -300,20 +318,22 @@ export function mountSearch(root: HTMLElement, cb: SearchCallbacks): SearchBox {
     // "Den Bosch" → "'s-Hertogenbosch" before anything is asked (zoek-8).
     const q = applyAlias(typed);
     const none = (): PlaceHit[] => [];
-    const [local, places, streets] = await Promise.all([
+    const [local, places, streets, bridges] = await Promise.all([
       getLocal().then((items) => distinctRows(searchLocal(items, q, LOCAL_ROWS), context(), Date.now())),
       suggestPlaces(q, signal, PLACE_ROWS, 'places').catch(none),
       suggestPlaces(q, signal, STREET_ROWS, 'streets').catch(none),
+      // The bridge pages from the site's manifest: "Gorkumse brug" is a name PDOK does not know.
+      loadEntityPages().then((pages) => searchBridges(pages?.bridges ?? [], q)),
     ]);
     if (seq !== requestSeq) return;
     const road = cb.onPickRoad ? normalizeRoadQuery(typed) : null;
     // Nothing at all: one retry with PDOK's fuzzy match, for "Gorichem" → "Bedoelde je Gorinchem?".
-    const empty = !road && local.length + places.length + streets.length === 0;
+    const empty = !road && local.length + places.length + streets.length + bridges.length === 0;
     const fuzzy = empty ? await suggestPlaces(q, signal, 4, 'towns', true).catch(none) : [];
     if (seq !== requestSeq) return;
     // Tabbed away while PDOK answered: do not open a list over whatever has the focus now.
     if (document.activeElement !== input) return;
-    const ordered = orderOptions({ query: q, road, places, local, streets, fuzzy });
+    const ordered = orderOptions({ query: q, road, places, local, streets, fuzzy, bridges });
     options = ordered.options;
     rows = ordered.rows;
     active = ordered.active;

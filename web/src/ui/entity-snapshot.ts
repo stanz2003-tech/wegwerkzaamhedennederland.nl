@@ -31,6 +31,11 @@ export interface SnapshotInput {
   horizonMs?: number;
   /** The moment of the data, as people read it: "ma 20 okt 06:41". */
   asOf: string;
+  /**
+   * A bridge page: the bridge with its article ("de Merwedebrug bij Gorinchem"). The card then asks
+   * about the bridge and the stamp counts the meldingen "op en rond" it.
+   */
+  bridge?: string;
   /** Where "bekijk ze op de kaart" points. */
   mapHref: string;
   limit?: number;
@@ -70,6 +75,7 @@ export function entitySnapshot(input: SnapshotInput): EntitySnapshot {
     road: subject.kind === 'road' ? subject.name : null,
     roadType: input.roadType ?? null,
     subject: subjectLabel(subject),
+    ...(input.bridge ? { bridge: input.bridge } : {}),
     whenLabel: 'nu',
     questionWhen: 'nu',
     mode: 'auto' as const,
@@ -84,7 +90,13 @@ export function entitySnapshot(input: SnapshotInput): EntitySnapshot {
   const count = active.length + upcoming.length;
   const sections = entitySections({ subjectKind: subject.kind, mode: 'auto', active, upcoming, now, listOpts });
   const { html, more } = renderSectionsHtml(sections, now, listOpts, input.limit ?? SNAPSHOT_ROWS);
-  const where = subject.kind === 'road' ? `op de ${subject.name}` : subject.kind === 'gemeente' ? `in de gemeente ${subject.name}` : `in ${subject.name}`;
+  const where = input.bridge
+    ? `op en rond ${input.bridge}`
+    : subject.kind === 'road'
+      ? `op de ${subject.name}`
+      : subject.kind === 'gemeente'
+        ? `in de gemeente ${subject.name}`
+        : `in ${subject.name}`;
   const stamp =
     count === 0
       ? `Stand van ${input.asOf}: bij NDW waren geen werkzaamheden of afsluitingen ${where} gemeld voor nu en de komende 30 dagen.`

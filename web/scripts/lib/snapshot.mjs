@@ -91,7 +91,7 @@ export async function loadEntityFiles({ dataBase, roads, gemeenten, fetchImpl = 
 
 /** The TypeScript modules the snapshots are computed with. */
 export async function loadSnapshotModules() {
-  const [snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList, bridgeOpenings] = await Promise.all([
+  const [snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList, bridgeOpenings, bridgeSelect] = await Promise.all([
     importSrc('ui/entity-snapshot.ts'),
     importSrc('ui/road-questions.ts'),
     importSrc('data/entity.ts'),
@@ -104,8 +104,9 @@ export async function loadSnapshotModules() {
     importSrc('ui/list-sections.ts'),
     importSrc('ui/entity-list.ts'),
     importSrc('ui/bridge-openings.ts'),
+    importSrc('data/bridge-select.ts'),
   ]);
-  return { snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList, bridgeOpenings };
+  return { snapshot, questions, entity, entityFile, index, filter, types, format, load, listSections, entityList, bridgeOpenings, bridgeSelect };
 }
 
 /** The list pages with a snapshot; /files/ has none: a traffic jam of 06:41 says nothing later. */
@@ -157,8 +158,25 @@ function createItemSource({ mods, live, files }) {
     }
     return null;
   };
-  return { rows, itemsFor };
+
+  // A bridge in a road: its road's file plus the meldingen without a road number of its gemeente,
+  // narrowed by the same selection the page uses (web/src/data/bridge-select.ts, bridge-road.ts).
+  const noRoadRows = () => rows.filter((it) => !it.road);
+  const bridgeItems = (page) => {
+    const e = page.entity;
+    const profile = mods.bridgeSelect.bridgeProfile(e);
+    const near = (it) => mods.filter.haversineKm(profile.point, [it.lon, it.lat]) <= BRIDGE_FALLBACK_KM;
+    const onRoad = (page.roadSlug ? fileItems('roads', page.roadSlug) : null) ?? fromIndex(mods.entity.itemsOnRoadLoose(rows, e.road));
+    const fromGemeente = page.gemeenteSlug ? fileItems('gemeenten', page.gemeenteSlug) : null;
+    const noRoad = fromGemeente ? fromGemeente.filter((it) => !it.f.properties.road) : fromIndex(noRoadRows().filter(near));
+    return { profile, items: mods.bridgeSelect.selectBridgeItems([...onRoad, ...noRoad], profile) };
+  };
+  return { rows, itemsFor, bridgeItems };
 }
+
+/** Index rows without a road number further than this from a bridge cannot count for it (bridge-select.ts). */
+const BRIDGE_FALLBACK_KM = 6;
+const isRoadBridgePage = (page) => page.type === 'bridge' && typeof page.entity.road === 'string' && page.entity.road.trim() !== '';
 
 /**
  * Builds `fingerprintFor(page)` for the sitemap's <lastmod> (lastmod.mjs): what a road, place or
@@ -167,7 +185,7 @@ function createItemSource({ mods, live, files }) {
  */
 export function createFingerprinter({ mods, live, files, now }) {
   if (!live) return null;
-  const { itemsFor } = createItemSource({ mods, live, files });
+  const { itemsFor, bridgeItems } = createItemSource({ mods, live, files });
   const bridgeList = Array.isArray(live.bridges?.bridges) ? live.bridges.bridges : null;
   return (page) => {
     if (page.type === 'bridge') {
@@ -175,7 +193,10 @@ export function createFingerprinter({ mods, live, files, now }) {
       // The schedule as the feed publishes it: the 7-day window around `now` and `openNow` move
       // with the clock alone, which made every busy bridge "changed" on every build.
       const entry = bridgeList.find((b) => b && b.id === page.entity.id);
-      return fingerprint(['brug', Array.isArray(entry?.openings) ? entry.openings : []]);
+      const openings = Array.isArray(entry?.openings) ? entry.openings : [];
+      // A bridge in a road also shows the meldingen on and around it.
+      if (isRoadBridgePage(page)) return fingerprint(['brug', openings, itemsFingerprint(bridgeItems(page).items, now)]);
+      return fingerprint(['brug', openings]);
     }
     const items = page.type === 'road' || page.type === 'place' ? itemsFor(page) : null;
     return items ? itemsFingerprint(items, now) : null;
@@ -193,7 +214,7 @@ export function createFingerprinter({ mods, live, files, now }) {
  */
 export function createSnapshotter({ mods, live, files, now }) {
   if (!live) return null;
-  const { rows, itemsFor } = createItemSource({ mods, live, files });
+  const { rows, itemsFor, bridgeItems } = createItemSource({ mods, live, files });
   const generated = Date.parse(live.meta?.generated ?? live.index?.generated ?? '');
   const asOf = mods.format.fmtDayTime(Number.isFinite(generated) ? generated : now);
   const horizon = Date.parse(live.meta?.horizon?.until ?? '');
@@ -228,8 +249,18 @@ export function createSnapshotter({ mods, live, files, now }) {
     return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>${days}${more}`, asOf };
   };
 
+  /** The answer card and list of a bridge in a road, plus its openings when it has any. */
+  const roadBridgeSnapshot = (page, mapHref) => {
+    const { profile, items } = bridgeItems(page);
+    const roadType = ['A', 'N', 'S', 'E', 'lokaal'].includes(page.roadType) ? page.roadType : null;
+    const bridge = mods.bridgeSelect.bridgeWithArticle(page.entity.name);
+    const snap = mods.snapshot.entitySnapshot({ items, subject: mods.bridgeSelect.bridgeSubject(profile), roadType, now, horizonMs, asOf, mapHref, bridge });
+    return { ...snap, openingsHtml: bridgeSnapshot(page)?.openingsHtml ?? '', asOf };
+  };
+
   return (page, { mapHref }) => {
     if (page.type === 'list') return listSnapshot(page);
+    if (isRoadBridgePage(page)) return roadBridgeSnapshot(page, mapHref);
     if (page.type === 'bridge') return bridgeSnapshot(page);
     if (page.type !== 'road' && page.type !== 'place') return null;
     const items = itemsFor(page);

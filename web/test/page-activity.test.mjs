@@ -16,6 +16,7 @@ import { generate } from '../scripts/gen-pages.mjs';
 
 import { MIN_INDEX_ROWS, buildActivity, isThinPage, loadActivity, woonplaatsKey } from '../scripts/lib/activity.mjs';
 import { buildModel, renderPage, PAGE_TYPES } from '../scripts/lib/pages.mjs';
+import { alwaysIndexedBridge } from '../scripts/lib/bridge-pages.mjs';
 import { loadPartials, loadTemplates } from '../scripts/lib/render.mjs';
 
 const WEB_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -204,7 +205,21 @@ describe('generated pages', () => {
   it('a bridge with an opening stays indexed, the others do not', () => {
     const bridges = model.pages.filter((p) => p.type === 'bridge');
     assert.equal(bridges.find((p) => p.entity.id === busyBridge.id).sitemap, true);
-    assert.ok(bridges.filter((p) => p.entity.id !== busyBridge.id).every((p) => p.thin === true));
+    const others = bridges.filter((p) => p.entity.id !== busyBridge.id && !alwaysIndexedBridge(p.entity, model.index.bridgeExtras));
+    assert.ok(others.length > 100);
+    assert.ok(others.every((p) => p.thin === true));
+  });
+
+  it('a bridge in an A-road and a curated bridge stay indexed on a quiet day (they carry the road status)', () => {
+    const merwede = pageOf('/brug/merwedebrug-bij-gorinchem/');
+    assert.equal(merwede.thin, undefined);
+    assert.equal(merwede.sitemap, true);
+    assert.match(robotsOf(renderPage(merwede, model, templates)), /^index, follow/);
+    // Zeelandbrug: an N-road, but in bridge-aliases.json.
+    assert.equal(pageOf('/brug/zeelandbrug/').sitemap, true);
+    // An N-road bridge without an entry keeps the openings rule.
+    const nRoad = model.pages.find((p) => p.type === 'bridge' && /^N/.test(p.entity.road ?? '') && !alwaysIndexedBridge(p.entity, model.index.bridgeExtras) && p.entity.id !== busyBridge.id);
+    assert.equal(nRoad.thin, true);
   });
 
   it('an empty page that had roadworks within 60 days stays indexed, but without ads', () => {

@@ -9,12 +9,13 @@
  * The order follows what a driver looking ahead needs first (overzicht-10): when, and how to go
  * around, before the background. The time parts live in ui/detail-when.ts.
  */
+import { bridgeWithArticle } from '../data/bridge-select';
 import { entityPagesNow } from '../data/entity-pages';
 import { itemVerdict, type ForecastItem } from '../data/forecast';
 import { toMs } from '../data/time';
 import { OPEN_END_PHRASE, phraseAt, phraseIn } from '../data/time-phrase';
 import { parseTimeline, segmentAt } from '../data/timeline';
-import type { ItemDetail, ItemProperties } from '../data/types';
+import type { ItemDetail, ItemGeometry, ItemProperties } from '../data/types';
 import { slugify } from '../data/types';
 import { PERIOD_HINT, othersNoun, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
@@ -46,6 +47,8 @@ export interface DetailState {
   props: ItemProperties;
   /** Representative point for the route link. */
   center: [number, number] | null;
+  /** The item's line or point: which road bridge it touches ("Alles over de Merwedebrug"). */
+  geometry?: ItemGeometry;
   detail: ItemDetail | null;
   loading: boolean;
   error: boolean;
@@ -203,6 +206,11 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   const placePage = p.woonplaats ? (entityPagesNow()?.findWoonplaats(p.woonplaats, p.gemeente) ?? null) : null;
   if (placePage) links.push(`<a class="btn btn--link" href="/plaats/${esc(placePage.slug)}/">${ICONS.mapPin}<span>Alles in ${esc(placePage.name)}</span></a>`);
   if (p.gemeente) links.push(`<a class="btn btn--link" href="/gemeente/${esc(slugify(p.gemeente))}/">${ICONS.mapPin}<span>Gemeente ${esc(p.gemeente)}</span></a>`);
+  // The road bridges whose page counts this melding (data/bridge-select.ts): the same selection.
+  const located: ForecastItem = state.geometry ? { f: { ...item.f, geometry: state.geometry }, d } : item;
+  for (const b of entityPagesNow()?.bridgesForItem(located) ?? []) {
+    links.push(`<a class="btn btn--link" href="/brug/${esc(b.slug)}/">${ICONS.ship}<span>Alles over ${esc(bridgeWithArticle(b.name))} →</span></a>`);
+  }
 
   const badge = roadBadge(p.road, p.roadType, { size: 'xl', place: p.woonplaats ?? p.gemeente });
   // A visible, focusable button instead of a clickable badge with only a title: the badge route to
