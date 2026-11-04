@@ -18,6 +18,16 @@ on:
   # waiting wekker and adds no second chain.
   schedule:
     - cron: "7,37 * * * *"
+  # A push that changes what the pipeline produces (code, static lists, manual corrections) runs it
+  # at once, so a correction is live within minutes. It is also the way back after a GitHub
+  # incident: on 4 November 2026 an Actions outage swallowed the wekker run a data run had asked
+  # for and dropped every scheduled run for hours; the next push restarts the chain.
+  push:
+    branches: [main]
+    paths:
+      - "pipeline/src/**"
+      - "pipeline/static/**"
+      - "pipeline/bin/**"
   workflow_dispatch:
     inputs:
       force:
@@ -221,7 +231,7 @@ jobs:
     needs: [preflight, data]
     if: always() && needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 4
     steps:
       - name: Wekker starten
         env:
@@ -234,5 +244,20 @@ jobs:
             echo "Er wacht al een wekker; er komt geen tweede keten bij."
             exit 0
           fi
-          gh workflow run wekker.yml -R "$REPO" --ref "${{ github.ref_name }}"
-          echo "Wekker gezet: over ongeveer acht minuten start de volgende run."
+          # GitHub can accept the dispatch and still lose the run (Actions incident, 4 November 2026:
+          # the chain died silently). So check that the wekker run really appears, and ask again.
+          for attempt in 1 2 3; do
+            since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            gh workflow run wekker.yml -R "$REPO" --ref "${{ github.ref_name }}" || true
+            for wait in 1 2 3 4 5 6; do
+              sleep 10
+              seen=$(gh run list -R "$REPO" --workflow wekker.yml --limit 5 --json createdAt                 --jq "[.[] | select(.createdAt >= \"$since\")] | length" || echo 0)
+              if [ "${seen:-0}" -gt 0 ]; then
+                echo "Wekker gezet: over ongeveer acht minuten start de volgende run."
+                exit 0
+              fi
+            done
+            echo "::warning::Poging $attempt: de wekker-run is niet verschenen; opnieuw."
+          done
+          echo "::error::De wekker kon niet worden gezet. Het schema (:07 en :37) of de volgende push start de keten weer."
+          exit 1

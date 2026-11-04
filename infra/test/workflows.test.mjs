@@ -99,3 +99,19 @@ test('the keepalive runs on every event, not only on scheduled runs', () => {
   const firstLines = step.split('\n').slice(0, 4).join('\n');
   assert.doesNotMatch(firstLines, /github\.event_name == 'schedule'/);
 });
+
+test('a push that changes the pipeline runs it, which also restarts a chain GitHub lost', () => {
+  const on = block(data, 'on');
+  assert.match(on, /push:\s*\n\s+branches: \[main\]/);
+  assert.match(on, /- "pipeline\/static\/\*\*"/);
+  assert.match(on, /- "pipeline\/src\/\*\*"/);
+  // Never on web or cache pushes: the bot's own cache commits must not trigger a run.
+  assert.doesNotMatch(on, /pipeline\/cache/);
+});
+
+test('setting the wekker checks that its run really appears, and asks again', () => {
+  const volgende = data.slice(data.indexOf('  volgende:'));
+  assert.match(volgende, /for attempt in 1 2 3/);
+  assert.match(volgende, /select\(\.createdAt >= /);
+  assert.match(volgende, /exit 1/);
+});
