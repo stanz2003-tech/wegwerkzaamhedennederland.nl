@@ -1,23 +1,23 @@
 {
   "planning": {
-    "etag": "\"f57f00-65fac95af2034\"",
-    "lastModified": "Sat, 07 Nov 2026 09:45:10 GMT",
-    "publicationTime": "2026-11-07T09:30:00.001173445Z",
-    "fetchedAt": "2026-11-07T09:51:00.734Z",
+    "etag": "\"f57cba-65faccb576dda\"",
+    "lastModified": "Sat, 07 Nov 2026 10:00:10 GMT",
+    "publicationTime": "2026-11-07T09:45:00.000529549Z",
+    "fetchedAt": "2026-11-07T10:00:23.570Z",
     "parser": 3
   },
   "actueel": {
-    "etag": "\"5943c-65facab1d20e1\"",
-    "lastModified": "Sat, 07 Nov 2026 09:51:10 GMT",
-    "publicationTime": "2026-11-07T09:51:00.000495394Z",
-    "fetchedAt": "2026-11-07T09:51:00.734Z",
+    "etag": "\"58f26-65faccb4d8dd8\"",
+    "lastModified": "Sat, 07 Nov 2026 10:00:10 GMT",
+    "publicationTime": "2026-11-07T10:00:00.000363625Z",
+    "fetchedAt": "2026-11-07T10:00:23.570Z",
     "parser": 3
   },
   "bruggen": {
-    "etag": "\"14c61-65facab1ccfbc\"",
-    "lastModified": "Sat, 07 Nov 2026 09:51:10 GMT",
-    "publicationTime": "2026-11-07T09:51:00.005645481Z",
-    "fetchedAt": "2026-11-07T09:51:00.734Z",
+    "etag": "\"148e4-65faccb4d8ca8\"",
+    "lastModified": "Sat, 07 Nov 2026 10:00:10 GMT",
+    "publicationTime": "2026-11-07T10:00:00.001813178Z",
+    "fetchedAt": "2026-11-07T10:00:23.570Z",
     "parser": 3
   }
 }
