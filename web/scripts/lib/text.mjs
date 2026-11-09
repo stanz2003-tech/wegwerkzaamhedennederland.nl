@@ -53,6 +53,39 @@ export function joinDutch(items) {
   return `${list.slice(0, -1).join(', ')} en ${list[list.length - 1]}`;
 }
 
+/** Most publishers one answer names; the others become "en nog N andere". */
+const AUTHORITIES_SHOWN = 5;
+
+/**
+ * Who reported the meldingen of a page, from its snapshot (`authorities`, entity-snapshot.ts), as
+ * one HTML sentence: "Op ma 9 nov 14:12 kwamen de 9 meldingen op de N201 van Provincie
+ * Noord-Holland (7), Gemeente Haarlemmermeer (1) en Gemeente Zandvoort (1)." Null without
+ * publishers, so the caller falls back to its general text. Until 2026-11-09 every N-road and place
+ * page answered this question with the same sentence; this answer is the page's own data, stamped
+ * with its moment because the page script does not refresh it.
+ * @param {readonly { name: string, count: number }[] | null | undefined} authorities
+ * @param {string} where   "op de N201", "in Ossenisse", "in de gemeente Hulst" (plain text)
+ * @param {string} asOf    "ma 9 nov 14:12"
+ * @param {number | null} [count]  the page's own count (the stamp above the list); meldingen without
+ *   a publisher then still add up to it ("en 1 zonder opgegeven bron")
+ */
+export function authoritySentence(authorities, where, asOf, count = null) {
+  const list = Array.isArray(authorities) ? authorities.filter((a) => a && typeof a.name === 'string' && a.name.trim() && a.count > 0) : [];
+  if (list.length === 0) return null;
+  const at = asOf ? `Op ${escapeHtml(asOf)} ` : '';
+  const here = escapeHtml(where);
+  const reported = list.reduce((sum, a) => sum + a.count, 0);
+  const unnamed = Number.isFinite(count) && count > reported ? count - reported : 0;
+  const total = reported + unnamed;
+  if (total === 1) return `${at ? `${at}was er` : 'Er was'} één melding ${here}, aangemeld door ${escapeHtml(list[0].name)}.`;
+  const named = list.slice(0, AUTHORITIES_SHOWN).map((a) => `${escapeHtml(a.name)} (${a.count})`);
+  const rest = list.length - named.length;
+  if (rest > 0) named.push(`nog ${rest} andere`);
+  if (unnamed > 0) named.push(`${unnamed} zonder opgegeven bron`);
+  const from = list.length === 1 && unnamed === 0 ? escapeHtml(list[0].name) : joinDutch(named);
+  return at ? `${at}kwamen de ${total} meldingen ${here} van ${from}.` : `De ${total} meldingen ${here} kwamen van ${from}.`;
+}
+
 /** Meta descriptions: Google shows ~155–160 characters. */
 export const DESCRIPTION_MAX = 158;
 
@@ -205,7 +238,10 @@ function roadTypeSentence(road, type, hasRoute) {
         ? `Als autosnelweg is de ${road} bijna overal in beheer bij Rijkswaterstaat; groot onderhoud wordt meestal 's nachts of in het weekend uitgevoerd en ruim vooraf aangemeld.`
         : `De ${road} is een autosnelweg (rijksweg), bijna overal in beheer bij Rijkswaterstaat; groot onderhoud wordt meestal 's nachts of in het weekend uitgevoerd en ruim vooraf aangemeld.`;
     case 'N':
-      return `${hasRoute ? 'De weg is een N-weg' : `De ${road} is een N-weg`}: meestal een provinciale weg, bij de lagere nummers vaak een rijksweg van Rijkswaterstaat.`;
+      // With a route sentence this was the same sentence on all ~550 N-road pages ("De weg is een
+      // N-weg: …"); who manages the road is answered from the data in the FAQ (roadFaq).
+      if (hasRoute) return '';
+      return `De ${road} is een N-weg: meestal een provinciale weg, bij de lagere nummers vaak een rijksweg van Rijkswaterstaat.`;
     case 'S':
       return `${hasRoute ? 'De route is een stadsroute (s-weg)' : `De ${road} is een stadsroute (s-weg)`} in beheer bij de gemeente. Werkzaamheden worden door de gemeente en haar aannemers aangemeld in Melvin, het landelijke meldsysteem van de Nederlandse wegbeheerders.`;
     case 'E':
@@ -225,7 +261,8 @@ export function roadIntro(entry) {
   const parts = [];
   const route = routeSentence(road, segments);
   if (route) parts.push(route);
-  parts.push(roadTypeSentence(road, type, Boolean(route)));
+  const typeSentence = roadTypeSentence(road, type, Boolean(route));
+  if (typeSentence) parts.push(typeSentence);
   if (local.length === 1) parts.push(`Een deel van de weg staat ook bekend als ${local[0]}.`);
   else if (local.length > 1) parts.push(`Delen van de weg staan ook bekend als ${joinDutch(local.slice(0, 6))}.`);
   if (eCodes.length) parts.push(`De weg maakt deel uit van de Europese ${eCodes.length > 1 ? 'routes' : 'route'} ${joinDutch(eCodes)}.`);
@@ -271,10 +308,15 @@ export function roadDescription(entry) {
 /**
  * The questions that differ per road type. "Is de A2 dit weekend dicht?" and "how fresh" are
  * answered with data above the FAQ (the question block and the stamp), not with template text.
+ * With a snapshot that names publishers, "who" is answered from the data: who reported the
+ * meldingen on this road (authoritySentence); without one, the general text per road type.
+ * @param {{ road: string, type: string }} entry
+ * @param {{ authorities?: readonly { name: string, count: number }[], asOf?: string } | null} [data]
  */
-export function roadFaq(entry) {
+export function roadFaq(entry, data = null) {
   const { road, type } = entry;
   const r = escapeHtml(road);
+  const fromData = authoritySentence(data?.authorities, `op de ${road}`, data?.asOf ?? '', data?.count ?? null);
   const announce = type === 'A'
     ? `Rijkswaterstaat meldt afsluitingen op de ${r} doorgaans één tot twee weken vooraf aan`
     : `Wegbeheerders melden afsluitingen op de ${r} meestal minstens een week vooraf aan`;
@@ -297,7 +339,12 @@ export function roadFaq(entry) {
       q: `Hoe ver vooruit staan afsluitingen op de ${road}?`,
       a: `${announce}; hierboven staan ze zodra dat is gebeurd. Alle afsluitingen van dit weekend in heel Nederland vind je op de pagina <a href="/dit-weekend/">dit weekend</a>.`,
     },
-    { q: `Wie is de wegbeheerder van de ${road}?`, a: authority },
+    fromData
+      ? {
+          q: `Wie heeft het werk op de ${road} aangemeld?`,
+          a: `${fromData}${type === 'A' ? ' Over de weg zelf: de gratis Landelijke Informatielijn van Rijkswaterstaat, 0800-8002.' : ''}`,
+        }
+      : { q: `Wie is de wegbeheerder van de ${road}?`, a: authority },
   ];
 }
 
@@ -432,13 +479,25 @@ export function placeIntro(place, kind, woonplaatsen) {
 
 /**
  * Questions about a place that the data above them does not answer. Why something may be missing
- * from the map is answered once, on /veelgestelde-vragen/.
+ * from the map is answered once, on /veelgestelde-vragen/. With a snapshot that names publishers,
+ * "who" is answered from the data (authoritySentence); without one, the general text.
+ * @param {{ authorities?: readonly { name: string, count: number }[], asOf?: string } | null} [data]
  */
-export function placeFaq(place, kind) {
-  const naam = escapeHtml(place.naam);
+export function placeFaq(place, kind, data = null) {
   const gemeente = escapeHtml(kind === 'gemeente' ? place.naam : place.gemeente);
   const prov = escapeHtml(place.prov ?? '');
-  const here = kind === 'gemeente' ? `in de gemeente ${naam}` : `in ${naam}`;
+  // Plain text: the template escapes `q` itself (`{{q}}`), `a` is HTML (`{{{a}}}`). An escaped name
+  // in `q` showed as "&#39;s-Hertogenbosch" on the gemeente page with the most visitors.
+  const here = kind === 'gemeente' ? `in de gemeente ${place.naam}` : `in ${place.naam}`;
+  const fromData = authoritySentence(data?.authorities, here, data?.asOf ?? '', data?.count ?? null);
+  if (fromData) {
+    return [
+      {
+        q: `Wie heeft het werk ${here} aangemeld?`,
+        a: fromData,
+      },
+    ];
+  }
   return [
     {
       q: `Wie voert de werkzaamheden ${here} uit en waar kan ik terecht met vragen?`,
@@ -556,17 +615,39 @@ export function bridgeIntro(bridge) {
   return `<p>${name} is een beweegbare brug${where}. Gaat de brug open voor de scheepvaart, dan staat het wegverkeer erover stil; op deze pagina zie je of de brug nu open is en welke openingen voor de komende zeven dagen bij het Nationaal Dataportaal Wegverkeer (NDW) zijn aangemeld.</p>`;
 }
 
-export function bridgeFaq(bridge) {
+/** The central answer on what an opening means for traffic (web/content/veelgestelde-vragen.md). */
+export const BRIDGE_OPENING_FAQ_HREF = '/veelgestelde-vragen/#wat-gebeurt-er-met-het-verkeer-als-een-brug-opengaat';
+
+/**
+ * "Wanneer gaat … open?" from the bridge's own published openings (snapshot.mjs `opening`:
+ * count, first, openNow), stamped with the moment of the data. Until 2026-11-09 every bridge page
+ * carried the same two answers; what an opening means for traffic and why not every opening is
+ * announced now stands once, in the FAQ.
+ * @param {{ name: string }} bridge
+ * @param {{ opening?: { count: number, first: string, openNow: boolean } | null, asOf?: string } | null} [data]
+ */
+export function bridgeFaq(bridge, data = null) {
   const name = escapeHtml(bridge.name);
-  const road = bridge.road ? ` op de ${escapeHtml(bridge.road)}` : '';
+  const o = data?.opening ?? null;
+  const at = data?.asOf ? `Op ${escapeHtml(data.asOf)} ` : '';
+  // "stond er één opening" / "stonden er 24 openingen".
+  const verb = (n) => (n === 1 ? 'stond' : 'stonden');
+  const planned = (n) => (n === 1 ? 'één opening' : `${n} openingen`);
+  const firstPart = o?.first ? `, de eerste ${escapeHtml(o.first)}` : '';
+  const listed = (n) => (n === 1 ? 'die staat hierboven' : 'ze staan hierboven per dag');
+  let answer;
+  if (o && o.openNow) {
+    answer = `${at ? `${at}stond` : 'Bij de laatste stand stond'} ${name} open voor de scheepvaart.${o.count > 0 ? ` Voor de komende zeven dagen ${verb(o.count)} er ${planned(o.count)} gepland${firstPart}; ${listed(o.count)}.` : ''}`;
+  } else if (o && o.count > 0) {
+    const lead = at ? `${at}${verb(o.count)} er` : `Er ${verb(o.count)}`;
+    answer = `${lead} ${planned(o.count)} van ${name} gepland voor de komende zeven dagen${firstPart}. ${o.count === 1 ? 'Die staat hierboven' : 'Ze staan hierboven per dag'}.`;
+  } else {
+    answer = `De openingen die de brugbeheerder voor de komende zeven dagen bij NDW aanmeldt, staan hierboven zodra ze bekend zijn.`;
+  }
   return [
     {
       q: `Wanneer gaat ${bridge.name} open?`,
-      a: `De geplande openingen voor de komende zeven dagen staan hierboven, zoals de brugbeheerder ze bij NDW heeft aangemeld. Veel bruggen gaan alleen open op aanvraag van de scheepvaart of op vaste tijden buiten de spits, en niet elke opening wordt vooraf gemeld. Staat ${name} nu open, dan zie je dat bovenaan de pagina.`,
-    },
-    {
-      q: `Wat betekent een brugopening voor het wegverkeer${bridge.road ? ` op de ${bridge.road}` : ''}?`,
-      a: `Tijdens een opening is de weg over de brug${road} in beide richtingen dicht. Er is geen omleiding: je wacht voor de slagbomen tot de brug weer gesloten is. Op drukke routes ontstaat daardoor soms een korte file die na de opening weer oplost. Fietsers en voetgangers wachten net als het overige verkeer.`,
+      a: `${answer} Waarom niet elke opening vooraf bekend is en wat een opening voor het verkeer betekent, lees je bij de <a href="${BRIDGE_OPENING_FAQ_HREF}">veelgestelde vragen</a>.`,
     },
   ];
 }

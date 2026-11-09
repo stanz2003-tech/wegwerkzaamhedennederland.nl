@@ -11,7 +11,7 @@ updated: 2026-11-09
 
 ## November 2026
 
-**9 november** — Pagina's van wegen waar nu en de komende 30 dagen niets gemeld is, tonen geen advertenties meer, net als rustige plaats- en brugpagina's. De links van een pagina naar de grote kaart zijn zo aangepast dat zoekmachines ze niet meer als losse pagina's zien.
+**9 november** — Op elke weg-, plaats- en gemeentepagina staat nu **wie het werk heeft aangemeld**, met het aantal meldingen per wegbeheerder, en een brugpagina noemt hoeveel openingen er de komende week gepland staan en wanneer de eerste is. Wat een brugopening voor het verkeer betekent, staat nu één keer in de [veelgestelde vragen](/veelgestelde-vragen/#wat-gebeurt-er-met-het-verkeer-als-een-brug-opengaat). Pagina's van wegen waar nu en de komende 30 dagen niets gemeld is, tonen geen advertenties meer, net als rustige plaats- en brugpagina's. De links van een pagina naar de grote kaart zijn zo aangepast dat zoekmachines ze niet meer als losse pagina's zien.
 
 **4 november** — Bruggen in een weg hebben een eigen pagina die zegt of je erover kunt, per voertuig en per dag, met de meldingen op en rond de brug en de geplande openingen. Je vindt ze ook op hun bijnaam, zoals de [Gorkumse brug](/brug/merwedebrug-bij-gorinchem/) over de Merwede bij Gorinchem, en via de zoekbalk, de wegpagina en het overzicht van [alle bruggen](/bruggen/).
 

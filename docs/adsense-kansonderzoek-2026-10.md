@@ -385,6 +385,24 @@ Wat nog zwak is:
 - **Geen advertenties op weg-pagina's zonder meldingen** (33 van de 550 N-wegen op 9 november),
   net als bij rustige plaatsen en bruggen. Ze blijven wel in Google.
 - **Logboek** bijgewerkt met 3, 4 en 9 november.
+- **Standaardtekst vervangen door gegevens per pagina.** "Wie is de wegbeheerder?" had op alle
+  550 N-wegen en alle plaatsen hetzelfde antwoord. Nu staat er "Wie heeft het werk aangemeld?"
+  met de wegbeheerders en hun aantal meldingen uit de snapshot, met het tijdstip van de data
+  (bijvoorbeeld de N201: Provincie Noord-Holland (7), Gemeente Haarlemmermeer (1) en Gemeente
+  Zandvoort (1)). Zonder data blijft de oude tekst. De vaste zin "De weg is een N-weg: …" is weg
+  als er een routezin is. Brugpagina's noemen hun eigen geplande openingen. Wat een opening voor
+  het verkeer betekent, staat nu één keer in de veelgestelde vragen. Daarbij is ook een oude fout
+  hersteld: op /gemeente/s-hertogenbosch/ stond de vraag als "&#39;s-Hertogenbosch".
+
+  Herhaalde tekst op dezelfde 70 pagina's (strenge meting, inclusief navigatieregels):
+
+  | Soort pagina | Vóór | Na |
+  |---|---|---|
+  | N/S-weg | 43% | 30% |
+  | Brug | 54% | 44% |
+  | Plaats | 35% | 32% |
+  | Gemeente | 35% | 33% |
+  | A-weg | 28% | 25% |
 
 ### Vóór het indienen
 

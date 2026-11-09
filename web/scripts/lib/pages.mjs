@@ -378,6 +378,8 @@ function snapshotVars(model, page, mapHrefValue) {
     snapshotList: snap?.listHtml ?? '',
     hasQuestions: Boolean(snap?.questionsHtml),
     questionsHtml: snap?.questionsHtml ?? '',
+    /** Who reported this page's meldingen, with the moment of the data (roadFaq / placeFaq); null without data. */
+    faqData: snap ? { authorities: snap.authorities ?? [], asOf: snap.asOf ?? '', count: Number.isFinite(snap.count) ? snap.count : null } : null,
   };
 }
 
@@ -393,7 +395,6 @@ function emptyHtml(strong, text, mapHrefValue, tail = '') {
 function roadContext(model, page) {
   const r = page.entity;
   const kind = roadKind(r.type);
-  const faq = roadFaq(r);
   const related = nearestRoads(r, model.lists.roads, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
   const { alongGemeenten, alongPlaces } = placesAlongRoad(model, r);
   const roadBridges = bridgesOnRoad(model, r);
@@ -425,7 +426,7 @@ function roadContext(model, page) {
     bbox,
     heading: `Wegwerkzaamheden ${r.road}`,
     intro: roadIntro(r),
-    faq,
+    faq: roadFaq(r, snapVars.faqData),
     related,
     hasRelated: related.length > 0,
     alongGemeenten,
@@ -445,7 +446,6 @@ function placeContext(model, page) {
   const isGemeente = kind === 'gemeente';
   const gemeente = isGemeente ? p : model.index.gemeenteByCode.get(p.gemeenteCode) ?? model.index.gemeenteByName.get((p.gemeente ?? '').toLowerCase());
   const siblings = (model.index.woonplaatsenByGemeente.get(isGemeente ? p.code : p.gemeenteCode) ?? []).filter((w) => w !== p && !model.index.merged.has(w));
-  const faq = placeFaq(p, kind);
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Plaatsen', href: '/plaatsen/' }];
   if (!isGemeente && gemeente) crumbs.push({ name: `Gemeente ${gemeente.naam}`, href: `/gemeente/${gemeente.slug}/` });
 
@@ -470,8 +470,9 @@ function placeContext(model, page) {
   // (Alblasserdam) is all the more the page for that name.
   const ownPlaces = isGemeente ? (model.index.woonplaatsenByGemeente.get(p.code) ?? []) : [];
   const naming = { sameNameKern: isGemeente && hasSameNameKern(p, ownPlaces) };
+  const placeSnap = snapshotVars(model, page, href);
   return {
-    ...snapshotVars(model, page, href),
+    ...placeSnap,
     emptyHtml: emptyHtml(
       `Geen meldingen voor ${p.naam}.`,
       `Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden of afsluitingen ${isGemeente ? 'in de gemeente' : 'in'} ${p.naam} bekend.`,
@@ -499,7 +500,7 @@ function placeContext(model, page) {
     lat: p.lat,
     zoom,
     intro: placeIntro(p, kind, siblings),
-    faq,
+    faq: placeFaq(p, kind, placeSnap.faqData),
     relatedPlaces,
     hasRelatedPlaces: relatedPlaces.length > 0,
     relatedPlacesTitle: isGemeente ? `Plaatsen in de gemeente ${p.naam}` : `Andere plaatsen in de gemeente ${p.gemeente ?? ''}`,
@@ -519,7 +520,6 @@ function placeContext(model, page) {
 function bridgeContext(model, page) {
   const b = page.entity;
   const variant = model.index.bridgeVariants.get(b.id) ?? '';
-  const faq = bridgeFaq(b);
   const pool = [...(b.gemeente ? model.index.bridgesByGemeente.get(b.gemeente) ?? [] : [])];
   if (pool.length < 7 && b.prov) for (const o of model.index.bridgesByProv.get(b.prov) ?? []) if (!pool.includes(o)) pool.push(o);
   const relatedBridges = nearestByCentroid(b, pool, 8).map((o) => ({
@@ -533,6 +533,8 @@ function bridgeContext(model, page) {
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Bruggen', href: '/bruggen/' }];
   const href = mapHref(b.lon, b.lat, 14);
   const snap = model.snapshotFor ? model.snapshotFor(page, { mapHref: href }) : null;
+  // Its own openings answer "Wanneer gaat … open?" (text.mjs bridgeFaq); without data the general sentence.
+  const faq = bridgeFaq(b, snap ? { opening: snap.opening ?? null, asOf: snap.asOf ?? '' } : null);
   const common = {
     id: b.id,
     name: b.name,

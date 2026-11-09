@@ -50,6 +50,28 @@ export interface EntitySnapshot {
   count: number;
   /** The card's headline: "Rijbaan dicht bij Gorinchem", "Geen hinder gemeld". */
   headline: string;
+  /**
+   * Who reported the meldingen counted in `count` (the publisher as published, `src`), most first.
+   * The pages answer "Wie heeft het werk aangemeld?" with it instead of a sentence that read the same
+   * on every road and place page.
+   */
+  authorities: readonly Authority[];
+}
+
+export interface Authority {
+  name: string;
+  count: number;
+}
+
+/** Publishers of the given meldingen with their number, most first, then by name. */
+export function authoritiesOf(items: readonly ForecastItem[], ids: ReadonlySet<string>): Authority[] {
+  const tally = new Map<string, number>();
+  for (const it of items) {
+    if (!ids.has(it.f.properties.id)) continue;
+    const name = (it.f.properties.src ?? '').trim();
+    if (name) tally.set(name, (tally.get(name) ?? 0) + 1);
+  }
+  return [...tally].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'nl'));
 }
 
 function subjectLabel(subject: AnswerSubject): string {
@@ -103,6 +125,7 @@ export function entitySnapshot(input: SnapshotInput): EntitySnapshot {
       : `Stand van ${input.asOf}: ${plural(count, 'melding', 'meldingen')} ${where}, nu en de komende 30 dagen.`;
   const moreLine = more > 0 ? `<p class="entity-snapshot__more">En nog ${plural(more, 'melding', 'meldingen')}: <a href="${esc(input.mapHref)}">bekijk ze op de kaart</a>.</p>` : '';
   const listHtml = `<p class="entity-snapshot__stamp">${esc(stamp)}</p>${html}${moreLine}`;
-  return { answerHtml, listHtml, count, headline };
+  const authorities = authoritiesOf(items, new Set([...active, ...upcoming].map((r) => r.id)));
+  return { answerHtml, listHtml, count, headline, authorities };
 }
 

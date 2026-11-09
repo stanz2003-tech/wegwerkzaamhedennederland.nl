@@ -235,18 +235,23 @@ export function createSnapshotter({ mods, live, files, now }) {
     const entry = bridgeList?.find((b) => b && b.id === page.entity.id);
     if (!entry) return null;
     const openings = mods.bridgeOpenings.parseOpenings(entry, now, BRIDGE_DAYS);
+    const next = openings.find((o) => o.start >= now);
     let text;
     if (entry.openNow === true) text = `Stand van ${asOf}: de brug stond open voor de scheepvaart.`;
     else if (openings.length > 0) {
       const n = openings.length === 1 ? '1 geplande opening' : `${openings.length} geplande openingen`;
-      text = `Stand van ${asOf}: ${n} in de komende ${BRIDGE_DAYS} dagen, de eerste ${mods.format.fmtDayTime(openings.find((o) => o.start >= now)?.start ?? openings[0].start)}.`;
+      text = `Stand van ${asOf}: ${n} in de komende ${BRIDGE_DAYS} dagen, de eerste ${mods.format.fmtDayTime(next?.start ?? openings[0].start)}.`;
     } else return null;
+    // For the FAQ answer only a start still to come: "de eerste <verleden>" next to "gepland" read wrong.
+    const first = next ? mods.format.fmtDayTime(next.start) : '';
     // The openings themselves, by date: the page names "vandaag" and "nu open" once its script runs.
     const shown = openings.slice(0, BRIDGE_SNAPSHOT_SLOTS);
     const rest = openings.length - shown.length;
     const days = mods.bridgeOpenings.openingsHtml(shown, now, { relativeDays: false });
     const more = rest > 0 ? `<li class="bridge-openings__notice">En nog ${rest === 1 ? '1 opening' : `${rest} openingen`} later deze week.</li>` : '';
-    return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>${days}${more}`, asOf };
+    // The numbers behind the stamp, for the page's own answer to "Wanneer gaat … open?" (text.mjs bridgeFaq).
+    const opening = { count: openings.length, first, openNow: entry.openNow === true };
+    return { openingsHtml: `<li class="bridge-openings__notice">${escapeHtml(text)}</li>${days}${more}`, asOf, opening };
   };
 
   /** The answer card and list of a bridge in a road, plus its openings when it has any. */
@@ -255,7 +260,8 @@ export function createSnapshotter({ mods, live, files, now }) {
     const roadType = ['A', 'N', 'S', 'E', 'lokaal'].includes(page.roadType) ? page.roadType : null;
     const bridge = mods.bridgeSelect.bridgeWithArticle(page.entity.name);
     const snap = mods.snapshot.entitySnapshot({ items, subject: mods.bridgeSelect.bridgeSubject(profile), roadType, now, horizonMs, asOf, mapHref, bridge });
-    return { ...snap, openingsHtml: bridgeSnapshot(page)?.openingsHtml ?? '', asOf };
+    const openings = bridgeSnapshot(page);
+    return { ...snap, openingsHtml: openings?.openingsHtml ?? '', opening: openings?.opening ?? null, asOf };
   };
 
   return (page, { mapHref }) => {
