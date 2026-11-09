@@ -20,6 +20,8 @@ map: de repository is openbaar.
 | Pages-projectnaam (`wegwerk`) | §5.1 | variabele `CF_PAGES_PROJECT` |
 | healthchecks.io ping-URL | §6.1 | `HEALTHCHECK_URL` |
 | Data-URL `https://data.<domein>/v1/` | §4.4 | variabele `DATA_BASE` |
+| GitHub-token `wegwerk-waakhond` + vervaldatum | §7.4 | Worker-secret `GITHUB_TOKEN` (niet in GitHub) |
+| healthchecks.io ping-URL van de waakhond | §7.4 | Worker-secret `HEALTHCHECK_URL` |
 
 Vervang overal `<domein>` door je echte domeinnaam, bijvoorbeeld `wegwerkzaamhedennederland.nl`.
 
@@ -305,6 +307,92 @@ geeft een gele waarschuwing ("Staat de wait timer … nog aan?") en stopt de ket
 *Data* (twee keer per uur, om :07 en :37) neemt het dan over, en zodra de timer staat loopt de
 keten vanzelf weer.
 
+7.4 **De waakhond (start de keten opnieuw als GitHub hem laat vallen).** De keten van §7.3 is
+vier keer stilgevallen (27 september, 30 oktober, 4 en 9 november 2026): GitHub raakte een run
+kwijt of maakte de stap *Wekker zetten* niet aan, en liet op die avonden ook het reserveschema
+van :07 en :37 vallen. Elke pagina meldde dan "gegevens niet actueel", tot iemand op
+*Run workflow* klikte (9 november: van 18:17 tot 19:30). De waakhond doet die klik voor je. Het
+is een klein programma bij Cloudflare (een *Worker*, gratis) dat elke vijf minuten kijkt:
+
+- de data is hooguit 20 minuten oud → niets doen;
+- de data is ouder, maar er wacht of loopt een *Wekker*- of *Data*-run → niets doen: de keten
+  leeft, en een extra run lost een storing bij NDW of de upload niet op (zie §8.5);
+- er loopt niets meer → *Data* starten op `main`, precies zoals *Run workflow*. Hangt er nog een
+  run die al meer dan een uur "bezig" is, dan annuleert hij die eerst; anders blijft de nieuwe run
+  erachter wachten.
+
+Hooguit één herstart per 20 minuten, en een *Run workflow* van jezelf telt mee. Alleen als GitHub
+een start helemaal kwijtraakt (dat gebeurde op 4 november), probeert hij het vijf minuten later
+opnieuw. Een tweede keten kan hij niet starten. Met deze regels had hij op 9 november om 18:40 ingegrepen, zodat de
+waarschuwing er niet was gekomen. Instellen kost ongeveer een kwartier, en de stappen 1 en 2 kun
+alleen jij doen.
+
+**Stap 1 — GitHub-token maken.** GitHub → rechtsboven je profielfoto → **Settings** → links
+onderaan **Developer settings** → **Personal access tokens** → **Fine-grained tokens** →
+**Generate new token**:
+
+| Veld | Waarde |
+|---|---|
+| *Token name* | `wegwerk-waakhond` |
+| *Resource owner* | je eigen account |
+| *Expiration* | zo lang als GitHub toestaat (bijvoorbeeld 1 jaar); **zet de datum in je agenda** |
+| *Repository access* | **Only select repositories** → `wegwerkzaamhedennederland.nl` |
+| *Permissions* | **Repository permissions** → **Actions** → **Read and write**. Verder niets; *Metadata: Read-only* zet GitHub er zelf bij **(controleer:** in nieuwere schermen heet dit *Add permissions* → *Actions***)** |
+
+→ **Generate token** → kopieer het token (begint met `github_pat_`; GitHub toont het één keer).
+Plak het alleen in stap 2, niet in een bestand in deze map en niet in een chat. Wie dit token
+heeft, kan in deze ene repository workflows starten, stoppen en opnieuw draaien en hun logs lezen
+(ook *Deploy*), maar geen code wijzigen en geen secrets zien. Lekt het toch: verwijder het in
+GitHub en maak een nieuw.
+
+**Stap 2 — de waakhond uitrollen.** Je hebt Node.js 22 of nieuwer nodig (`node --version` in
+een terminal; anders installeren via nodejs.org, versie *LTS*). Open in Verkenner de map
+`infra\watchdog` van deze repository, typ in de adresbalk `powershell` en druk op Enter. Typ dan
+één voor één:
+
+```
+npx wrangler@4 login
+npx wrangler@4 deploy
+npx wrangler@4 secret put GITHUB_TOKEN
+```
+
+- `login` opent de browser: log in bij Cloudflare en klik **Allow**. (Vraagt `npx` of het
+  `wrangler` mag installeren: `y`.)
+- `deploy` eindigt met een regel als `Deployed wegwerk-watchdog triggers` en daaronder
+  `schedule: */5 * * * *` **(controleer** de exacte tekst**)**. Wordt er gevraagd om een
+  `workers.dev`-subdomein: dat is niet nodig, de waakhond heeft geen webadres.
+- `secret put GITHUB_TOKEN` vraagt om de waarde: plak het token uit stap 1 en druk op Enter (je
+  ziet het token niet terwijl je plakt; dat hoort zo).
+
+Tussen `deploy` en `secret put` kan er één controle zijn met de melding "GITHUB_TOKEN ontbreekt";
+dat is onschuldig.
+
+**Stap 3 (aanbevolen) — de waakhond zelf bewaken.** Een token verloopt. Om dat te merken
+vóórdat het ertoe doet: healthchecks.io → **Add Check** → *Name* `Wegwerk waakhond` → *Period*
+**5 minutes** → *Grace Time* **15 minutes** → *Save* → kopieer de ping-URL. In dezelfde
+terminal: `npx wrangler@4 secret put HEALTHCHECK_URL` → plak de URL → Enter. Binnen vijf minuten
+staat de check op *up*. Een mail "Wegwerk waakhond is DOWN" betekent bijna altijd: token verlopen
+of ingetrokken → stap 1 opnieuw, daarna alleen `npx wrangler@4 secret put GITHUB_TOKEN`.
+
+**Stap 4 — controleren.** Cloudflare-dashboard → **Workers & Pages** → `wegwerk-watchdog` →
+**Logs** (of in de terminal `npx wrangler@4 tail`, stoppen met Ctrl+C). Elke vijf minuten
+verschijnt een regel; het veld `action` zegt wat de waakhond besloot en `reason` waarom:
+
+| `action` | Betekenis |
+|---|---|
+| `ok` | de data is vers; niets gedaan |
+| `wait` | de data is oud, maar de keten loopt nog (of is net opnieuw gestart); niets gedaan |
+| `dispatch` | de keten stond stil; de waakhond heeft *Data* gestart (en eventueel een vastgelopen run geannuleerd, zie `cancelled`). In *Actions* staat dan een *Data*-run met jouw naam als starter |
+| `unknown` | GitHub was niet te lezen. Staat er bij `errors` "token ongeldig of verlopen": stap 1 opnieuw |
+
+Zonder iets uit te rollen kun je ook zien wat de waakhond nu zou doen. Typ in de hoofdmap van de
+repository `node infra/watchdog/dry-run.mjs`. Dat start niets.
+
+**Onderhoud en uitzetten.** Maak vóór de vervaldatum van het token een nieuw token (stap 1). Zet
+het met `npx wrangler@4 secret put GITHUB_TOKEN` in de map `infra\watchdog` en verwijder daarna
+het oude token in GitHub. Uitzetten kan altijd: `npx wrangler@4 delete` in die map, of de Worker
+verwijderen in het dashboard. De keten in GitHub werkt daarna gewoon door zoals in §7.3.
+
 ---
 
 ## 8. Eerste run
@@ -417,6 +505,8 @@ opnieuw. Bijgehouden wat al gemeld is: `infra/indexnow-state.json` (commits
 | `cf-cache-status: DYNAMIC` op de data-URL | Cache Rule ontbreekt of hostnaam klopt niet | §4.7 |
 | Gele balk "scheduled workflow is disabled" | 60 dagen zonder activiteit | *Enable workflow* |
 | E-mail van healthchecks, maar *Data*-runs zijn groen | `HEALTHCHECK_URL` verkeerd of check-periode korter dan 10 min | §6.1 / §7.1 |
+| E-mail "Wegwerk waakhond is DOWN" / `"action":"unknown"` met "token ongeldig of verlopen" in de Worker-logs | GitHub-token van de waakhond verlopen of ingetrokken | nieuw token, `npx wrangler@4 secret put GITHUB_TOKEN` (§7.4) |
+| Waakhond-log zegt steeds `wait` met "de keten leeft", maar de data blijft oud | de keten draait, de pipeline faalt (NDW, upload) | rode *Data*-run openen (§8.5); een extra run helpt niet |
 
 Technische details van de workflows, het uploadscript en het roteren van tokens:
 `infra/README.md`. Achtergrond bij alle keuzes en cijfers: `docs/onderzoek.md`.
