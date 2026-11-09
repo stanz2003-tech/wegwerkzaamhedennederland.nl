@@ -146,6 +146,9 @@ export function generate(opts) {
   // the 3.900 content pages. Items also expire, so these URLs go stale by design.
   // `?c=` (centre) and `?b=` (bounding box) are the "open de kaart" links on every entity page:
   // over 4.000 variants of the homepage that Google crawled instead of the pages themselves.
+  // Since 2026-11-09 the pages link to the map with the state after `#` (`/#id=…`, ui/map-link.ts
+  // `mapHashHref`): Google saw the blocked links and listed some of them "geïndexeerd, maar
+  // geblokkeerd door robots.txt". The rules stay for the URLs Google already knows and shared links.
   const disallow = [...(existsSync(join(outDir, 'data')) ? ['/data/'] : []), ...MAP_STATE_DISALLOW];
   writeFile(join(outDir, 'robots.txt'), buildRobots({ siteUrl: model.site.url, disallow }));
   // Which entity pages exist, for the map's place mode and its links (web/src/data/entity-pages.ts).

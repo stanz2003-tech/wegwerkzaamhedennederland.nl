@@ -1,5 +1,5 @@
 /**
- * Shared list-item component: used as <button> in the app panel and as <a href="/?id=…"> on the
+ * Shared list-item component: used as <button> in the app panel and as <a href="/#id=…"> on the
  * generated pages. Verdict-first, two lines so a list of dozens can be scanned (overzicht-8):
  *   line 1  verdict pill + road badge + section ("Rijbaan dicht [A27] Lunetten → Nieuwegein · Houten")
  *   line 2  category icon (named for screen readers) + when + "richting X" + the verdict detail

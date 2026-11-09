@@ -372,6 +372,8 @@ function snapshotVars(model, page, mapHrefValue) {
   const snap = model.snapshotFor ? model.snapshotFor(page, { mapHref: mapHrefValue }) : null;
   return {
     hasSnapshot: Boolean(snap),
+    /** Meldingen now and in the next 30 days; null without data (then nothing is decided from it). */
+    snapshotCount: snap && Number.isFinite(snap.count) ? snap.count : null,
     snapshotAnswer: snap?.answerHtml ?? '',
     snapshotList: snap?.listHtml ?? '',
     hasQuestions: Boolean(snap?.questionsHtml),
@@ -397,9 +399,11 @@ function roadContext(model, page) {
   const roadBridges = bridgesOnRoad(model, r);
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
-  const href = bbox ? `/?b=${bbox}` : mapHref(r.lon, r.lat, 9);
+  // Road mode on the map (the map never read the old `?b=`); after `#` like every page link to it.
+  const href = `/#weg=${encodeURIComponent(r.slug)}`;
+  const snapVars = snapshotVars(model, page, href);
   return {
-    ...snapshotVars(model, page, href),
+    ...snapVars,
     emptyHtml: emptyHtml(`Geen meldingen voor de ${r.road}.`, 'Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden, afsluitingen of files op deze weg bekend.', href),
     ...baseContext(model, page, {
       title: roadTitle(r),
@@ -408,6 +412,9 @@ function roadContext(model, page) {
       current: `Wegwerkzaamheden ${r.road}`,
       ogType: 'article',
     }),
+    // Nothing reported on the road now or in the next 30 days: no ads next to "Geen meldingen", as on a
+    // quiet place page (AdSense: no ads on screens without publisher content). Indexed all the same.
+    adsOff: snapVars.snapshotCount === 0,
     road: r.road,
     slug: r.slug,
     roadType: r.type,

@@ -373,8 +373,12 @@ export function placeHeading(place, kind) {
   return `Wegwerkzaamheden in ${placeLabel(place.naam)}`;
 }
 
+/**
+ * A pre-rendered link to the map at a point. The state goes after `#` (web/src/ui/map-link.ts
+ * `mapHashHref`): to a crawler the link is `/`, not one of thousands of `/?c=` URLs robots.txt blocks.
+ */
 export function mapHref(lon, lat, zoom) {
-  return `/?c=${lon.toFixed(4)},${lat.toFixed(4)}&z=${zoom}`;
+  return `/#c=${lon.toFixed(4)},${lat.toFixed(4)}&z=${zoom}`;
 }
 
 /**
