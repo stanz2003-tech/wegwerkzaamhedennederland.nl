@@ -336,3 +336,88 @@ De pagina's zijn ook ongeveer 250 woorden korter, en dat is op de telefoon allee
 - Search Console (Pagina-indexering, Prestaties 28 dagen, Links, Handmatige acties,
   Beveiliging);
 - de GitHub Actions API en githubstatus.com.
+
+---
+
+## 8. Update 9 november 2026: klaar voor een nieuwe aanvraag?
+
+Bekeken op 9 november, 19:00–21:00: de live site, AdSense (sitepagina, homepage, betalingen) en
+Search Console (paginaindexering, URL-inspectie).
+
+### Kans nu
+
+| Moment | Geschatte kans |
+|---|---|
+| Aanvragen zodra deze branch live is en /over/ en de uitleg in Google staan (±12–16 nov) | **ongeveer 50%** (marge 40–60%) |
+| Idem, met volledige naam en woonplaats op /over/ | **ongeveer 55–60%** |
+
+Wat sinds 30 oktober beter is: het bezoek groeit door (13K klikken in 28 dagen volgens de
+Search Console-mail van 2 november), Google indexeert flink meer (1.570 pagina's, was 1.083;
+"gevonden, niet geïndexeerd" halveerde van 2.799 naar 1.332), info@ werkt (MX en SPF wijzen naar Cloudflare Email
+Routing), wegen en plaatsen linken naar elkaar, bruggen in een weg hebben een eigen pagina,
+en het logboek loopt weer bij.
+
+Wat nog zwak is:
+- **De pagina's over de site zelf staan niet in Google.** URL-inspectie in Search Console:
+  /over/ was "onbekend bij Google", en /uitleg/, "waar komt de data vandaan", /wijzigingen/,
+  /contact/ en /privacy/ waren niet geïndexeerd. De gidsen meldingen lezen, omrijden en
+  weekendafsluitingen en de veelgestelde vragen staan er wel in (`site:` in Google gaf
+  hier een te somber beeld). Technisch is er niets mis: indexeerbaar, canonical klopt, in de sitemap.
+  Indexering voor de zes ontbrekende is op 9 november aangevraagd.
+- **De uitgever is nog anoniem** ("Stan").
+- **Externe vermeldingen:** nog steeds geen gevonden.
+- **Standaardtekst:** nog het meest op N-wegen (drie vaste zinnen over de wegbeheerder op alle
+  550) en bruggen (twee vaste antwoorden).
+- **De dataketen viel vandaag weer stil** (laatste data 18:17 UTC). De vervolgstap van een
+  Data-run werd door GitHub niet aangemaakt en de reserve-runs van 18:37 en 19:07 sloeg GitHub
+  over. Een beoordelaar die dan kijkt, ziet "gegevens niet actueel".
+
+### Gedaan op 9 november (branch `claude/google-adsense-prep-72b1ba`)
+
+- **Search Console-melding "Geïndexeerd, maar geblokkeerd door robots.txt"** (mail van
+  9 november). Oorzaak: elke weg-, plaats- en lijstpagina linkte naar de kaart met `/?id=…`,
+  `/?c=…` of `/?b=…`, tot 36 links per pagina, en robots.txt blokkeert juist die URL's.
+  Google vond ze, mocht ze niet lezen, en nam er een deel toch op. De links zetten de
+  kaartstand nu achter `#` (`/#id=…`); voor Google is dat gewoon `/`. De kaart zet `#` bij het
+  openen om naar `?`, dus delen en terug werken zoals altijd. robots.txt blijft hetzelfde om
+  crawltijd te sparen; de al bekende URL's verdwijnen vanzelf uit dit rapport. Niet op
+  "Validatie starten" klikken: die URL's blijven bewust geblokkeerd.
+- **Geen advertenties op weg-pagina's zonder meldingen** (33 van de 550 N-wegen op 9 november),
+  net als bij rustige plaatsen en bruggen. Ze blijven wel in Google.
+- **Logboek** bijgewerkt met 3, 4 en 9 november.
+- **Standaardtekst vervangen door gegevens per pagina.** "Wie is de wegbeheerder?" had op alle
+  550 N-wegen en alle plaatsen hetzelfde antwoord. Nu staat er "Wie heeft het werk aangemeld?"
+  met de wegbeheerders en hun aantal meldingen uit de snapshot, met het tijdstip van de data
+  (bijvoorbeeld de N201: Provincie Noord-Holland (7), Gemeente Haarlemmermeer (1) en Gemeente
+  Zandvoort (1)). Zonder data blijft de oude tekst. De vaste zin "De weg is een N-weg: …" is weg
+  als er een routezin is. Brugpagina's noemen hun eigen geplande openingen. Wat een opening voor
+  het verkeer betekent, staat nu één keer in de veelgestelde vragen. Daarbij is ook een oude fout
+  hersteld: op /gemeente/s-hertogenbosch/ stond de vraag als "&#39;s-Hertogenbosch".
+
+  Herhaalde tekst op dezelfde 70 pagina's (strenge meting, inclusief navigatieregels):
+
+  | Soort pagina | Vóór | Na |
+  |---|---|---|
+  | N/S-weg | 43% | 30% |
+  | Brug | 54% | 44% |
+  | Plaats | 35% | 32% |
+  | Gemeente | 35% | 33% |
+  | A-weg | 28% | 25% |
+
+### Vóór het indienen
+
+1. Dataketen herstarten (GitHub → Actions → Data → Run workflow) en op de dag zelf
+   controleren dat de data actueel is.
+2. Deze branch mergen.
+3. Wachten tot /over/, /uitleg/, /wijzigingen/, /contact/, /privacy/ en "waar komt de data
+   vandaan" geïndexeerd zijn (aangevraagd op 9 november; controleren met URL-inspectie, niet met
+   `site:`).
+4. ~~Beslissen over achternaam en woonplaats.~~ Gedaan op 11 november: "Stan Zegwaard (Almkerk)".
+   Het volledige draaiboek voor de aanvraagdag staat in [adsense-draaiboek.md](adsense-draaiboek.md).
+5. Betaalgegevens invullen in AdSense: de waarschuwing "Voeg uw betalingsgegevens toe" staat er
+   op 9 november nog. Dan op de sitepagina "Beoordeling aanvragen".
+
+Search Console, stand 6 november: 1.570 pagina's geïndexeerd (23 oktober: 1.083),
+"Gevonden – momenteel niet geïndexeerd" 1.332 (was 2.799), geblokkeerd door robots.txt 833
+(bedoeld), en "Geïndexeerd, maar geblokkeerd door robots.txt" 4: allemaal `/?id=`-links naar
+losse meldingen.

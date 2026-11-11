@@ -14,6 +14,7 @@ import type { IndexItem } from '../data/index';
 import site from '../../site.config.json';
 import type { ItemFeature } from '../data/types';
 import type { EntityMap, EntityView } from '../map/entity-map';
+import { mapHashHref } from './map-link';
 import { currentTheme, prefersReducedMotion } from './theme';
 
 const FALLBACK_SELECTOR = '.entity-map__fallback';
@@ -51,8 +52,7 @@ export async function mountPageMap(
       attribution: site.attribution,
       reducedMotion: prefersReducedMotion(),
       onSelect: (id) => {
-        const q = [opts.contextQuery?.(), opts.linkQuery].filter((x) => x).map((x) => `&${x}`).join('');
-        window.location.assign(`/?id=${encodeURIComponent(id)}${q}`);
+        window.location.assign(mapHashHref(`id=${encodeURIComponent(id)}`, opts.contextQuery?.(), opts.linkQuery));
       },
     });
     if (!map) restore();

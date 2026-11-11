@@ -1,7 +1,8 @@
 /**
  * Item lists on the generated SEO pages: grouped sections ("Nu actief" / "Gepland"), rendered
- * in batches with a "Toon meer" button, every item a link to `/?id=<id>` (deep link into the
- * map). Uses the same list-item component as the app panel.
+ * in batches with a "Toon meer" button, every item a link to `/#id=<id>` (deep link into the
+ * map; map-link.ts `mapHashHref` says why the hash). Uses the same list-item component as the
+ * app panel.
  */
 import type { IndexItem } from '../data/index';
 import type { ItemDetail } from '../data/types';
@@ -10,6 +11,7 @@ import { esc, formatCount, plural } from './format';
 import { groupSeries, memberCount, type GroupFields, type ListGroup } from './list-group';
 import { renderGroupHtml } from './list-group-row';
 import { listItemVerdict, modelFromIndexItem, renderListItem, type ListItemOptions } from './list-item';
+import { mapHashHref } from './map-link';
 
 /** Default number of items rendered before "Toon meer". */
 export const ENTITY_BATCH = 25;
@@ -55,8 +57,7 @@ export interface EntityListOptions {
 }
 
 export function itemHref(id: string, opts: Pick<EntityListOptions, 'mapQuery' | 'linkQuery'> = {}): string {
-  const q = [opts.mapQuery, opts.linkQuery].filter((x): x is string => typeof x === 'string' && x !== '').map((x) => `&${x}`).join('');
-  return `/?id=${encodeURIComponent(id)}${q}`;
+  return mapHashHref(`id=${encodeURIComponent(id)}`, opts.mapQuery, opts.linkQuery);
 }
 
 /** The list-item options of one row: mode, moment or window, and the detail when the page has it. */

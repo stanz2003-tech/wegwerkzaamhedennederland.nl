@@ -3,8 +3,25 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { types, urlState } from './helpers/src.mjs';
 
-const { DEFAULT_URL_STATE, itemDeepLink, parseUrlState, serializeUrlState } = urlState;
+const { DEFAULT_URL_STATE, hashToSearch, itemDeepLink, parseUrlState, serializeUrlState } = urlState;
 const { CATEGORIES } = types;
+
+describe('hashToSearch (page links put map state after #)', () => {
+  it('moves map state from the hash into the query string', () => {
+    assert.equal(hashToSearch('#id=RWS01_1&v=fiets', ''), 'id=RWS01_1&v=fiets');
+    assert.equal(hashToSearch('#c=4.9500,51.7700&z=12', ''), 'c=4.9500,51.7700&z=12');
+    assert.equal(hashToSearch('#weg=a2&dag=2026-11-10&deel=ochtend', '?'), 'weg=a2&dag=2026-11-10&deel=ochtend');
+    assert.equal(parseUrlState(`?${hashToSearch('#id=a%2Fb&cat=file', '')}`).id, 'a/b');
+  });
+
+  it('leaves anchors, foreign hashes and URLs that already have a query alone', () => {
+    assert.equal(hashToSearch('', ''), null);
+    assert.equal(hashToSearch('#', ''), null);
+    assert.equal(hashToSearch('#uitleg', ''), null);
+    assert.equal(hashToSearch('#foo=bar', ''), null);
+    assert.equal(hashToSearch('#id=x', '?id=y'), null, 'the query wins: never two states');
+  });
+});
 
 describe('parseUrlState', () => {
   it('returns the defaults for an empty query string', () => {

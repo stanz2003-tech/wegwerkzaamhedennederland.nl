@@ -53,6 +53,8 @@ describe('guides', () => {
     const article = ldGraph(doc).find((n) => n['@type'] === 'Article');
     assert.ok(article, 'Article JSON-LD');
     assert.deepEqual(article.author, { '@type': 'Person', name: model.site.owner.name });
+    assert.ok(doc.includes(`<p class="page-head__meta">Door ${model.site.owner.name} · Laatst gewijzigd:`), 'a visible byline with the same name');
+    assert.doesNotMatch(html('/over/'), /page-head__meta">Door /, 'only guides carry a byline');
     assert.equal(article.mainEntityOfPage, `${model.site.url}${GUIDE_ROUTES[0].path}`);
     const crumbs = ldGraph(doc).find((n) => n['@type'] === 'BreadcrumbList').itemListElement.map((i) => i.name);
     assert.deepEqual(crumbs.slice(0, 2), ['Kaart', 'Uitleg']);
@@ -60,8 +62,10 @@ describe('guides', () => {
 
   it('without an owner name the guide is attributed to the site', () => {
     const anon = { ...model, site: { ...model.site, owner: { name: '' } } };
-    const article = ldGraph(renderPage(model.byPath.get(GUIDE_ROUTES[0].path), anon, templates)).find((n) => n['@type'] === 'Article');
+    const doc = renderPage(model.byPath.get(GUIDE_ROUTES[0].path), anon, templates);
+    const article = ldGraph(doc).find((n) => n['@type'] === 'Article');
     assert.equal(article.author['@type'], 'Organization');
+    assert.doesNotMatch(doc, /page-head__meta">Door /, 'no byline without a name');
   });
 
   it('the guide index links every guide, and every text page links the guides in its footer', () => {

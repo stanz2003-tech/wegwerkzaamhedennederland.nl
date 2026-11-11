@@ -36,7 +36,7 @@ import { entityPagesNow } from './data/entity-pages';
 import { DataLoadError, loadLiveRefresh, loadStartData } from './data/load';
 import { DEFAULT_TIME_WINDOW, toMs } from './data/time';
 import type { Category, ItemFeature } from './data/types';
-import { normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type HistoryMarker, type UrlState } from './data/url-state';
+import { adoptHashState, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type HistoryMarker, type UrlState } from './data/url-state';
 import { verdictFor } from './data/verdict';
 import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
 import { wireCmpLinks } from './ui/ads';
@@ -90,6 +90,8 @@ function el<T extends HTMLElement>(selector: string): T {
 /* ------------------------------------------------------------------ state */
 
 const reducedMotion = prefersReducedMotion();
+// Page links to the map carry their state after `#` (url-state.ts `adoptHashState`).
+adoptHashState();
 let url: UrlState = readUrlState();
 // The vehicle mode sticks across visits unless the URL says otherwise.
 if (!window.location.search.includes('v=')) {

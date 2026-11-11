@@ -176,6 +176,22 @@ describe('robots.txt', () => {
     const robots = buildRobots({ siteUrl: 'https://www.wegwerkzaamhedennederland.nl', disallow: MAP_STATE_DISALLOW });
     for (const rule of ['Disallow: /*?id=', 'Disallow: /*?c=', 'Disallow: /*?b=']) assert.ok(robots.split('\n').includes(rule), rule);
   });
+
+  // Search Console, 2026-11-09: "Geïndexeerd, maar geblokkeerd door robots.txt". Every blocked
+  // link on a page is a URL Google may list without reading it; the map takes its state after `#`.
+  it('no generated page links to a map URL that robots.txt blocks', () => {
+    const blocked = /href="\/\?(?:id|c|b)=/;
+    const bridge = [...model.byPath.keys()].find((p) => p.startsWith('/brug/'));
+    for (const path of ['/weg/a2/', '/weg/n201/', '/gemeente/s-hertogenbosch/', '/plaats/aalten/', bridge, '/afsluitingen/', '/dit-weekend/']) {
+      const page = model.byPath.get(path);
+      if (!page) continue;
+      const html = renderPage(page, model, templates);
+      assert.doesNotMatch(html, blocked, path);
+    }
+    const road = renderPage(model.byPath.get('/weg/a2/'), model, templates);
+    assert.match(road, /id="entity-map-link" href="\/#weg=a2"/, 'road mode on the big map, after #');
+    assert.match(renderPage(model.byPath.get('/plaats/aalten/'), model, templates), /href="\/#c=[\d.]+,[\d.]+&amp;z=12"|href="\/#c=[\d.]+,[\d.]+&z=12"/);
+  });
 });
 
 describe('homepage', () => {

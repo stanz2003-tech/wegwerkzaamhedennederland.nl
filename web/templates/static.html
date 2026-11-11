@@ -19,7 +19,7 @@
       {{#if kicker}}<p class="page-head__kicker">{{kicker}}</p>{{/if}}
       <h1>{{heading}}</h1>
       {{#if lead}}<p class="page-head__lead">{{lead}}</p>{{/if}}
-      {{#if updated}}<p class="page-head__meta">Laatst gewijzigd: <time datetime="{{updated}}">{{updatedLabel}}</time></p>{{/if}}
+      {{#if updated}}<p class="page-head__meta">{{#if author}}Door {{author}} · {{/if}}Laatst gewijzigd: <time datetime="{{updated}}">{{updatedLabel}}</time></p>{{/if}}
     </header>
     {{{body}}}
   </article>

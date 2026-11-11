@@ -234,18 +234,21 @@ describe('mode and moment travel between map and entity pages (zoek-10, zoek-6)'
   it('every list row links to the map with the page question', () => {
     assert.equal(
       entityList.itemHref('a/b', { mapQuery: 'v=vracht&t=2026-10-03T08:00', linkQuery: 'cat=file' }),
-      '/?id=a%2Fb&v=vracht&t=2026-10-03T08:00&cat=file',
+      '/#id=a%2Fb&v=vracht&t=2026-10-03T08:00&cat=file',
     );
-    assert.equal(entityList.itemHref('x', { mapQuery: '' }), '/?id=x');
+    assert.equal(entityList.itemHref('x', { mapQuery: '' }), '/#id=x');
   });
 
   it('"Op de grote kaart" opens road or place mode with the same question', () => {
-    assert.equal(entityMapHref({ kind: 'road', slug: 'a27' }, 'v=vracht&t=2026-10-03T08:00'), '/?weg=a27&v=vracht&t=2026-10-03T08:00');
-    assert.equal(entityMapHref({ kind: 'road', slug: 'a27' }, ''), '/?weg=a27');
-    const camera = cameraParams('/?c=4.9500,51.7700&z=12');
+    assert.equal(entityMapHref({ kind: 'road', slug: 'a27' }, 'v=vracht&t=2026-10-03T08:00'), '/#weg=a27&v=vracht&t=2026-10-03T08:00');
+    assert.equal(entityMapHref({ kind: 'road', slug: 'a27' }, ''), '/#weg=a27');
+    const camera = cameraParams('/#c=4.9500,51.7700&z=12');
     assert.equal(camera, 'c=4.9500,51.7700&z=12');
-    assert.equal(entityMapHref({ kind: 'woonplaats', slug: 'almkerk' }, 'v=fiets', camera), '/?plaats=almkerk&c=4.9500,51.7700&z=12&v=fiets');
-    assert.equal(entityMapHref({ kind: 'gemeente', slug: 'altena' }, ''), '/?gemeente=altena');
+    assert.equal(entityMapHref({ kind: 'woonplaats', slug: 'almkerk' }, 'v=fiets', camera), '/#plaats=almkerk&c=4.9500,51.7700&z=12&v=fiets');
+    assert.equal(entityMapHref({ kind: 'gemeente', slug: 'altena' }, ''), '/#gemeente=altena');
+    // The older query form (pages built before 2026-11-09) still yields its camera.
+    assert.equal(cameraParams('/?c=4.9500,51.7700&z=12'), 'c=4.9500,51.7700&z=12');
+    assert.equal(cameraParams('/#weg=a2'), '');
     assert.equal(cameraParams('/?b=1,2,3,4'), '');
     assert.equal(withQuery('/x', '', undefined), '/x');
   });

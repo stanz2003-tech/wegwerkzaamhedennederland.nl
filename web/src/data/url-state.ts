@@ -256,6 +256,39 @@ export function readUrlState(): UrlState {
   return parseUrlState(window.location.search);
 }
 
+/**
+ * The map state keys the road, place and list pages put after `#` instead of `?` when they link to
+ * the map (`/#id=…`, `/#c=…&z=…`, `/#weg=a2`). A crawler ignores the fragment, so those links are
+ * all `/` to Google: robots.txt keeps `/?id=`, `/?c=` and `/?b=` off limits (crawl budget), and
+ * every such link on a page made Google list another "geïndexeerd, maar geblokkeerd" URL
+ * (Search Console, 2026-11-09).
+ */
+const HASH_STATE_KEYS = new Set(['id', 'c', 'z', 'weg', 'plaats', 'gemeente', 'v', 't', 'dag', 'deel', 'cat', 'q', 'van', 'naar']);
+
+/**
+ * The query string a page link put in the hash (`#id=x&v=fiets` → `id=x&v=fiets`), or null when
+ * the URL already has a query or the hash is not map state (`#uitleg`, an anchor).
+ */
+export function hashToSearch(hash: string, search: string): string | null {
+  if (search !== '' && search !== '?') return null;
+  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (raw === '' || !raw.includes('=')) return null;
+  const keys = [...new URLSearchParams(raw).keys()];
+  return keys.some((k) => HASH_STATE_KEYS.has(k)) ? raw : null;
+}
+
+/**
+ * Before the map reads its state: moves map state from the hash into the query string, so the
+ * rest of the app (and a link the reader copies) sees the usual `/?id=…`. Replaces the history
+ * entry; the back button still returns to the page the link was on.
+ */
+export function adoptHashState(): void {
+  if (typeof window === 'undefined') return;
+  const qs = hashToSearch(window.location.hash, window.location.search);
+  if (qs === null) return;
+  window.history.replaceState(window.history.state, '', `${window.location.pathname}?${qs}`);
+}
+
 let pending: ReturnType<typeof setTimeout> | null = null;
 let pendingState: UrlState | null = null;
 /** Entries this page view pushed; after a reload or a deep link it is 0. */

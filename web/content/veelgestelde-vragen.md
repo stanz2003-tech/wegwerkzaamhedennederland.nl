@@ -6,7 +6,7 @@ description: Antwoorden over de kaart: wat werkzaamheden, afsluiting, omleiding 
 heading: Veelgestelde vragen
 kicker: Uitleg
 lead: Hoe de kaart werkt, wat de begrippen betekenen en wat je kunt verwachten van de gegevens. Staat je vraag er niet bij? Kijk op de contactpagina.
-updated: 2026-10-25
+updated: 2026-11-09
 ---
 
 ## Wat telt als een wegwerkzaamheid op deze kaart?
@@ -56,6 +56,10 @@ Omdat er dan het minste verkeer is. Op snelwegen wordt asfalt- en markeringswerk
 ## Hoe zie ik files en ongevallen?
 
 Zet in het filter de categorieën **File** en **Incident** aan. Files komen uit het actuele verkeersbeeld en de veiligheidsgerelateerde berichten van NDW en tonen waar mogelijk de lengte en de verwachte vertraging. Incidenten zijn ongevallen, pechgevallen, obstakels op de weg en andere gevaarlijke situaties, zoals die ook naar navigatiesystemen worden gestuurd. Ze verschijnen zodra een wegverkeersleider of een detectiesysteem ze meldt en verdwijnen als de melding wordt ingetrokken.
+
+## Wat gebeurt er met het verkeer als een brug opengaat?
+
+Tijdens een opening is de weg over de brug in beide richtingen dicht. Er is geen omleiding: je wacht voor de slagbomen tot de brug weer dicht is. Op drukke routes ontstaat daardoor soms een korte file die na de opening weer oplost. Fietsers en voetgangers wachten net als het overige verkeer. Niet elke opening staat vooraf op de kaart: veel bruggen gaan alleen open op aanvraag van de scheepvaart of op vaste tijden buiten de spits, en de brugbeheerder meldt alleen de geplande openingen aan bij NDW. Wat er per brug gepland staat, zie je op het [overzicht van bruggen](/bruggen/).
 
 ## Ik zie een fout in de gegevens. Waar meld ik dat?
 

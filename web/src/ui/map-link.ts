@@ -42,19 +42,30 @@ export function withQuery(path: string, ...parts: readonly (string | undefined)[
 export type MapTarget = { kind: 'road'; slug: string } | { kind: 'woonplaats' | 'gemeente'; slug: string };
 
 /**
- * "Op de grote kaart": road mode for a road, place mode for a place (`?plaats=` / `?gemeente=`,
+ * A link from a page to the map: its state after `#` (`/#id=x&v=fiets`), which the map moves into
+ * the query string on load (url-state.ts `adoptHashState`). To a crawler every such link is `/`,
+ * so the pages stop handing Google thousands of `/?id=` and `/?c=` URLs robots.txt blocks.
+ * Empty parts are skipped; without any part the link is plain `/`.
+ */
+export function mapHashHref(...parts: readonly (string | undefined)[]): string {
+  const q = parts.filter((p): p is string => typeof p === 'string' && p !== '').join('&');
+  return q ? `/#${q}` : '/';
+}
+
+/**
+ * "Op de grote kaart": road mode for a road, place mode for a place (`plaats=` / `gemeente=`,
  * read by the map's place mode). `extra` keeps the camera of the pre-rendered link (`c=…&z=…`)
  * so the map opens on the place even where place mode cannot resolve the slug.
  */
 export function entityMapHref(target: MapTarget, context: string, extra = ''): string {
   const key = target.kind === 'road' ? 'weg' : target.kind === 'woonplaats' ? 'plaats' : 'gemeente';
-  return withQuery(`/?${key}=${encodeURIComponent(target.slug)}`, extra, context);
+  return mapHashHref(`${key}=${encodeURIComponent(target.slug)}`, extra, context);
 }
 
-/** `c=…&z=…` of a pre-rendered map link (`/?c=4.9,51.8&z=12`); empty when it has none. */
+/** `c=…&z=…` of a pre-rendered map link (`/#c=4.9,51.8&z=12`, or the older `/?c=…`); empty when it has none. */
 export function cameraParams(href: string | null | undefined): string {
   if (!href) return '';
-  const i = href.indexOf('?');
+  const i = href.search(/[?#]/);
   if (i < 0) return '';
   const params = new URLSearchParams(href.slice(i + 1));
   const out: string[] = [];
