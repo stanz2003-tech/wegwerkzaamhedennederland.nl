@@ -20,8 +20,10 @@ export interface MapData {
   items(): ItemFeature[];
   /** Everything loaded, gepland included (a route can run into work that starts on the way). */
   everything(): ItemFeature[];
-  /** The item by id among `items()` as of the last load. */
+  /** The item by id among `items()`: werk-gepland only counts while the question needs it. */
   byId(id: string): ItemFeature | undefined;
+  /** The item by id among everything loaded (`everything()`), whatever the question. */
+  find(id: string): ItemFeature | undefined;
   meta(): Meta | null;
   lastRefresh(): number;
   setStart(d: { meta: Meta; actueel: ItemFeature[]; live: ItemFeature[] }): void;
@@ -32,24 +34,36 @@ export interface MapData {
   geplandLoaded(): boolean;
 }
 
-export function createMapData(cb: MapDataCallbacks): MapData {
+/** `load`: how werk-gepland is fetched (the tests pass a stand-in). */
+export function createMapData(cb: MapDataCallbacks, load: () => Promise<ItemFeature[]> = loadGepland): MapData {
   let actueel: ItemFeature[] = [];
   let live: ItemFeature[] = [];
   let gepland: ItemFeature[] = [];
   let geplandLoad: Promise<void> | null = null;
   let geplandLoaded = false;
   let meta: Meta | null = null;
-  let index = new Map<string, ItemFeature>();
+  /*
+   * Two indexes, so a lookup always agrees with the items of the moment: one of the start data
+   * and one with werk-gepland. A single index built from `items()` at load time missed a planned
+   * item whenever werk-gepland arrived while the question was "Nu" — exactly what a deep link to a
+   * planned melding does — until the next 90 s refresh.
+   */
+  let startIndex = new Map<string, ItemFeature>();
+  let allIndex = startIndex;
   let lastRefresh = 0;
 
-  const items = (): ItemFeature[] => dedupeById(cb.needsGepland() ? [...live, ...actueel, ...gepland] : [...live, ...actueel]);
+  const startItems = (): ItemFeature[] => dedupeById([...live, ...actueel]);
+  const everything = (): ItemFeature[] => dedupeById([...live, ...actueel, ...gepland]);
+  const items = (): ItemFeature[] => (cb.needsGepland() ? everything() : startItems());
+  const indexOf = (features: readonly ItemFeature[]): Map<string, ItemFeature> => new Map(features.map((f) => [f.properties.id, f]));
   const reindex = (): void => {
-    index = new Map(items().map((f) => [f.properties.id, f]));
+    startIndex = indexOf(startItems());
+    allIndex = gepland.length > 0 ? indexOf(everything()) : startIndex;
   };
 
   const ensureGepland = (): Promise<void> => {
     if (geplandLoad) return geplandLoad;
-    geplandLoad = loadGepland()
+    geplandLoad = load()
       .then((loaded) => {
         gepland = loaded;
         geplandLoaded = true;
@@ -65,8 +79,9 @@ export function createMapData(cb: MapDataCallbacks): MapData {
 
   return {
     items,
-    everything: () => dedupeById([...live, ...actueel, ...gepland]),
-    byId: (id) => index.get(id),
+    everything,
+    byId: (id) => (cb.needsGepland() ? allIndex : startIndex).get(id),
+    find: (id) => allIndex.get(id),
     meta: () => meta,
     lastRefresh: () => lastRefresh,
     setStart(d) {

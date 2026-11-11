@@ -9,7 +9,7 @@
 import { matchesRoad, orderAlongRoad } from '../data/entity';
 import { matchesQuery, midpointOf, sortItems, type SortId } from '../data/filter';
 import { liveAppliesAt } from '../data/forecast';
-import { isActiveAt, overlapsWindow, timeWindowTest } from '../data/time';
+import { DEFAULT_TIME_WINDOW, isActiveAt, overlapsWindow, timeWindowTest, toMs } from '../data/time';
 import type { ItemFeature, ItemProperties } from '../data/types';
 import type { UrlState } from '../data/url-state';
 import { VERDICT_SEVERITY, verdictFor, type VehicleMode, type VerdictLevel } from '../data/verdict';
@@ -32,6 +32,17 @@ export function needsGepland(q: TimeQuestion, now: number): boolean {
  */
 export function inTime(p: ItemProperties, q: TimeQuestion, now: number): boolean {
   return inTimeTest(q, now)(p);
+}
+
+/**
+ * The time question under which a deep-linked item is on the map and in the list: null when the
+ * asked one already shows it; otherwise the moment it starts (a planned item, seen in the state
+ * it will be in), or "Nu" for one that has started.
+ */
+export function whenShowing(p: ItemProperties, q: TimeQuestion, now: number): TimeQuestion | null {
+  if (inTime(p, q, now)) return null;
+  const start = toMs(p.start);
+  return { time: DEFAULT_TIME_WINDOW, moment: Number.isFinite(start) && start > now ? start : null, day: null, part: null };
 }
 
 /** `inTime` for many items: the asked window is worked out once, not per item. */
