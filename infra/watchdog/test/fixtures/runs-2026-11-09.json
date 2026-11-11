@@ -1,0 +1,41 @@
+{
+ "source": "GET /repos/stanz2003-tech/wegwerkzaamhedennederland.nl/actions/workflows/{data,wekker}.yml/runs, fetched 2026-11-09 19:5x UTC; trimmed to the fields the watchdog reads. actor = triggering_actor.login. The last wekker was still waiting when fetched.",
+ "data": [
+  {"id":42650618995,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:02:03Z","updated_at":"2026-11-09T16:04:08Z","actor":"github-actions[bot]"},
+  {"id":42652330396,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:12:07Z","updated_at":"2026-11-09T16:13:42Z","actor":"github-actions[bot]"},
+  {"id":42653942521,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:21:33Z","updated_at":"2026-11-09T16:23:36Z","actor":"github-actions[bot]"},
+  {"id":42655658695,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:31:35Z","updated_at":"2026-11-09T16:33:20Z","actor":"github-actions[bot]"},
+  {"id":42657302762,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:41:25Z","updated_at":"2026-11-09T16:42:47Z","actor":"github-actions[bot]"},
+  {"id":42658834846,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:50:44Z","updated_at":"2026-11-09T16:52:41Z","actor":"github-actions[bot]"},
+  {"id":42660421332,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:00:40Z","updated_at":"2026-11-09T17:02:08Z","actor":"github-actions[bot]"},
+  {"id":42661941000,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:10:05Z","updated_at":"2026-11-09T17:11:07Z","actor":"github-actions[bot]"},
+  {"id":42663415264,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:19:04Z","updated_at":"2026-11-09T17:20:29Z","actor":"github-actions[bot]"},
+  {"id":42664951185,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:28:26Z","updated_at":"2026-11-09T17:29:35Z","actor":"github-actions[bot]"},
+  {"id":42666452205,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:37:33Z","updated_at":"2026-11-09T17:38:59Z","actor":"github-actions[bot]"},
+  {"id":42667957410,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:46:58Z","updated_at":"2026-11-09T17:48:30Z","actor":"github-actions[bot]"},
+  {"id":42669461728,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:56:26Z","updated_at":"2026-11-09T17:57:30Z","actor":"github-actions[bot]"},
+  {"id":42670873659,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T18:05:29Z","updated_at":"2026-11-09T18:08:56Z","actor":"github-actions[bot]"},
+  {"id":42672553932,"event":"workflow_dispatch","conclusion":"failure","created_at":"2026-11-09T18:16:13Z","updated_at":"2026-11-09T18:18:59Z","actor":"github-actions[bot]"},
+  {"id":42684023468,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T19:30:40Z","updated_at":"2026-11-09T19:32:32Z","actor":"stanz2003-tech"},
+  {"id":42685614863,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T19:40:32Z","updated_at":"2026-11-09T19:41:33Z","actor":"github-actions[bot]"},
+  {"id":42687043449,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T19:49:34Z","updated_at":"2026-11-09T19:50:58Z","actor":"github-actions[bot]"}
+ ],
+ "wekker": [
+  {"id":42650930384,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:03:54Z","updated_at":"2026-11-09T16:12:10Z","actor":"github-actions[bot]"},
+  {"id":42652537856,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:13:18Z","updated_at":"2026-11-09T16:21:37Z","actor":"github-actions[bot]"},
+  {"id":42654255196,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:23:22Z","updated_at":"2026-11-09T16:31:39Z","actor":"github-actions[bot]"},
+  {"id":42655912318,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:33:06Z","updated_at":"2026-11-09T16:41:28Z","actor":"github-actions[bot]"},
+  {"id":42657493101,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:42:33Z","updated_at":"2026-11-09T16:50:47Z","actor":"github-actions[bot]"},
+  {"id":42659110538,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T16:52:28Z","updated_at":"2026-11-09T17:00:44Z","actor":"github-actions[bot]"},
+  {"id":42660620980,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:01:55Z","updated_at":"2026-11-09T17:10:08Z","actor":"github-actions[bot]"},
+  {"id":42662079418,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:10:54Z","updated_at":"2026-11-09T17:19:08Z","actor":"github-actions[bot]"},
+  {"id":42663609687,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:20:16Z","updated_at":"2026-11-09T17:28:28Z","actor":"github-actions[bot]"},
+  {"id":42665100560,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:29:22Z","updated_at":"2026-11-09T17:37:37Z","actor":"github-actions[bot]"},
+  {"id":42666644034,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:38:46Z","updated_at":"2026-11-09T17:47:02Z","actor":"github-actions[bot]"},
+  {"id":42668162155,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:48:15Z","updated_at":"2026-11-09T17:56:30Z","actor":"github-actions[bot]"},
+  {"id":42669591413,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T17:57:17Z","updated_at":"2026-11-09T18:05:42Z","actor":"github-actions[bot]"},
+  {"id":42671146296,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T18:07:12Z","updated_at":"2026-11-09T18:16:18Z","actor":"github-actions[bot]"},
+  {"id":42684286964,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T19:32:18Z","updated_at":"2026-11-09T19:40:36Z","actor":"github-actions[bot]"},
+  {"id":42685737669,"event":"workflow_dispatch","conclusion":"success","created_at":"2026-11-09T19:41:19Z","updated_at":"2026-11-09T19:49:39Z","actor":"github-actions[bot]"}
+ ]
+}

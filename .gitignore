@@ -20,6 +20,11 @@ pipeline/cache/last/
 # generated page lists copied out of pipeline/static
 web/public/lists/
 
+# Wrangler's local build and state folder, and its local secrets file (infra/watchdog)
+.wrangler/
+.dev.vars
+.dev.vars.*
+
 # local env
 .env
 .env.*

@@ -1,0 +1,31 @@
+# Wegwerk watchdog: a Cloudflare Worker that restarts the Data → Wekker → Data chain on GitHub
+# when GitHub silently drops it. Setup and owner steps: infra/README.md ("The watchdog") and
+# docs/handleiding.md §7.4.
+#
+#   cd infra/watchdog
+#   npx wrangler@4 deploy
+#   npx wrangler@4 secret put GITHUB_TOKEN       # fine-grained PAT, this repo, Actions: read and write
+#   npx wrangler@4 secret put HEALTHCHECK_URL    # optional: healthchecks.io check for the watchdog
+#
+# Fits the Workers Free plan: 1 of the 5 Cron Triggers per account, 288 invocations a day, at most
+# 5 subrequests and well under 10 ms CPU per invocation (it mostly waits on the network).
+
+name = "wegwerk-watchdog"
+main = "worker.mjs"
+compatibility_date = "2026-10-01"
+
+# No public URL: the Worker only runs on its cron (see worker.mjs).
+workers_dev = false
+preview_urls = false
+
+# Every 5 minutes (UTC). decide.mjs sizes its thresholds on this: stale after 20 min + at most
+# 5 min to the next tick + ~4 min for a Data run stays under the site's 30-minute warning.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Keeps each tick's JSON log line: dashboard > Workers & Pages > wegwerk-watchdog > Logs.
+[observability]
+enabled = true
+
+# Secrets are never in this file. GITHUB_TOKEN (required) and HEALTHCHECK_URL (optional) are set
+# with `wrangler secret put`. Repository, branch and meta.json URL default to the values in tick.mjs.

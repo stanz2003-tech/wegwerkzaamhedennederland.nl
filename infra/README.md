@@ -79,6 +79,99 @@ an environment wait timer and dispatches the next `Data` run.
 `infra/test/workflows.test.mjs` pins these lines down, so an edit that would let the chain loop or
 split fails CI.
 
+### The watchdog (`infra/watchdog/`, Cloudflare Worker)
+
+The chain still dies in ways no step inside GitHub can catch: a dispatch GitHub accepted and then
+lost (4 November 2026, during an Actions outage), and a `Data` run that concluded `failure` with
+both visible jobs green and its `volgende` job never created (run 42672553932, 9 November 2026).
+On both evenings GitHub also dropped the `:07`/`:37` fallback crons, so the data stayed stale
+until someone pressed **Run workflow** (9 Nov: stale from 18:17, restarted by hand at 19:30).
+The watchdog does that press from outside GitHub: a Worker with a Cron Trigger every 5 minutes.
+
+Each tick (`tick.mjs`) reads `meta.json` past the CDN (`?watchdog=<ms>`, `cache-control:
+no-cache`) and the newest runs of `data.yml` and `wekker.yml` via the REST API, then
+`decide.mjs` picks one action:
+
+| Action | When |
+|---|---|
+| `unknown` | a run list could not be read (token, rate limit, network) — never act blind |
+| `ok` | `generated` is at most 20 min old (meta.json unreadable: the chain was active within 20 min) |
+| `wait` | stale, but a `Data` or `Wekker` run is queued/waiting/running — the chain lives, a failing pipeline is not fixed by another run; or a run finished < 2 min ago (its successor may not be listed yet); or a restart from outside the chain (`workflow_dispatch` by anyone but `github-actions[bot]`: this watchdog or a manual run) happened < 20 min ago |
+| `dispatch` | otherwise: first `POST .../actions/runs/{id}/cancel` for every stuck run (see below), then `POST /repos/stanz2003-tech/wegwerkzaamhedennederland.nl/actions/workflows/data.yml/dispatches` with `{"ref":"main"}` |
+
+- **One chain.** The `wait` rules mirror the chain's own: whoever is busy sets the next link
+  (`infra/wekker/next.mjs`, the `volgende` job). Even an unneeded restart cannot split the chain —
+  `volgende` adds no wekker while one waits, and a wekker that finds a busy `Data` run sets itself
+  again — which is why the fallback cron is safe; the watchdog's dispatch is the same kind of run.
+  `test/one-chain.test.mjs` walks that case through `next.mjs` itself.
+- **Stuck runs.** A run still unfinished 60 min after it was created is stuck, not alive (a healthy
+  wekker takes ~13 min, a `Data` run ~2–20; on 4 Nov the slowest took 30). It does not count as
+  busy, and it is cancelled right before the restart: a stuck wekker would make the new run's
+  `volgende` defer to it, and a stuck `Data` run would hold the new one as *pending* in the
+  `data` concurrency group, so the restart alone would not bring the chain back. A 409 (it
+  finished meanwhile) counts as done.
+- **The rate limit needs no storage.** The watchdog's own dispatches show up in the run list as
+  `workflow_dispatch` runs by the token's owner, so "at most one restart per 20 min" is read
+  from GitHub — it survives redeploys and also holds back after a manual **Run workflow**. The one
+  exception: a dispatch GitHub accepts (204) but never turns into a run (4 Nov) leaves no trace,
+  so the next tick, 5 min later, tries again. A run that never exists costs nothing; runs that
+  show up late are capped by the `data` concurrency group (a newer pending run cancels an older
+  pending one), so at most one runs and one waits.
+- **Missing R2 secrets.** Then `preflight` skips the run and no `volgende` follows, so the
+  watchdog restarts `Data` every 20 min, each run skipped in seconds. Harmless; the missing
+  secrets are the thing to fix.
+- **Thresholds.** Stale after 20 min (a healthy cycle is ~10), tick 5 min, a run ~2–4 min:
+  20 + 5 + 4 ≤ the site's own 30-minute "gegevens niet actueel" mark (`STALE_AFTER_MINUTES` in
+  `web/src/ui/topbar.ts`), so a dead chain is restarted before any page warns. A test reads that
+  constant, so changing either side fails CI. The watchdog judges `generated`, not the NDW
+  `publicationTime` the site also shows: a new run cannot make NDW publish.
+- **Logs.** One JSON line per tick (`action`, `reason`, `ageMinutes`, `busy`, `stuck`,
+  `lastRestartMinutes`, `cancelled`, `dispatch`, `errors`) in Workers Logs (`[observability]`): dashboard >
+  Workers & Pages > `wegwerk-watchdog` > Logs, or `npx wrangler@4 tail` in `infra/watchdog/`.
+  `console.warn` for a dispatch, `console.error` when something failed.
+- **No public URL** (`workers_dev = false`, `preview_urls = false`, no `fetch` handler): a public
+  URL would let anyone spend GitHub API calls on the owner's token.
+- **Secrets** (Worker secrets, never in the repo): `GITHUB_TOKEN`, a fine-grained PAT for this
+  repository only with *Actions: Read and write* (plus the automatic *Metadata: Read*);
+  `HEALTHCHECK_URL` (optional), a separate healthchecks.io check for the watchdog itself — pinged
+  every tick it could read GitHub and, when needed, dispatch; `/fail` when the token is missing,
+  refused or expired. That is how an expiring token shows up before it matters. Repository, branch
+  and meta.json URL are defaults in `tick.mjs` (overridable with vars `GITHUB_REPO`, `GITHUB_REF`,
+  `DATA_META_URL`).
+- **Cost.** Workers Free: 1 of 5 Cron Triggers, 288 invocations a day, 3–5 subrequests (at most
+  20 with stuck runs to cancel) and a few ms CPU each (the 10 ms limit counts CPU, not waiting on the network). GitHub API: 2–3 calls a
+  tick, ~36 an hour of the token's 5,000.
+
+Owner steps (create the token, deploy, set the secrets) are in Dutch in `docs/handleiding.md`
+§7.4; the commands, from `infra/watchdog/`:
+
+```sh
+npx wrangler@4 login                        # once, opens the browser
+npx wrangler@4 deploy
+npx wrangler@4 secret put GITHUB_TOKEN      # paste the PAT
+npx wrangler@4 secret put HEALTHCHECK_URL   # optional
+npx wrangler@4 tail                         # watch the next ticks live
+```
+
+Check without deploying anything:
+
+```sh
+node infra/watchdog/dry-run.mjs              # the decision against the live site and GitHub, now
+node infra/watchdog/dry-run.mjs --now +90m   # ...if nothing at all happened for 90 minutes
+node --test "infra/watchdog/test/**/*.test.mjs"
+```
+
+The dry run never dispatches or pings and needs no token (public repository; set `GITHUB_TOKEN`
+to use one). Measured 2026-11-09 19:58 UTC: now → `ok` (data 9 min old, wekker waiting);
+`+30m` → `wait` (stale, chain alive); `+90m` → `dispatch`. The tests include replays of the real
+run history of both incidents (`test/fixtures/`): 9 Nov → restart at 18:40 instead of 19:30 by
+hand; 4 Nov → restarts at 10:25 and 16:20 (real recovery 15:42 and 19:08), and `wait`, not
+`dispatch`, while the slow outage runs of 15:45–16:17 were still busy; and no dispatch at any tick
+while the chain ran, even with the data assumed hours old throughout. One real tick was also run
+in the local Workers runtime (`wrangler dev --test-scheduled`, Wrangler 4.159.0) with a fake
+token: it read the live `meta.json`, got 401 from GitHub, logged `unknown` with the token hint and
+dispatched nothing; `wrangler deploy --dry-run` bundles it to 12 KiB.
+
 ### Keepalive
 
 GitHub disables scheduled workflows in public repositories after 60 days without repository
