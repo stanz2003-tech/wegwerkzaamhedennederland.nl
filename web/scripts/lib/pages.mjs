@@ -719,6 +719,8 @@ function staticContext(model, page) {
     lead: substituteVars(String(data.lead ?? ''), vars),
     updated,
     updatedLabel: updated ? fmtDate(updated) : '',
+    // A guide shows who wrote it (the same name as its Article JSON-LD author); without an owner name, nothing.
+    author: page.parent && String(model.site.owner?.name ?? '').trim() ? String(model.site.owner.name).trim() : '',
     body: markdownToHtml(bodyMd),
     isFaq,
     isNotFound: page.slug === NOT_FOUND_SLUG,

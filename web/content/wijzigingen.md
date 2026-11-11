@@ -6,10 +6,12 @@ description: Logboek van Wegwerk: nieuwe functies, verbeterde oordelen en herste
 heading: Wijzigingen
 kicker: Over deze site
 lead: Wegwerk wordt elke week beter. Hier staan de belangrijkste veranderingen, de nieuwste bovenaan. De verkeersgegevens zelf worden los daarvan elke {{refreshMinutes}} minuten (actueel beeld) en ongeveer elk kwartier (planning) vernieuwd; de pagina's per weg, plaats en brug twee keer per dag.
-updated: 2026-11-09
+updated: 2026-11-11
 ---
 
 ## November 2026
+
+**11 november** — Wie Wegwerk maakt, staat nu met naam op de site: [Stan Zegwaard](/over/) (Almkerk). De gidsen in de [uitleg](/uitleg/) noemen hun auteur, en de privacyverklaring noemt wie verantwoordelijk is voor je gegevens.
 
 **9 november** — Op elke weg-, plaats- en gemeentepagina staat nu **wie het werk heeft aangemeld**, met het aantal meldingen per wegbeheerder, en een brugpagina noemt hoeveel openingen er de komende week gepland staan en wanneer de eerste is. Wat een brugopening voor het verkeer betekent, staat nu één keer in de [veelgestelde vragen](/veelgestelde-vragen/#wat-gebeurt-er-met-het-verkeer-als-een-brug-opengaat). Pagina's van wegen waar nu en de komende 30 dagen niets gemeld is, tonen geen advertenties meer, net als rustige plaats- en brugpagina's. De links van een pagina naar de grote kaart zijn zo aangepast dat zoekmachines ze niet meer als losse pagina's zien.
 

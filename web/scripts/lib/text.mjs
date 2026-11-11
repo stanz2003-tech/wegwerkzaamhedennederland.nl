@@ -36,6 +36,8 @@ export function publisherVars(owner) {
   return {
     sentence: who ? `Wegwerk wordt uitgegeven door ${who}.` : 'Wegwerk is een particulier initiatief.',
     byline: maker ? `Wegwerk wordt gemaakt en onderhouden door ${maker}, los van de wegbeheerders.` : 'Wegwerk wordt onafhankelijk gemaakt en onderhouden, los van de wegbeheerders.',
+    // The privacy statement names the controller (AVG art. 13: identity and contact details).
+    controller: who ? `${who}, de uitgever van Wegwerk` : 'de uitgever van Wegwerk, een particulier initiatief',
     registration: kvk
       ? `KvK-nummer ${kvk}${btw ? `, btw-identificatienummer ${btw}` : ''}.`
       : '',

@@ -412,7 +412,8 @@ Wat nog zwak is:
 3. Wachten tot /over/, /uitleg/, /wijzigingen/, /contact/, /privacy/ en "waar komt de data
    vandaan" geïndexeerd zijn (aangevraagd op 9 november; controleren met URL-inspectie, niet met
    `site:`).
-4. Beslissen over achternaam en woonplaats in `web/site.config.json` → `owner`.
+4. ~~Beslissen over achternaam en woonplaats.~~ Gedaan op 11 november: "Stan Zegwaard (Almkerk)".
+   Het volledige draaiboek voor de aanvraagdag staat in [adsense-draaiboek.md](adsense-draaiboek.md).
 5. Betaalgegevens invullen in AdSense: de waarschuwing "Voeg uw betalingsgegevens toe" staat er
    op 9 november nog. Dan op de sitepagina "Beoordeling aanvragen".
 
