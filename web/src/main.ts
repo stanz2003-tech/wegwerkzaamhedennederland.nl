@@ -34,7 +34,7 @@ import { bboxIntersects, bboxOf, countByCategory, type BBox, type SortId } from 
 import { loadIndexAll, rowsToItems, type IndexItem } from './data/index';
 import { entityPagesNow } from './data/entity-pages';
 import { DataLoadError, loadLiveRefresh, loadStartData } from './data/load';
-import { DEFAULT_TIME_WINDOW, toMs } from './data/time';
+import { DEFAULT_TIME_WINDOW } from './data/time';
 import type { Category, ItemFeature } from './data/types';
 import { adoptHashState, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type HistoryMarker, type UrlState } from './data/url-state';
 import { verdictFor } from './data/verdict';
@@ -54,7 +54,8 @@ import { mountModeSelect } from './ui/mode-select';
 import { mountPanel } from './ui/panel';
 import { mountPanelLayout } from './ui/panel-layout';
 import { renderMapAnswers } from './ui/map-answers';
-import { inTime as inTimeFor, judge, needsGepland as needsGeplandFor, orderForList, selectForQuestion, withVerdict } from './ui/map-selection';
+import { judge, needsGepland as needsGeplandFor, orderForList, selectForQuestion, whenShowing, withVerdict } from './ui/map-selection';
+import { lookupDeepLink } from './ui/deep-link';
 import { dayWindowOf, type PanelAnswerEls } from './ui/panel-answer';
 import { pickOfUrl } from './ui/date-pick';
 import { mountSearch } from './ui/search';
@@ -167,10 +168,6 @@ function mapBounds(): BBox | null {
 /** The moment every verdict is computed for. */
 function momentAt(now: number): number {
   return url.moment ?? now;
-}
-
-function inTime(p: ItemFeature['properties'], now: number): boolean {
-  return inTimeFor(p, url, now);
 }
 
 const STEP: HistoryMarker = { wegwerk: true };
@@ -421,7 +418,7 @@ const routes = createRouteController(
 const detail = createDetailController({
   url: () => url,
   setUrl: (next) => (url = next),
-  item: (id) => data.byId(id) ?? null,
+  item: (id) => data.find(id) ?? null,
   map: () => map,
   syncUrl,
   enterRoad: (road) => enterRoad(road),
@@ -634,17 +631,29 @@ wireUitlegLinks(reducedMotion);
 
 /* ------------------------------------------------------------------ data */
 
-/** Loads the item behind `?id=` even when it is not in the active set. `push`: picked by the user. */
+/** Bumped by every deep link, so a slow werk-gepland load never opens a link the reader has left. */
+let deepLinkSeq = 0;
+
+/**
+ * Opens the item behind `?id=` (a page link, a shared link, a search pick, the back button), also
+ * when it is planned and werk-gepland still has to load (ui/deep-link.ts). `push`: picked by the user.
+ */
 async function resolveDeepLink(id: string, push = false): Promise<void> {
-  if (!data.byId(id) && !data.geplandPending()) await ensureGepland();
-  const feature = data.byId(id);
-  if (!feature) {
-    showToast('Deze melding staat niet meer in de actuele gegevens.', 'error');
+  const seq = ++deepLinkSeq;
+  const openBefore = detail.selected();
+  // An item that is already loaded opens at once, as before; only the others wait for werk-gepland.
+  const known = data.find(id);
+  const found = known ? ({ kind: 'found', feature: known } as const) : await lookupDeepLink(id, data);
+  // The reader moved on while werk-gepland loaded (another link, the back button, an item tapped).
+  if (seq !== deepLinkSeq || detail.selected() !== openBefore) return;
+  if (found.kind !== 'found') {
+    // 'unknown': werk-gepland failed to load, and its own toast already says so.
+    if (found.kind === 'gone') showToast('Deze melding staat niet meer in de actuele gegevens.', 'error');
     url = { ...url, id: null };
     syncUrl();
     return;
   }
-  ensureItemVisible(feature);
+  ensureItemVisible(found.feature);
   selectItem(id, true, push && !detail.selected());
 }
 
@@ -652,12 +661,13 @@ async function resolveDeepLink(id: string, push = false): Promise<void> {
 function ensureItemVisible(feature: ItemFeature): void {
   const now = Date.now();
   const p = feature.properties;
-  if (!inTime(p, now)) {
-    // Show the moment the item starts, so the reader sees it in the state it will be in.
-    const start = toMs(p.start);
-    url = { ...url, moment: Number.isFinite(start) && start > now ? start : null, day: null, part: null, time: DEFAULT_TIME_WINDOW };
+  const showAt = whenShowing(p, url, now);
+  if (showAt) {
+    url = { ...url, ...showAt };
     when.setSelected(url.time);
     when.setPick(pickOfUrl(url));
+    // A planned item shows at its start: the answer for that moment needs werk-gepland too.
+    if (needsGepland(now)) void ensureGepland();
   }
   const cats = catSet();
   if (cats && !cats.has(p.cat)) {
@@ -715,7 +725,7 @@ async function refresh(): Promise<void> {
     renderUpdatedLine(next.meta);
     render();
     const open = detail.selected();
-    if (open && !data.byId(open.properties.id)) selectItem(null);
+    if (open && !data.find(open.properties.id)) selectItem(null);
   } catch {
     // One failed refresh is not stale data: judge the age of what we have, so the warning appears
     // once it is really older than STALE_AFTER_MINUTES (owner decision: 30 minutes).
@@ -824,6 +834,8 @@ document.addEventListener('visibilitychange', () => {
  * item with the back gesture must not also undo the vehicle chosen while it was open.
  */
 window.addEventListener('popstate', () => {
+  // A link still waiting for werk-gepland belongs to the entry the reader just left.
+  deepLinkSeq++;
   const next = readUrlState();
   const before = { road: url.road, place: url.place };
   const samePlace = next.place && before.place?.kind === next.place.kind && before.place.slug === next.place.slug;
