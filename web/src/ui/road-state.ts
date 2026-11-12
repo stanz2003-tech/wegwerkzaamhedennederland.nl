@@ -32,7 +32,7 @@ export function worstActiveByKey(
 
 const STATE_TEXT: Partial<Record<VerdictLevel, string>> = {
   dicht: 'ergens dicht gemeld',
-  rijbaan: 'rijbaan dicht gemeld',
+  rijbaan: 'dicht in één richting gemeld',
 };
 
 /** The hint for a level, or null: only "dicht" and "rijbaan" are worth a hint. */

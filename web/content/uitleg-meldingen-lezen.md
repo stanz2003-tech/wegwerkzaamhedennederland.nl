@@ -2,12 +2,12 @@
 slug: uitleg-meldingen-lezen
 layout: static
 title: Zo lees je een melding over wegwerkzaamheden
-description: Wat "weg dicht", "rijbaan dicht", "doorrijden mogelijk" en hindercategorie A tot E betekenen, en hoe Wegwerk uit de gegevens van de wegbeheerder één oordeel maakt.
+description: Wat "weg dicht", "dicht in één richting", "doorrijden mogelijk" en hindercategorie A tot E betekenen, en hoe Wegwerk uit de gegevens van de wegbeheerder één oordeel maakt.
 heading: Zo lees je een melding
 kicker: Uitleg
-lead: Achter elke streep op de kaart zit een melding van een wegbeheerder, vaak met tientallen velden. Wegwerk maakt daar één oordeel van — weg dicht, rijbaan dicht, doorrijden mogelijk — zodat je in een paar seconden weet of je erdoor kunt. Hier lees je wat die oordelen betekenen en hoe ze tot stand komen.
+lead: Achter elke streep op de kaart zit een melding van een wegbeheerder, vaak met tientallen velden. Wegwerk maakt daar één oordeel van — weg dicht, dicht in één richting, doorrijden mogelijk — zodat je in een paar seconden weet of je erdoor kunt. Hier lees je wat die oordelen betekenen en hoe ze tot stand komen.
 published: 2026-10-25
-updated: 2026-10-25
+updated: 2026-11-12
 ---
 
 ## Eén oordeel per melding
@@ -17,13 +17,24 @@ Een wegbeheerder die werk aanmeldt, vult veel meer in dan "er wordt gewerkt". Hi
 | Oordeel | Wat het betekent voor jou |
 |---|---|
 | **Weg dicht** | Je kunt er niet langs. Volg de omleiding. Op de kaart rood met witte strepen. |
-| **Rijbaan dicht** | Een deel van de weg is dicht, meestal één richting. Rijd je die kant op, reken dan op een omleiding. |
+| **Dicht in één richting** | Eén rijrichting is dicht; de andere kant op kun je door, tenzij daar een eigen melding voor staat. Rijd je de dichte kant op, reken dan op een omleiding. |
 | **Doorrijden mogelijk** | Je kunt er langs, maar met minder rijstroken, een lagere snelheid of wat vertraging. |
+| **Oprit dicht**, **Afrit dicht**, **Verbindingsweg dicht** | Alleen dat deel is dicht. Op de weg zelf rijd je door; wil je daar de weg op of af, of van de ene snelweg naar de andere, dan moet je omrijden. |
 | **Gevolgen onduidelijk** | De wegbeheerder meldt niet duidelijk of en wanneer je erdoor kunt. Ga er niet van uit dat het kan. |
 | **Geen hinder** | Wel gemeld, maar zonder merkbaar gevolg voor het verkeer, bijvoorbeeld werk naast de weg. |
 | **Geldt niet voor jou** | De maatregel geldt alleen voor ander verkeer, zoals een afgesloten fietspad als je met de auto bent. |
 
 Het oordeel hangt af van **wie** je bent en **wanneer** je rijdt. Kies bovenaan het paneel tussen auto, vracht en fiets: een brug die dicht is voor vrachtwagens zwaarder dan 12 ton is voor een automobilist "geldt niet voor jou", maar voor een vrachtwagenchauffeur "weg dicht". Kies bij **Wanneer?** een ander moment en het oordeel verandert mee: werk dat alleen 's nachts geldt, telt overdag niet mee.
+
+## Wat is er precies dicht?
+
+"Dicht" kan drie dingen betekenen, en voor jou maakt het veel uit welke van de drie het is.
+
+- **De hele weg.** In beide richtingen kun je er niet langs. Dat heet bij Wegwerk **weg dicht**. Soms meldt een wegbeheerder elke rijrichting apart; staan die twee meldingen op dezelfde plek en voor dezelfde tijden, dan telt Wegwerk ze bij elkaar op en zie je bij beide "weg dicht".
+- **Eén rijrichting.** Op een snelweg en op veel N-wegen heeft elke richting een eigen rijbaan. Gaat er één dicht, dan staat er **dicht in één richting**, met de richting erbij als de wegbeheerder die heeft opgegeven. De andere kant op rijd je gewoon door.
+- **Alleen een oprit, afrit of verbindingsweg.** Dat komt het vaakst voor: van de afsluitingen die Rijkswaterstaat op snelwegen meldt, gaat het in ruim vier van de vijf gevallen om een op- of afrit of om een verbindingsweg in een knooppunt, en niet om de snelweg zelf. Dan staat er **oprit dicht**, **afrit dicht** of **verbindingsweg dicht** en rijd je op de weg zelf door.
+
+Wil je zien wat de wegbeheerder letterlijk heeft ingevuld, open dan de melding. Onder **Zo meldt de wegbeheerder het** staan de maatregelen zoals ze in zijn systeem staan, bijvoorbeeld "rijbaan afgesloten · op: afrit", met het gevolg dat hij zelf heeft gekozen, de richting en de voertuigen waarvoor het geldt. Het oordeel bovenaan maakt Wegwerk uit die gegevens.
 
 ## Liever te streng dan te mild
 

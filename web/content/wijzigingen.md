@@ -6,10 +6,12 @@ description: Logboek van Wegwerk: nieuwe functies, verbeterde oordelen en herste
 heading: Wijzigingen
 kicker: Over deze site
 lead: Wegwerk wordt elke week beter. Hier staan de belangrijkste veranderingen, de nieuwste bovenaan. De verkeersgegevens zelf worden los daarvan elke {{refreshMinutes}} minuten (actueel beeld) en ongeveer elk kwartier (planning) vernieuwd; de pagina's per weg, plaats en brug twee keer per dag.
-updated: 2026-11-11
+updated: 2026-11-12
 ---
 
 ## November 2026
+
+**12 november** — Je ziet nu in één oogopslag **wat er precies dicht is**. Een afgesloten oprit, afrit of verbindingsweg heette tot nu toe "rijbaan dicht", waardoor het leek alsof je er niet langs kon; dat staat er nu als **oprit dicht**, **afrit dicht** of **verbindingsweg dicht**, en op de weg zelf rijd je door. "Rijbaan dicht" heet voortaan **dicht in één richting**. Meldt een wegbeheerder beide richtingen apart als afgesloten, of schrijft hij dat de weg "volledig" of "in beide richtingen" dicht is, dan zegt Wegwerk **weg dicht**. Open je een melding, dan staat onder **Zo meldt de wegbeheerder het** wat hij letterlijk heeft ingevuld. Meer hierover in de [uitleg](/uitleg/meldingen-lezen/#wat-is-er-precies-dicht).
 
 **11 november** — Wie Wegwerk maakt, staat nu met naam op de site: [Stan Zegwaard](/over/) (Almkerk). De gidsen in de [uitleg](/uitleg/) noemen hun auteur, en de privacyverklaring noemt wie verantwoordelijk is voor je gegevens.
 

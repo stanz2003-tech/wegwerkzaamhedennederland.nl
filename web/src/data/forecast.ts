@@ -74,6 +74,23 @@ export function touchesWindow(span: TimeSpan, periods: readonly Period[], from: 
 }
 
 /**
+ * The detail says the closure holds for both directions: Melvin's label, the road authority's
+ * text, or a twin melding for the other direction (pipeline/src/both-ways.js).
+ */
+/**
+ * The quoted sentence itself closes both directions — the same wordings the pipeline reads
+ * (impact.js `BOTH_WAYS_CLOSED_RE`, `saysBothWays`). "Verkeer in beide richtingen omgeleid" does not.
+ */
+const BOTH_WAYS_QUOTE_RE =
+  /\bbeide (?:rij)?richtingen (?:(?:is|zijn|volledig|geheel) )*(?:afgesloten|dicht|gestremd)\b|\b(?:afgesloten|dicht|gestremd) in beide (?:rij)?richtingen\b|\b(?:volledig|geheel|helemaal|compleet) (?:afgesloten|dicht)\b(?!.*\brichting\b)/i;
+
+export function closedBothWays(d: ItemDetail | null | undefined): boolean {
+  if (!d) return false;
+  if (/\bbeide richtingen\b/i.test(d.gevolg ?? '')) return true;
+  return (d.chk ?? []).some((c) => c.c === 'paar-beide' || c.c === 'tekst-beide' || (c.c === 'tekst-dicht' && BOTH_WAYS_QUOTE_RE.test(c.q ?? '')));
+}
+
+/**
  * The verdict of an item for a mode, using whatever detail is available. `at` asks about one
  * moment; `window` about a stretch of time (a day in the strip) — then the heaviest phase inside
  * the window decides, not the heaviest phase of the whole measure.
@@ -82,6 +99,7 @@ export function itemVerdict(item: ForecastItem, mode: VehicleMode, at?: number, 
   const d = item.d ?? null;
   return verdictFor(item.f.properties, mode, {
     ...(d?.to ? { to: d.to } : {}),
+    ...(closedBothWays(d) ? { both: true } : {}),
     ...(d?.delay ? { delay: d.delay } : {}),
     ...(typeof d?.delaySec === 'number' ? { delaySec: d.delaySec } : {}),
     ...(typeof d?.queueM === 'number' ? { queueM: d.queueM } : {}),

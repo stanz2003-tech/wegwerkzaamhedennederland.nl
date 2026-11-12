@@ -7,6 +7,10 @@
  *
  * | Verdict    | When                                                                                  |
  * |------------|---------------------------------------------------------------------------------------|
+ * A closure record whose locations all lie on an on-ramp, off-ramp, connecting carriageway or
+ * parallel carriageway (`side`, see `sidePartsOf()`) closes that part, not the road: it counts as
+ * `hinder` and the result names the part (`part`), so the site can say "Afrit dicht".
+ *
  * | `dicht`    | a `roadClosed` record; `carriagewayClosures` on a road that is not A or N (local       |
  * |            | streets and stadsroutes have one carriageway, so "rijbaan dicht" closes the street);   |
  * |            | or a bridge opening (cat `brug`)                                                        |
@@ -25,6 +29,8 @@
  *     richting" → at least `rijbaan`, unless the closure records restrict vehicles — `by: 'gevolg'`;
  *   - that label over a closure whose vehicle list leaves out cars, when the list is not credible
  *     (`listLeavesOutCars`): the closure counts for everyone — `overruled` keeps the list.
+ *   - a carriageway closure under a sentence that says the road is shut "in beide richtingen":
+ *     `dicht` — `by: 'beide'` (`bothWaysClosedSentence()`).
  * Disagreements the other way are explained on the site, not acted on (src/consistency.js).
  *
  * `veh` is the union of `forVehiclesWithCharacteristicsOf` over the records
@@ -51,6 +57,7 @@
 
 /** @typedef {'dicht'|'rijbaan'|'hinder'|'geen'|'onbekend'} Impact */
 /** @typedef {'car'|'lorry'|'bicycle'|'moped'|'bus'|'agricultural'|'other'} Vehicle */
+/** @typedef {'oprit'|'afrit'|'verbinding'|'parallel'} Part  a part of the road that is not the main carriageway */
 
 /**
  * @typedef {object} ImpactRecord   the subset of a parsed SituationRecord the verdict reads
@@ -62,12 +69,14 @@
  * @property {string=} gnm
  * @property {string=} rerouteType
  * @property {string[]=} vehicles
+ * @property {Part[]=} side           a closure record that only closes these parts (`sidePartsOf()`)
  */
 
 /**
  * @typedef {object} ImpactContext
  * @property {string} cat                                 item category
  * @property {string=} roadType                           A | N | S | E | lokaal
+ * @property {string=} road                               the item's road number ("A22"), for `detouredOverAnotherRoad()`
  * @property {string=} delay                              merged delay band
  * @property {boolean=} hasPeriods                        the item has recurring sub-periods (ItemDetail.periods)
  * @property {{ closed?: number }=} lanes                 merged lanes
@@ -82,8 +91,10 @@
 /**
  * `by` says the verdict was not read from a measure record: `gevolg` = Melvin's dropdown,
  * `tekst` = a sentence like "De A15 is afgesloten" next to a detour. The site explains those.
+ * `beide` = a carriageway closure under a sentence that says the road is shut in both directions.
  * `overruled` is the closure's own vehicle list when the label made it count for everyone.
- * @typedef {{ imp: Impact, veh?: Vehicle[], by?: 'gevolg'|'tekst', overruled?: Vehicle[], per?: true, spd?: number, lc?: number }} ImpactResult
+ * `part`: the verdict is `hinder` because only these parts are closed, not the road itself.
+ * @typedef {{ imp: Impact, veh?: Vehicle[], by?: 'gevolg'|'tekst'|'beide', overruled?: Vehicle[], part?: Part[], per?: true, spd?: number, lc?: number }} ImpactResult
  */
 
 const DUAL_CARRIAGEWAY_ROAD_TYPES = new Set(['A', 'N']);
@@ -97,6 +108,73 @@ const HINDER_LANE_TYPES = new Set([
 const HINDER_NETWORK_TYPES = new Set(['temporaryTrafficLights', 'trafficBeingManuallyDirected']);
 const MEASURE_TYPES = new Set(['RoadOrCarriagewayOrLaneManagement', 'SpeedManagement', 'GeneralNetworkManagement', 'ReroutingManagement']);
 const LIVE_HINDER_CATS = new Set(['file', 'incident']);
+const CLOSURE_LANE_TYPES = new Set(['roadClosed', 'carriagewayClosures']);
+
+/**
+ * DATEX `carriageway` values that are not the road itself, and the part they stand for. Measured
+ * on the feeds of 2026-11-12: of Rijkswaterstaat's `carriagewayClosures` records 863 lay on an
+ * entry slip road, 602 on an exit slip road, 140 on a connecting carriageway, 29 on a parallel one
+ * and 255 on the main carriageway. All of them read "Rijbaan dicht", so the A27 looked shut at
+ * Gorinchem whenever the on-ramp at Avelingen was. Anything not listed here (the main carriageway,
+ * a service road, an unknown or absent value) stays the road itself: the stricter reading.
+ * @type {Readonly<Record<string, Part[]>>}
+ */
+const SIDE_CARRIAGEWAYS = Object.freeze({
+  entrySlipRoad: ['oprit'],
+  exitSlipRoad: ['afrit'],
+  slipRoads: ['oprit', 'afrit'],
+  connectingCarriageway: ['verbinding'],
+  parallelCarriageway: ['parallel'],
+  leftHandParallelCarriageway: ['parallel'],
+  rightHandParallelCarriageway: ['parallel'],
+});
+/** @type {Part[]} */
+const PART_ORDER = ['oprit', 'afrit', 'verbinding', 'parallel'];
+
+/**
+ * The parts a closure record closes when it does not close the road itself: every location names
+ * a ramp, a connector or a parallel carriageway. Undefined as soon as one location lies on the main
+ * carriageway or on something unknown, or does not say where it lies: that one may be the road
+ * itself, and "closed" is the stricter reading.
+ * @param {(string | undefined)[]} carriageways  `Location.carriageway` of each location of the record
+ * @returns {Part[] | undefined}
+ */
+export function sidePartsOf(carriageways) {
+  if (carriageways.length === 0) return undefined;
+  const parts = new Set();
+  for (const c of carriageways) {
+    const known = c ? SIDE_CARRIAGEWAYS[c] : undefined;
+    if (!known) return undefined;
+    for (const p of known) parts.add(p);
+  }
+  return PART_ORDER.filter((p) => parts.has(p));
+}
+
+/** Every value `sideSubOf()` returns: the sub types of an item whose own closure is not the road itself. */
+export const SIDE_SUBS = new Set(['entrySlipRoadClosed', 'exitSlipRoadClosed', 'slipRoadsClosed', 'connectingCarriagewayClosed', 'parallelCarriagewayClosed', 'sideCarriagewayClosed']);
+
+/**
+ * The item's sub type when only a part of the road is closed ("entrySlipRoadClosed"), which is how
+ * the part reaches the site: `sub` is in every file already, so no reader breaks.
+ * @param {Part[]} part
+ */
+export function sideSubOf(part) {
+  const key = part.join('+');
+  if (key === 'oprit') return 'entrySlipRoadClosed';
+  if (key === 'afrit') return 'exitSlipRoadClosed';
+  if (key === 'oprit+afrit') return 'slipRoadsClosed';
+  if (key === 'verbinding') return 'connectingCarriagewayClosed';
+  if (key === 'parallel') return 'parallelCarriagewayClosed';
+  return 'sideCarriagewayClosed';
+}
+
+/**
+ * A closure record that only closes a ramp, a connector or a parallel carriageway.
+ * @param {ImpactRecord} r
+ */
+function isSideClosure(r) {
+  return CLOSURE_LANE_TYPES.has(r.lane ?? '') && (r.side?.length ?? 0) > 0;
+}
 
 /**
  * Rijkswaterstaat states the closure in prose on the parent situation and puts the `roadClosed`
@@ -111,12 +189,41 @@ const LIVE_HINDER_CATS = new Set(['file', 'incident']);
  * voor vrachtverkeer", which is about one kind of traffic. "Is dicht" keeps its reading of
  * 2026-09 unchanged ("De A2 tunnelbuis vanuit Eindhoven is dicht" = rijbaan).
  */
-const CLOSED_BY_TEXT_RE = /\b(?:is|zijn)\s+dicht\b(?!\s*bij\b)/i;
-const AFGESLOTEN_RE = /\b(?:is|zijn)\s+afgesloten\b(?!\s+voor\s+(?!(?:al(?:le|l)?\s+(?:het\s+)?|het\s+)?(?:doorgaand\s+)?verkeer\b))/i;
+// "De N33 is volledig afgesloten. Er zijn omleidingen ingesteld." read "doorrijden mogelijk" until
+// 2026-11-12: the adverb sat between the verb and the participle.
+const ADVERB = String.raw`(?:(?:volledig|geheel|helemaal|compleet|tijdelijk)\s+)?`;
+const CLOSED_BY_TEXT_RE = new RegExp(String.raw`\b(?:is|zijn)\s+${ADVERB}dicht\b(?!\s*bij\b)`, 'i');
+const AFGESLOTEN_RE = new RegExp(
+  String.raw`\b(?:is|zijn)\s+${ADVERB}afgesloten\b(?!\s+voor\s+(?!(?:al(?:le|l)?\s+(?:het\s+)?|het\s+)?(?:doorgaand\s+)?verkeer\b))`,
+  'i',
+);
+/**
+ * Rijkswaterstaat's title style has no verb: "Schipholtunnel afgesloten van Amsterdam richting Den
+ * Haag", "Dampoort Aquaduct dicht", "Velsertunnel Vierkantafsluiting" (every lane of the
+ * carriageway). Only a tunnel or an aqueduct: there is no way around the closure inside one.
+ */
+const STRUCTURE_CLOSED_RE = /\b(?:vierkant|totaal)afsluiting\b|\b[\wà-ÿ]*(?:tunnel|aquaduct)\s+(?:(?:volledig|geheel)\s+)?(?:afgesloten|dicht|gestremd)\b/i;
+/** "Volledig afgesloten" without a direction: nobody gets through, whichever way they drive. */
+const FULLY_CLOSED_RE = /\b(?:volledig|geheel|helemaal|compleet)\s+(?:afgesloten|dicht)\b/i;
+const ONE_DIRECTION_RE = /\brichting\b/i;
 const NOT_THE_ROAD_RE =
-  /\b(?:rijstro(?:ok|ken)|op-?\s*en\s*afrit|oprit(?:ten)?|afrit(?:ten)?|toerit|fiets\w*|voet\w*|trottoir|stoep|parkeer\w*|carpool\w*|verzorgingsplaats|vluchtstrook|spitsstrook|plusstrook|wisselbaan|busbaan)\b/i;
+  /\b(?:rijstro(?:ok|ken)|op-?\s*en\s*afrit|oprit(?:ten)?|afrit(?:ten)?|toerit|verbindingsweg(?:en)?|verbindingsbo(?:og|gen)|parallel(?:rij)?ba(?:an|nen)|fiets\w*|voet\w*|trottoir|stoep|parkeer\w*|carpool\w*|verzorgingsplaats|vluchtstrook|spitsstrook|plusstrook|wisselbaan|busbaan)\b/i;
 
 const BOTH_WAYS_RE = /\bbeide\s+richtingen\b/i;
+/**
+ * "N57 in beide richtingen afgesloten", "De A44 is afgesloten in beide richtingen": the closure
+ * and the two directions in one breath. "In beide richtingen zijn 2 rijstroken beschikbaar" is not.
+ */
+const BOTH_WAYS_CLOSED_RE =
+  /\bbeide\s+(?:rij)?richtingen\s+(?:(?:is|zijn|volledig|geheel)\s+)*(?:afgesloten|dicht|gestremd)\b|\b(?:afgesloten|dicht|gestremd)\s+in\s+beide\s+(?:rij)?richtingen\b/i;
+/** A clock time ("20.30", "21 uur"): the sentence is about a stretch of time, which the records know better. */
+const CLOCK_TIME_RE = /\b\d{1,2}[.:]\d{2}\b|\b\d{1,2}\s*(?:uur|u)\b/i;
+/**
+ * What may not follow "afgesloten" / "dicht" for the words to be about the road for everyone:
+ * "dicht bij Hank" (near Hank) and "afgesloten voor vrachtverkeer" (one kind of traffic; "voor al
+ * het verkeer" is everyone). The same two guards `CLOSED_BY_TEXT_RE` and `AFGESLOTEN_RE` carry.
+ */
+const NOT_FOR_EVERYONE_RE = /^\s*(?:bij\b|voor\s+(?!(?:al(?:le|l)?\s+(?:het\s+)?|het\s+)?(?:doorgaand\s+)?verkeer\b))/i;
 
 /** Melvin's dropdown labels that state a closure, and the verdict they stand for. */
 const GEVOLG_VERDICT = Object.freeze({
@@ -164,9 +271,12 @@ const VEHICLE_ORDER = ['car', 'lorry', 'bicycle', 'moped', 'bus', 'agricultural'
  */
 export function impactOf(recs, ctx) {
   const dual = DUAL_CARRIAGEWAY_ROAD_TYPES.has(ctx.roadType ?? '');
-  const closedRecs = recs.filter((r) => r.lane === 'roadClosed' || (r.lane === 'carriagewayClosures' && !dual));
-  const carriagewayRecs = recs.filter((r) => r.lane === 'carriagewayClosures' && dual);
-  const hinderRecs = recs.filter(isHinderRecord);
+  // A closed ramp, connector or parallel carriageway is not a closed road: through traffic drives on.
+  const sideRecs = recs.filter(isSideClosure);
+  const roadRecs = recs.filter((r) => !isSideClosure(r));
+  const closedRecs = roadRecs.filter((r) => r.lane === 'roadClosed' || (r.lane === 'carriagewayClosures' && !dual));
+  const carriagewayRecs = roadRecs.filter((r) => r.lane === 'carriagewayClosures' && dual);
+  const hinderRecs = recs.filter((r) => isHinderRecord(r) || isSideClosure(r));
   const rerouteRecs = recs.filter((r) => r.type === 'ReroutingManagement');
 
   /** @type {Impact} */
@@ -181,14 +291,19 @@ export function impactOf(recs, ctx) {
     imp = 'dicht';
     winning = closedRecs;
   } else if (carriagewayRecs.length > 0) {
-    imp = 'rijbaan';
+    // Rijkswaterstaat publishes each direction as its own situation. When the words say the road is
+    // shut both ways, one carriageway is not the whole story (N57 Dampoort, 2026-11-12). The
+    // closure's own vehicle list stays.
+    const bothWays = bothWaysClosedSentence(textOf(ctx)) !== undefined;
+    imp = bothWays ? 'dicht' : 'rijbaan';
     winning = carriagewayRecs;
-  } else if (rerouteRecs.length > 0 && (sentence = closedByText(textOf(ctx)))) {
+    if (bothWays) by = 'beide';
+  } else if (rerouteRecs.length > 0 && (sentence = closedByText(textOf(ctx)) ?? bothWaysClosedSentence(textOf(ctx)) ?? detouredOverAnotherRoad(textOf(ctx), ctx.road))) {
     // Same reading as `carriagewayClosures`: on a road with two carriageways "de A6 is dicht"
-    // means this carriageway, and the other direction stays open — unless the sentence says "in
-    // beide richtingen". The detour's vehicle list says who the detour is for, not who the road is
-    // closed to, so it does not narrow this verdict.
-    imp = dual && !BOTH_WAYS_RE.test(sentence) ? 'rijbaan' : 'dicht';
+    // means this carriageway, and the other direction stays open — unless the text says "in
+    // beide richtingen" or "volledig afgesloten". The detour's vehicle list says who the detour is
+    // for, not who the road is closed to, so it does not narrow this verdict.
+    imp = dual && !saysBothWays(sentence) && bothWaysClosedSentence(textOf(ctx)) === undefined ? 'rijbaan' : 'dicht';
     winning = [];
     by = 'tekst';
   } else if (hinderRecs.length > 0 || LIVE_HINDER_CATS.has(ctx.cat) || (ctx.lanes?.closed ?? 0) > 0 || delayIsHinder(ctx)) {
@@ -226,6 +341,7 @@ export function impactOf(recs, ctx) {
   if (veh) out.veh = veh;
   if (by) out.by = by;
   if (overruled) out.overruled = overruled;
+  if (imp === 'hinder' && sideRecs.length > 0) out.part = PART_ORDER.filter((p) => sideRecs.some((r) => r.side?.includes(p)));
   if (ctx.hasPeriods) out.per = true;
   if (ctx.speed !== undefined && ctx.speed > 0) out.spd = ctx.speed;
   if (ctx.lanes?.closed !== undefined && ctx.lanes.closed > 0) out.lc = ctx.lanes.closed;
@@ -251,10 +367,80 @@ export function closedByText(text) {
   const flat = text.replace(/\s+/g, ' ');
   const dicht = CLOSED_BY_TEXT_RE.exec(flat);
   if (dicht) return sentences.find((s) => CLOSED_BY_TEXT_RE.test(s)) ?? flat.slice(Math.max(0, dicht.index - 60), dicht.index + dicht[0].length).trim();
-  return sentences.find((s) => {
-    const m = AFGESLOTEN_RE.exec(s);
-    return m !== null && !NOT_THE_ROAD_RE.test(s.slice(0, m.index));
+  return (
+    sentences.find((s) => {
+      const m = AFGESLOTEN_RE.exec(s);
+      return m !== null && !NOT_THE_ROAD_RE.test(s.slice(0, m.index));
+    }) ??
+    // The whole sentence is searched for a path or a ramp: "Totaalafsluiting van de fietstunnel"
+    // names it after the match. And the guards of the verb forms hold here too: "Tunnel dicht bij
+    // Hank" is near Hank, "Aquaduct afgesloten voor fietsers" is one kind of traffic.
+    sentences.find((s) => {
+      const m = STRUCTURE_CLOSED_RE.exec(s);
+      return m !== null && !NOT_THE_ROAD_RE.test(s) && !NOT_FOR_EVERYONE_RE.test(s.slice(m.index + m[0].length));
+    })
+  );
+}
+
+/** "Verkeer wordt omgeleid via de A9": the numbered roads a detour sentence names. */
+const DETOUR_VIA_RE = /\bomgeleid\s+via\s+(?:de\s+)?((?:[AN]\d{1,3})(?:\s*(?:[-–,/]|en)\s*(?:de\s+)?[AN]\d{1,3})*)/i;
+
+/**
+ * The sentence that sends the traffic over another numbered road, never back over this one:
+ * "Verkeer richting het Zuiden wordt omgeleid via de A9 links Wijkertunnel" on the A22. Whoever
+ * drives this road in that direction is led off it, so it is closed to them — whatever the
+ * records call the closure. Rijkswaterstaat files the Velsertunnel closure as a closed entry slip
+ * road (the tunnel has no other way in), which on its own reads "oprit dicht" (2026-11-12).
+ * A detour that stays on the road itself ("via de A27 en het onderliggend wegennet": the traffic of
+ * a closed ramp) and a sentence about a ramp or a path are not it.
+ * @param {string} text
+ * @param {string | undefined} road  the item's own road number
+ * @returns {string | undefined}
+ */
+export function detouredOverAnotherRoad(text, road) {
+  const own = (road ?? '').replace(/\s+/g, '').toUpperCase();
+  if (!/^[AN]\d/.test(own)) return undefined;
+  return sentencesOf(text).find((s) => {
+    const m = DETOUR_VIA_RE.exec(s);
+    if (m === null || NOT_THE_ROAD_RE.test(s.slice(0, m.index))) return false;
+    const named = (m[1].toUpperCase().match(/[AN]\d{1,3}/g) ?? []);
+    return named.length > 0 && !named.includes(own);
   });
+}
+
+/** The sentence closes the road for both directions of travel. */
+/** @param {string} sentence */
+function saysBothWays(sentence) {
+  return BOTH_WAYS_RE.test(sentence) || (FULLY_CLOSED_RE.test(sentence) && !ONE_DIRECTION_RE.test(sentence));
+}
+
+/**
+ * The sentence that says the road is closed in both directions, when there is one: not about a
+ * lane, a ramp or a path (the words before it are its subject), and not tied to a clock time
+ * ("Tussen 20.30 en 21.00 uur is de tunnel in beide richtingen afgesloten" — half an hour, after
+ * which traffic passes; the records carry the times). Exported for the consistency check.
+ * @param {string} text
+ * @returns {string | undefined}
+ */
+export function bothWaysClosedSentence(text) {
+  return sentencesOf(text).find((s) => {
+    // Melvin's label is a drop-down, weighed on its own terms further down in impactOf().
+    if (labelVerdict(s) !== undefined) return false;
+    const m = BOTH_WAYS_CLOSED_RE.exec(s);
+    if (m === null || NOT_THE_ROAD_RE.test(s.slice(0, m.index)) || CLOCK_TIME_RE.test(s)) return false;
+    // "In beide richtingen afgesloten voor vrachtverkeer" closes the road for lorries, not for all.
+    return !NOT_FOR_EVERYONE_RE.test(s.slice(m.index + m[0].length));
+  });
+}
+
+/**
+ * The verdict Melvin's label stands for ("Weg dicht in beide richtingen" → `dicht`), from the
+ * label as written. Undefined for the other labels.
+ * @param {string | undefined} gevolg
+ * @returns {Impact | undefined}
+ */
+export function labelVerdict(gevolg) {
+  return /** @type {Impact | undefined} */ (GEVOLG_VERDICT[(gevolg ?? '').trim().toLowerCase()]);
 }
 
 /**

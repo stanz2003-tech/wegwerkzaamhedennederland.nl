@@ -9,7 +9,7 @@
 import { classify } from './classify.js';
 import { gevolgOf } from './consistency.js';
 import { buildGeometry, midpoint } from './geometry.js';
-import { impactOf, labelClosesRoad } from './impact.js';
+import { impactOf, labelClosesRoad, sideSubOf } from './impact.js';
 import { mergeSituation } from './merge.js';
 import { detectRoad } from './roads.js';
 import { friendlySource, normalizeProvince } from './sources-friendly.js';
@@ -115,6 +115,26 @@ export function finalizeItem(item, geo, nowMs) {
     publisher: source.src,
   });
 
+  // The verdict needs the road type (A/N have two carriageways), which is only
+  // known here: detectRoad() may rest on the geocoded street name.
+  const texts = [merged.comment, merged.desc, merged.causeDesc];
+  // Melvin's "gevolg voor het verkeer" drop-down: often the title comment, which `desc` leaves out.
+  const gevolg = gevolgOf([merged.comment, merged.desc]);
+  const impact = impactOf(merged.measures, {
+    cat: cls.cat,
+    roadType: road.roadType,
+    road: road.road,
+    delay: merged.delay,
+    lanes: merged.lanes,
+    speed: merged.speed,
+    texts,
+    gevolg: gevolg?.key,
+    allRecords: merged.measures,
+  });
+  // Only a ramp, a connector or a parallel carriageway is closed: the sub type says which, the
+  // item is no longer "a closed road", and the fallback title reads "Afrit afgesloten".
+  const sub = impact.part && CLOSURE_SUBS.has(cls.sub ?? '') ? sideSubOf(impact.part) : cls.sub;
+
   const shortComment = merged.comment && merged.comment.length <= TITLE_MAX ? merged.comment : undefined;
   const title = buildTitle({
     comment: shortComment,
@@ -126,25 +146,10 @@ export function finalizeItem(item, geo, nowMs) {
     street: geo?.straat,
     place: woonplaats ?? gemeente,
     cat: cls.cat,
-    sub: cls.sub,
+    sub,
   });
 
   const start = toMinuteIso(merged.start) ?? toMinuteIso(nowMs);
-  // The verdict needs the road type (A/N have two carriageways), which is only
-  // known here: detectRoad() may rest on the geocoded street name.
-  const texts = [merged.comment, merged.desc, merged.causeDesc];
-  // Melvin's "gevolg voor het verkeer" drop-down: often the title comment, which `desc` leaves out.
-  const gevolg = gevolgOf([merged.comment, merged.desc]);
-  const impact = impactOf(merged.measures, {
-    cat: cls.cat,
-    roadType: road.roadType,
-    delay: merged.delay,
-    lanes: merged.lanes,
-    speed: merged.speed,
-    texts,
-    gevolg: gevolg?.key,
-    allRecords: merged.measures,
-  });
   // Contract v4: the verdict per stretch of time, from the records that apply during it. For the
   // ~98% of situations whose measures all share the main window this yields exactly the v3 result;
   // phases, and measures outside the main record's blocks, now get the verdict of their own time.
@@ -157,6 +162,7 @@ export function finalizeItem(item, geo, nowMs) {
     const v = impactOf(measures, {
       cat: cls.cat,
       roadType: road.roadType,
+      road: road.road,
       // The delay band belongs to the main (or traffic) record: it says nothing about a stretch
       // in which only a phase record of its own applies.
       delay: active.some((r) => r.isMain) ? merged.delay : undefined,
@@ -200,7 +206,7 @@ export function finalizeItem(item, geo, nowMs) {
   item.props = compact({
     id: item.id,
     cat: cls.cat,
-    sub: cls.sub,
+    sub,
     sev: cls.sev,
     title,
     road: road.road,
@@ -210,7 +216,7 @@ export function finalizeItem(item, geo, nowMs) {
     prov,
     start,
     end: toMinuteIso(merged.end),
-    closed: cls.closed ? true : undefined,
+    closed: cls.closed && !impact.part ? true : undefined,
     hind: merged.hind,
     prob: merged.prob,
     src: source.src,
@@ -244,6 +250,7 @@ export function finalizeItem(item, geo, nowMs) {
     url: merged.url,
     vehicles: merged.vehicles,
     works: merged.works,
+    ms: merged.reported,
     detourGeom: merged.detourGeom,
     upd: toMinuteIso(merged.upd) ?? start,
   });
@@ -254,6 +261,8 @@ export function finalizeItem(item, geo, nowMs) {
   delete item.raw;
   return item;
 }
+
+const CLOSURE_SUBS = new Set(['roadClosed', 'carriagewayClosures']);
 
 /**
  * Lanes closed by the lane records among `measures` — what `impactOf()` reads from `ctx.lanes`,

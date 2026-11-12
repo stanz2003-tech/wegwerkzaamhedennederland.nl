@@ -165,6 +165,7 @@ describe('impact labels', () => {
     assert.equal(lanesLabel({ closed: 0, open: 1 }), 'alle rijstroken open');
     assert.equal(lanesLabel({ open: 2 }), '2 rijstroken open');
     assert.equal(lanesLabel({ total: 2 }), '2 rijstroken');
+    assert.equal(lanesLabel({ total: 1 }), '1 rijstrook');
     assert.equal(lanesLabel(undefined), null);
     assert.equal(lanesLabel({}), null);
   });
@@ -302,5 +303,28 @@ describe('kindLabel: no sub that repeats or contradicts the pill (taal-2)', () =
     assert.equal(kindLabel('evenement', 'festival'), 'Evenement · festival');
     assert.equal(kindLabel('file', 'stationaryTraffic'), 'stilstaand verkeer');
     assert.equal(kindLabel('werk', null), 'Werkzaamheden');
+  });
+});
+
+describe('reportedMeasureLabel: a measure exactly as the road authority filled it in', () => {
+  const { reportedMeasureLabel } = format;
+
+  it('names the measure, the part of the road and who it is for', () => {
+    assert.equal(reportedMeasureLabel({ t: 'carriagewayClosures', cw: ['exitSlipRoad'] }), 'rijbaan afgesloten · op: afrit');
+    assert.equal(reportedMeasureLabel({ t: 'carriagewayClosures', cw: ['mainCarriageway'], veh: ['lorry', 'bus'] }), 'rijbaan afgesloten · op: hoofdrijbaan · voor: vrachtverkeer, bussen');
+    assert.equal(reportedMeasureLabel({ t: 'laneClosures', n: 2, cw: ['mainCarriageway'] }), 'rijstrook afgesloten · 2 rijstroken · op: hoofdrijbaan');
+    assert.equal(reportedMeasureLabel({ t: 'speedRestrictionInOperation', spd: 70 }), 'snelheidsbeperking · 70 km/u');
+    assert.equal(reportedMeasureLabel({ t: 'followDiversionSigns' }), 'omleiding met borden');
+  });
+
+  it('never hides a type or a carriageway it has no word for', () => {
+    assert.equal(reportedMeasureLabel({ t: 'somethingNew', cw: ['busLane', 'busLane'] }), 'somethingNew · op: busLane');
+  });
+});
+
+describe('subLabel: the pipeline\'s own sub types for a closed part of the road', () => {
+  it('reads as Dutch, never as the raw key', () => {
+    assert.equal(subLabel('entrySlipRoadClosed'), 'oprit afgesloten');
+    assert.equal(subLabel('connectingCarriagewayClosed'), 'verbindingsweg afgesloten');
   });
 });

@@ -22,6 +22,9 @@
  * | `gevolg-periode`  | yes   | the label made the umbrella after a single working period read as the closure  |
  * |                   |       | (timeline.js `fillUmbrella`)                                                   |
  * | `tekst-dicht`     | yes   | the verdict comes from a sentence like "De A15 is afgesloten" plus a detour     |
+ * | `tekst-beide`     | yes   | one carriageway in the records, "in beide richtingen afgesloten" in the text    |
+ * | `paar-beide`      | yes   | both directions are published as separate situations for the same times;       |
+ * |                   |       | `q` = the id of the other one (both-ways.js)                                   |
  * | `tekst-fietspad`  | yes   | closed for cars, while the text only names a cycle/foot path as closed          |
  * | `gevolg-geen`     | yes   | closed, while the label says "Geen gevolgen voor verkeer"                       |
  * | `gevolg-langzaam` | yes   | closed for cars, while the label says "Beperking voor langzaam verkeer"         |
@@ -30,9 +33,9 @@
  * | `snelheid`        | no    | the text names a speed limit the records do not publish (or another one)        |
  */
 
-import { closedByText, sentencesOf } from './impact.js';
+import { bothWaysClosedSentence, closedByText, detouredOverAnotherRoad, sentencesOf } from './impact.js';
 
-/** @typedef {'correctie'|'gevolg-dicht'|'gevolg-auto'|'gevolg-periode'|'tekst-dicht'|'tekst-fietspad'|'gevolg-geen'|'gevolg-langzaam'|'gevolg-fiets'|'hinderklasse'|'snelheid'} CheckCode */
+/** @typedef {'correctie'|'gevolg-dicht'|'gevolg-auto'|'gevolg-periode'|'tekst-dicht'|'tekst-beide'|'paar-beide'|'tekst-fietspad'|'gevolg-geen'|'gevolg-langzaam'|'gevolg-fiets'|'hinderklasse'|'snelheid'} CheckCode */
 /** @typedef {{ c: CheckCode, q?: string, v?: string[] }} Check */
 /** @typedef {{ key: string, text: string }} Gevolg */
 
@@ -40,7 +43,10 @@ import { closedByText, sentencesOf } from './impact.js';
  * @typedef {object} CheckInput
  * @property {string} imp                       final verdict of the item
  * @property {string[]=} veh
- * @property {'gevolg'|'tekst'=} by             what impactOf() read the verdict from, when not a record
+ * @property {'gevolg'|'tekst'|'beide'=} by     what impactOf() read the verdict from, when not a record
+ * @property {string=} pair                      id of the situation that closes the other direction (both-ways.js)
+ * @property {string=} quote                     the words `by: 'beide'` rests on, when they are not a sentence of the texts (dedup.js)
+ * @property {string=} road                      the item's road number, to find the detour sentence a `tekst` verdict rests on
  * @property {string[]=} overruled              the closure's vehicle list the label overruled (impactOf())
  * @property {boolean=} periode                  the label filled an umbrella period (buildTimeline())
  * @property {Gevolg=} gevolg
@@ -50,7 +56,7 @@ import { closedByText, sentencesOf } from './impact.js';
  */
 
 /** @type {ReadonlySet<CheckCode>} */
-export const VISIBLE_CHECKS = new Set(['correctie', 'gevolg-dicht', 'gevolg-auto', 'gevolg-periode', 'tekst-dicht', 'tekst-fietspad', 'gevolg-geen', 'gevolg-langzaam']);
+export const VISIBLE_CHECKS = new Set(['correctie', 'gevolg-dicht', 'gevolg-auto', 'gevolg-periode', 'tekst-dicht', 'tekst-beide', 'paar-beide', 'tekst-fietspad', 'gevolg-geen', 'gevolg-langzaam']);
 
 /** Melvin's six "gevolg voor het verkeer" labels, heaviest first (title.js demotes the same six). */
 const GEVOLG_LABELS = [
@@ -98,7 +104,7 @@ export function gevolgOf(texts) {
  * @returns {Check[]}
  */
 export function checkItem(input) {
-  const { imp, veh, by, gevolg, hind, spd, overruled, periode } = input;
+  const { imp, veh, by, gevolg, hind, spd, overruled, periode, pair, quote, road } = input;
   const text = input.texts.filter(Boolean).join('\n');
   const closed = CLOSED.has(imp);
   const forCars = !veh || veh.includes('car');
@@ -108,7 +114,13 @@ export function checkItem(input) {
   if (closed && by === 'gevolg' && gevolg && !overruled) out.push({ c: 'gevolg-dicht', q: gevolg.text });
   if (closed && forCars && overruled && gevolg) out.push({ c: 'gevolg-auto', q: gevolg.text, v: overruled });
   if (closed && periode && gevolg) out.push({ c: 'gevolg-periode', q: gevolg.text });
-  if (closed && by === 'tekst') out.push({ c: 'tekst-dicht', q: closedByText(text) });
+  // Closed both ways because a sentence says so: quote that sentence, not the first one about a closure.
+  if (closed && by === 'tekst') {
+    const sentence = (imp === 'dicht' ? bothWaysClosedSentence(text) : undefined) ?? closedByText(text) ?? bothWaysClosedSentence(text) ?? detouredOverAnotherRoad(text, road);
+    out.push({ c: 'tekst-dicht', q: sentence });
+  }
+  if (imp === 'dicht' && by === 'beide') out.push({ c: 'tekst-beide', q: quote ?? bothWaysClosedSentence(text) });
+  if (imp === 'dicht' && pair) out.push({ c: 'paar-beide', q: pair });
   if (closed && forCars && !by && !LABEL_CLOSED.has(gevolg?.key ?? '') && !ROAD_CLOSED_RE.test(text)) {
     const sentence = pathSentence(text);
     if (sentence) out.push({ c: 'tekst-fietspad', q: sentence });
@@ -140,7 +152,7 @@ export function annotateConsistency(items) {
   /** @type {Partial<Record<CheckCode, string[]>>} */
   const ids = {};
   for (const item of items) {
-    const qa = /** @type {{ texts: (string|undefined)[], gevolg?: Gevolg, by?: 'gevolg'|'tekst', imp?: string, overruled?: string[], periode?: boolean } | undefined} */ (item.qa);
+    const qa = /** @type {{ texts: (string|undefined)[], gevolg?: Gevolg, by?: 'gevolg'|'tekst'|'beide', imp?: string, overruled?: string[], periode?: boolean, pair?: string, quote?: string } | undefined} */ (item.qa);
     if (!qa) continue;
     const p = item.props;
     const checks = item.correction ? [{ c: /** @type {CheckCode} */ ('correctie'), q: item.correction }] : [];
@@ -155,6 +167,9 @@ export function annotateConsistency(items) {
       texts: qa.texts,
       overruled: qa.overruled,
       periode: qa.periode,
+      pair: qa.pair,
+      quote: qa.quote,
+      road: /** @type {string | undefined} */ (p.road),
     }));
     for (const { c } of checks) {
       counts[c] = (counts[c] ?? 0) + 1;

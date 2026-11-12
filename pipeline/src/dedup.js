@@ -42,6 +42,8 @@
  * that failed one condition, so the thresholds can be judged from a real run.
  */
 
+import { labelVerdict } from './impact.js';
+
 /** Maximum distance between the two midpoints, in metres (unproven pairs). */
 export const DEDUP_MAX_M = 250;
 
@@ -266,7 +268,7 @@ function provenTwin(actual, byBase, byId, consumed) {
 // Filling it from the planning twin narrowed a live closure to "alleen fietsers" — the same false
 // "Geldt niet voor auto's" the vehicle fallback in impact.js was removed for.
 const ABSORB_PROPS = Object.freeze(['hind', 'prob', 'gemeente', 'woonplaats', 'prov', 'spd', 'lc']);
-const ABSORB_DETAIL = Object.freeze(['desc', 'gevolg', 'detour', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'detourGeom']);
+const ABSORB_DETAIL = Object.freeze(['desc', 'gevolg', 'detour', 'lanes', 'speed', 'delay', 'delaySec', 'from', 'to', 'dir', 'status', 'url', 'vehicles', 'works', 'ms', 'detourGeom']);
 /**
  * When a measure applies (contract v4), together with `props.per`. Never taken over from the
  * planning twin: the survivor is the actual measure from the live feed, which is in force now.
@@ -283,6 +285,7 @@ const TIME_GROUP = Object.freeze(['periods', 'tl', 'tlTo']);
  */
 export function absorb(survivor, dropped) {
   let filled = false;
+  const hadLabel = survivor.detail.gevolg !== undefined;
   // `imp` is always set; only an actual measure that says nothing ("onbekend")
   // takes the verdict of the planning object it replaces.
   if (survivor.props.imp === 'onbekend' && dropped.props.imp !== undefined && dropped.props.imp !== 'onbekend') {
@@ -300,6 +303,16 @@ export function absorb(survivor, dropped) {
       survivor.detail[key] = dropped.detail[key];
       filled = true;
     }
+  }
+  // Melvin's label lives on the planning twin; the live measure only has its carriageway record.
+  // Measured 2026-11-12: 17 live N-road closures read "one direction" under the label "Weg dicht in
+  // beide richtingen" they had just taken over. The label only ever makes the verdict heavier, and
+  // only for a closure that is for all traffic (impact.js applies the same rule within a situation).
+  if (!hadLabel && survivor.props.imp === 'rijbaan' && survivor.props.veh === undefined && labelVerdict(/** @type {string | undefined} */ (survivor.detail.gevolg)) === 'dicht') {
+    survivor.props.imp = 'dicht';
+    // The site explains it like a sentence that says both directions ("tekst-beide"), quoting the label.
+    if (survivor.qa) Object.assign(survivor.qa, { by: 'beide', imp: 'dicht', quote: survivor.detail.gevolg });
+    filled = true;
   }
   // Only a planning survivor could take the time group over; in practice every survivor is live.
   if (survivor.role !== 'live') {

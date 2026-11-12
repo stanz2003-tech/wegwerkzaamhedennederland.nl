@@ -211,3 +211,25 @@ test('bare numbered labels ("Omleiding 1", "Beperking 2") are not a description'
   assert.equal(m.comment, 'Langdurige afsluiting fietspad Merwedebrug westzijde.');
   assert.equal(m.desc, 'Omleiding Schelluinen');
 });
+
+test('measures: a closure record remembers when all its locations lie on a ramp, connector or parallel carriageway', () => {
+  const rec = (lane, carriageways, type = 'RoadOrCarriagewayOrLaneManagement') => ({
+    id: `r-${lane}-${carriageways.join('-')}`,
+    type,
+    lane,
+    locs: carriageways.map((carriageway) => ({ kind: 'point', point: [5, 52], ...(carriageway ? { carriageway } : {}) })),
+  });
+  const side = (r) => mergeSituation({ id: 'S', recs: [r] }).measures[0].side;
+  assert.deepEqual(side(rec('carriagewayClosures', ['entrySlipRoad', 'entrySlipRoad'])), ['oprit']);
+  assert.deepEqual(side(rec('carriagewayClosures', ['exitSlipRoad', 'entrySlipRoad'])), ['oprit', 'afrit']);
+  assert.deepEqual(side(rec('carriagewayClosures', ['slipRoads'])), ['oprit', 'afrit']);
+  assert.deepEqual(side(rec('roadClosed', ['connectingCarriageway'])), ['verbinding']);
+  assert.deepEqual(side(rec('carriagewayClosures', ['parallelCarriageway', 'rightHandParallelCarriageway'])), ['parallel']);
+  assert.equal(side(rec('carriagewayClosures', ['parallelCarriageway', undefined])), undefined, 'a location that does not say where it lies may be the road itself');
+  // The main carriageway among the locations, an unknown value, or no value at all: the road itself.
+  assert.equal(side(rec('carriagewayClosures', ['exitSlipRoad', 'mainCarriageway'])), undefined);
+  assert.equal(side(rec('carriagewayClosures', ['serviceRoad'])), undefined);
+  assert.equal(side(rec('carriagewayClosures', [undefined])), undefined);
+  // Only closures: a lane closure on a ramp is a lane closure.
+  assert.equal(side(rec('laneClosures', ['entrySlipRoad'])), undefined);
+});

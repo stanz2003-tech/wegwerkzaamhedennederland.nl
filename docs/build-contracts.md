@@ -67,6 +67,21 @@ de-duplication. See pipeline/README.md "Consistency check".
 | `ItemDetail.chk` | `{ c, q?, v? }[]`: `correctie` (Wegwerk corrected the publisher's data by hand, `pipeline/static/correcties.json`, `q` = why), `gevolg-dicht` / `tekst-dicht` (verdict read from the label / a sentence "… is afgesloten" plus a detour, `q` = those words), `gevolg-periode` (2026-10-16: one working period plus an umbrella over the rest of the melding, and the label "weg dicht": the umbrella after that period reads as the closure instead of `onbekend`, pipeline/src/timeline.js `fillUmbrella`), `gevolg-auto` (2026-10-16: the label "weg dicht" made a closure count for cars that its own vehicle list `v` left out — the list bans heavy traffic and bicycles/mopeds, or a detour sends all traffic round), `tekst-fietspad` (closed for cars while the text only names a cycle/foot path), `gevolg-geen`, `gevolg-langzaam` (closed while the label says otherwise). The web explains each one (`web/src/ui/check-notes.ts`); unknown codes are ignored. |
 | `Meta.qa` | Count per check code, including checks the site does not show (`gevolg-fiets`, `hinderklasse`, `snelheid`). |
 
+### What exactly is closed (2026-11-12, no version bump — additive, and existing fields get new values)
+
+"Rijbaan dicht" covered three different things: one direction closed, only a ramp closed, and a
+road closed in both directions that the road authority filed per direction. Measured on the feeds of
+2026-11-12: of Rijkswaterstaat's `carriagewayClosures` records 863 lay on an entry slip road, 602 on
+an exit slip road, 140 on a connecting carriageway and 255 on the main carriageway.
+
+| Field | Meaning |
+|---|---|
+| `sub` | New values `entrySlipRoadClosed`, `exitSlipRoadClosed`, `slipRoadsClosed`, `connectingCarriagewayClosed`, `parallelCarriagewayClosed`, `sideCarriagewayClosed` (a mix): every location of the item's closure records lies on that part (DATEX `carriageway`), not on the main carriageway. Such an item has `imp: 'hinder'` unless a label makes it heavier, `closed` is absent, and the site labels it "Oprit dicht" etc. (`SIDE_CLOSURE_SUBS` in types.ts). A reader that does not know the values shows "Doorrijden mogelijk". |
+| `imp` | `dicht` now also when (a) two `rijbaan` items on the same road, in opposite directions, with identical start, end, periods and timeline lie at the same place (`pipeline/src/both-ways.js`), (b) the text says the road is shut "in beide richtingen" or "volledig", (c) a live measure takes the label "Weg dicht in beide richtingen" from its planning twin. `rijbaan` or `dicht` also from "… is volledig afgesloten", "<…>tunnel afgesloten", "vierkantafsluiting" next to a detour record. |
+| `ItemDetail.chk` | New codes `tekst-beide` (one direction in the records, both in the text, `q` = the sentence) and `paar-beide` (`q` = id of the melding for the other direction). |
+| `ItemDetail.ms` | `{ t, cw?, veh?, n?, spd? }[]`, at most 8: the measures as the road authority filled them in — DATEX type, carriageway(s), vehicle types, lanes closed, speed limit. The detail view lists them under "Zo meldt de wegbeheerder het". |
+| `roads/<slug>.json`, `gemeenten/<slug>.json` | Written for every entry of the registries; an entity without items gets `items: []` with `generated: "1970-01-01T00:00Z"`. Before, such a file was absent, and the last file the data host held stayed online (the uploader never deletes). |
+
 The web build knows which `Meta.version` it was written for (`web/src/data/version.ts`); a tab
 that loads newer data reloads once to fetch the current code.
 

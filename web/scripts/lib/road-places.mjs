@@ -182,6 +182,7 @@ export function roadsThroughPlace(model, page) {
     }
   }
   return [...roads]
+    .filter((r) => linkable(model, `/weg/${r.slug}/`))
     .sort((a, b) => (ROAD_TYPE_ORDER[a.type] ?? 9) - (ROAD_TYPE_ORDER[b.type] ?? 9) || roadNumber(a.road) - roadNumber(b.road))
     .slice(0, MAX_PLACE_ROADS)
     .map((r) => ({ road: r.road, href: `/weg/${r.slug}/`, badgeClass: roadKind(r.type).badge }));

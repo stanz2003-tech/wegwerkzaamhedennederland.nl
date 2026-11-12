@@ -22,7 +22,7 @@ describe('entitySnapshot', () => {
   it('a road: the answer card for nu, the stamp with the count and the roadworks as text', () => {
     const snap = snapshotOf({ items: road('a2'), subject: { kind: 'road', name: 'A2' }, roadType: 'A', now: NOW, asOf: 'wo 9 sep 14:00', mapHref: '/?b=1' });
     assert.equal(snap.count, 2);
-    assert.match(snap.headline, /^Rijbaan dicht/);
+    assert.match(snap.headline, /^Dicht in één richting/);
     assert.match(text(snap.answerHtml), /Kan ik nu over de A2\?/);
     assert.match(text(snap.answerHtml), /gegevens van wo 9 sep 14:00/);
     const list = text(snap.listHtml);
@@ -63,10 +63,10 @@ describe('roadQuestions', () => {
     const qs = questionsOf(road('a2'), 'A2', NOW);
     assert.deepEqual(qs.map((q) => q.q), ['Is de A2 vandaag dicht?', 'Is de A2 vannacht dicht?', 'Is de A2 dit weekend dicht?', 'Hoe lang is de A2 nog dicht?']);
     const by = Object.fromEntries(qs.map((q) => [q.id, q.a]));
-    assert.match(by.vandaag, /^Ja\. Rijbaan dicht /);
-    assert.match(by.vannacht, /^Ja\. Rijbaan dicht /, 'closed until 04:00, so tonight too');
+    assert.match(by.vandaag, /^Ja\. Dicht in één richting /);
+    assert.match(by.vannacht, /^Ja\. Dicht in één richting /, 'closed until 04:00, so tonight too');
     assert.equal(by.weekend, 'Nee, voor dit weekend is op de A2 geen afsluiting gemeld.');
-    assert.match(by.hoelang, /^Rijbaan dicht .*: tot /);
+    assert.match(by.hoelang, /^Dicht in één richting .*: tot /);
   });
 
   it('a road without anything says no, and how long names the next closure or none', () => {
@@ -94,11 +94,11 @@ describe('roadQuestions', () => {
       'Wanneer is de eerstvolgende afsluiting in Vinkeveen?',
     ]);
     const by = Object.fromEntries(qs.map((q) => [q.id, q.a]));
-    // A place page names the road of a closure: "A2 rijbaan dicht tussen Hintham en Vught".
-    assert.match(by.vandaag, /^Ja\. A2 rijbaan dicht /);
-    assert.match(by.morgen, /^Ja\. A2 rijbaan dicht /, 'closed until 04:00 tomorrow');
+    // A place page names the road of a closure: "A2 dicht in één richting tussen Hintham en Vught".
+    assert.match(by.vandaag, /^Ja\. A2 dicht in één richting /);
+    assert.match(by.morgen, /^Ja\. A2 dicht in één richting /, 'closed until 04:00 tomorrow');
     assert.equal(by.weekend, 'Nee, voor dit weekend is in Vinkeveen geen afsluiting gemeld.');
-    assert.match(by.volgende, /^Er is nu al een afsluiting: A2 rijbaan dicht .*\(/);
+    assert.match(by.volgende, /^Er is nu al een afsluiting: A2 dicht in één richting .*\(/);
   });
 
   it('a gemeente says "in de gemeente"; nothing reported is a no for every question', () => {

@@ -74,9 +74,13 @@ export type Hindrance = 'A' | 'B' | 'C' | 'D' | 'E';
  *   dicht    – the road is closed: `roadClosed`, or `carriagewayClosures` on a local street /
  *              stadsroute (single carriageway), or a bridge opening.
  *   rijbaan  – one carriageway/direction is closed on an A- or N-road; the other direction may
- *              be open (`carriagewayClosures` with roadType A or N).
+ *              be open (`carriagewayClosures` with roadType A or N). Two such closures that the
+ *              road authority filed per direction for the same place and times are `dicht`.
  *   hinder   – passable with hindrance: lane(s) closed, narrowed or deviated, a temporary speed
- *              limit, a queue/incident, or an expected delay of ten minutes or more.
+ *              limit, a queue/incident, or an expected delay of ten minutes or more. Since
+ *              2026-11-12 also a closure of only an on-ramp, off-ramp, connecting carriageway or
+ *              parallel carriageway: through traffic drives on. `sub` then says which part
+ *              (`SIDE_CLOSURE_SUBS`).
  *   geen     – no or negligible effect on traffic (events without measures, `negligible` delay).
  *   onbekend – not enough information in the records.
  *
@@ -84,6 +88,34 @@ export type Hindrance = 'A' | 'B' | 'C' | 'D' | 'E';
  * (a `dicht` with `veh: ['bicycle','moped']` is a closed cycle path, not a closed road).
  */
 export type Impact = 'dicht' | 'rijbaan' | 'hinder' | 'geen' | 'onbekend';
+
+/**
+ * `sub` of an item whose closure only closes a part of the road that is not the main carriageway
+ * (pipeline/src/impact.js `sideSubOf`). Its verdict is `hinder` unless something heavier applies.
+ */
+export const SIDE_CLOSURE_SUBS = {
+  entrySlipRoadClosed: 'Oprit dicht',
+  exitSlipRoadClosed: 'Afrit dicht',
+  slipRoadsClosed: 'Op- en afrit dicht',
+  connectingCarriagewayClosed: 'Verbindingsweg dicht',
+  parallelCarriagewayClosed: 'Parallelbaan dicht',
+  sideCarriagewayClosed: 'Op- of afrit dicht',
+} as const;
+export type SideClosureSub = keyof typeof SIDE_CLOSURE_SUBS;
+
+/** One measure as the road authority filled it in, see `ItemDetail.ms`. */
+export interface ReportedMeasure {
+  /** DATEX type: roadClosed, carriagewayClosures, laneClosures, speedRestrictionInOperation, followDiversionSigns … */
+  t: string;
+  /** DATEX carriageway(s) the measure lies on: mainCarriageway, entrySlipRoad, exitSlipRoad, connectingCarriageway … */
+  cw?: string[];
+  /** DATEX vehicle types the measure is for; absent = all traffic. */
+  veh?: string[];
+  /** Number of lanes closed. */
+  n?: number;
+  /** Temporary speed limit in km/h. */
+  spd?: number;
+}
 
 /** Vehicle groups a measure applies to (DATEX `forVehiclesWithCharacteristicsOf`). Absent = everyone. */
 export type Vehicle = 'car' | 'lorry' | 'bicycle' | 'moped' | 'bus' | 'agricultural' | 'other';
@@ -102,7 +134,8 @@ export interface ItemProperties {
   id: string;
   cat: Category;
   /** DATEX II sub type: laneClosures, roadClosed, carriagewayClosures, speedRestrictionInOperation,
-   *  slowTraffic, stationaryTraffic, accident, brokenDownVehicle, bridgeSwingInOperation, festival … */
+   *  slowTraffic, stationaryTraffic, accident, brokenDownVehicle, bridgeSwingInOperation, festival …
+   *  Or one of the pipeline's own `SideClosureSub` values: the closure only closes that part. */
   sub?: string;
   sev: Severity;
   /** Display title, e.g. "A7 · Afsluitdijk" or "Asterdkraag, Breda". Max 120 chars. */
@@ -218,6 +251,12 @@ export interface ItemDetail {
   /** Type of works / cause label, e.g. "resurfacingWork", "bridge". */
   works?: string;
   /**
+   * The measures exactly as the road authority filled them in, at most 8, duplicates removed. The
+   * detail view lists them under the site's own verdict ("Zo meldt de wegbeheerder het"), so a
+   * reader can see what "Afrit dicht" or "Weg dicht" was read from. Absent in older files.
+   */
+  ms?: ReportedMeasure[];
+  /**
    * Ids of the situations the pipeline folded into this one. Rijkswaterstaat publishes a running
    * roadwork twice: the planning object in the Melvin planning feed (`RWS01_SM1013188_D2`) and
    * the actual measure in actueel_beeld (`RWS01_SM1013188_D2_WWA`). The actual measure survives,
@@ -245,7 +284,22 @@ export interface ItemDetail {
  * gevolgen voor verkeer" / "Beperking voor langzaam verkeer". `correctie`: Wegwerk corrected the
  * publisher's data by hand (pipeline/static/correcties.json), `q` = why.
  */
-export type ConsistencyCode = 'correctie' | 'gevolg-dicht' | 'gevolg-auto' | 'gevolg-periode' | 'tekst-dicht' | 'tekst-fietspad' | 'gevolg-geen' | 'gevolg-langzaam';
+/**
+ * `tekst-beide`: one direction is closed in the records while the text (`q`) says the road is shut
+ * in both. `paar-beide`: the road authority filed each direction as its own melding for the same
+ * place and times; `q` = the id of the other one.
+ */
+export type ConsistencyCode =
+  | 'correctie'
+  | 'gevolg-dicht'
+  | 'gevolg-auto'
+  | 'gevolg-periode'
+  | 'tekst-dicht'
+  | 'tekst-beide'
+  | 'paar-beide'
+  | 'tekst-fietspad'
+  | 'gevolg-geen'
+  | 'gevolg-langzaam';
 export interface ConsistencyCheck {
   c: ConsistencyCode;
   /** The publisher's words the check is about, verbatim. */
@@ -336,7 +390,9 @@ export interface EntityItem {
  * without loading the national collections or 32 detail shards.
  * `roads/<slug>.json` for every road in pipeline/static/wegen.json that has items;
  * `gemeenten/<slug>.json` for every gemeente in pipeline/static/plaatsen.json that has items.
- * Items are sorted: active first, then by start. Absent file = no items for that entity.
+ * Items are sorted: active first, then by start. Since 2026-11-12 an entity without items has a
+ * file with `items: []` (it overwrites the last file the data host still held); an absent file
+ * still means no items.
  */
 export interface EntityFile {
   generated: string;

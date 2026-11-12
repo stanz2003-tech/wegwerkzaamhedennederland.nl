@@ -331,3 +331,41 @@ describe('a picked date on the map: list pills are judged like the answer card (
     });
   }
 });
+
+describe('2026-11-12: closed both ways, as the detail says it', () => {
+  const { closedBothWays, itemVerdict } = forecast;
+
+  it('reads the label, the text check and the twin check', () => {
+    assert.equal(closedBothWays({ id: 'x', src: 's', upd: 'u', gevolg: 'Weg dicht in beide richtingen' }), true);
+    assert.equal(closedBothWays({ id: 'x', src: 's', upd: 'u', chk: [{ c: 'paar-beide', q: 'y' }] }), true);
+    assert.equal(closedBothWays({ id: 'x', src: 's', upd: 'u', chk: [{ c: 'tekst-beide', q: 'q' }] }), true);
+    assert.equal(closedBothWays({ id: 'x', src: 's', upd: 'u', gevolg: 'Weg dicht in een richting', chk: [{ c: 'gevolg-dicht' }] }), false);
+    assert.equal(closedBothWays(null), false);
+  });
+
+  it('a closed road with a twin says "beide richtingen", not the direction of one of the two', () => {
+    const d = { id: 'a', src: 's', upd: 'u', to: 'Renesse', chk: [{ c: 'paar-beide', q: 'b' }] };
+    const v = itemVerdict(item('a', { cat: 'afsluiting', imp: 'dicht' }, d), 'auto', NOW);
+    assert.equal(v.label, 'Weg dicht');
+    assert.equal(v.detail, 'beide richtingen');
+  });
+});
+
+describe('2026-11-12: closed both ways, read from the quoted sentence', () => {
+  const { closedBothWays } = forecast;
+  const withQuote = (q) => ({ id: 'x', src: 's', upd: 'u', chk: [{ c: 'tekst-dicht', q }] });
+
+  it('a quote that names both directions or says "volledig afgesloten" counts', () => {
+    assert.equal(closedBothWays(withQuote('N57 in beide richtingen afgesloten')), true);
+    assert.equal(closedBothWays(withQuote('De N33 is volledig afgesloten')), true);
+  });
+
+  it('"beide richtingen" about something else than the closure does not', () => {
+    assert.equal(closedBothWays(withQuote('De weg is dicht, verkeer in beide richtingen wordt omgeleid')), false);
+  });
+
+  it('a quote about one direction does not', () => {
+    assert.equal(closedBothWays(withQuote('De A15 is afgesloten tussen Gorinchem en Deil')), false);
+    assert.equal(closedBothWays(withQuote('De A4 is volledig afgesloten richting Den Haag')), false);
+  });
+});

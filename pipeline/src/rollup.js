@@ -24,6 +24,8 @@
  * already holds the strongest verdict of the family, so the snapshot rule leaves it untouched.
  */
 
+import { SIDE_SUBS } from './impact.js';
+
 /** Precedence, strongest first — the same order `impactOf()` documents. */
 const IMPACT_ORDER = ['dicht', 'rijbaan', 'hinder', 'geen', 'onbekend'];
 
@@ -37,7 +39,7 @@ function rank(imp) {
  * @typedef {object} RollupItem
  * @property {string} id
  * @property {string[]=} rel
- * @property {{ imp?: string, veh?: string[] }} props
+ * @property {{ imp?: string, veh?: string[], sub?: string }} props
  * @property {{ tl?: [string, string, string, string[]?][] }=} detail
  */
 
@@ -60,6 +62,10 @@ export function rollUpRelatedImpact(items) {
   for (const item of items) {
     const rel = item.rel;
     if (!rel || rel.length === 0) continue;
+    // An item whose own records close a ramp or a connector says exactly what is closed. Taking the
+    // family's "weg dicht" painted the A58 shut at Arnemuiden, where only the ramp to the closed
+    // N57 was (2026-11-12). The closure of the road itself has its own item.
+    if (SIDE_SUBS.has(/** @type {string} */ (item.props.sub))) continue;
 
     let best = before.get(item.id) ?? { imp: item.props.imp, veh: item.props.veh };
     let changed = false;

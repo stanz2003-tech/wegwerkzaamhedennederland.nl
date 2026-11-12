@@ -212,7 +212,7 @@ function activitySummary(model, activity) {
   const of = (pred) => thin.filter(pred).length;
   return (
     `[gen-pages] live data ${activity.generated ?? '?'} (${activity.rows} meldingen): ${thin.length} pagina's al lang zonder meldingen krijgen noindex ` +
-    `(plaatsen ${of((p) => p.kind === 'woonplaats')}, gemeenten ${of((p) => p.kind === 'gemeente')}, bruggen ${of((p) => p.type === 'bridge')})`
+    `(wegen ${of((p) => p.type === 'road')}, plaatsen ${of((p) => p.kind === 'woonplaats')}, gemeenten ${of((p) => p.kind === 'gemeente')}, bruggen ${of((p) => p.type === 'bridge')})`
   );
 }
 

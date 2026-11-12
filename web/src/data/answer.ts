@@ -10,10 +10,10 @@
  * Pure; unit-tested in web/test/answer.test.mjs with the fixture roads.
  */
 import { compareByImpact } from './filter';
-import { selectWhen, type AnsweredItem, type ForecastItem, type When } from './forecast';
+import { closedBothWays, selectWhen, type AnsweredItem, type ForecastItem, type When } from './forecast';
 import { toMs } from './time';
 import { phraseAt, phraseIn } from './time-phrase';
-import { VERDICT_META, VERDICT_SEVERITY, countLevels, modeNoun, type VehicleMode, type VerdictLevel } from './verdict';
+import { VERDICT_META, VERDICT_SEVERITY, countLevels, modeNoun, sideClosureLabel, type VehicleMode, type VerdictLevel } from './verdict';
 
 export interface AnswerSubject {
   kind: 'road' | 'gemeente' | 'woonplaats' | 'gebied';
@@ -168,6 +168,9 @@ export function wherePhrase(x: AnsweredItem, subject: AnswerSubject): string {
 export function placeLabel(x: AnsweredItem, subject: AnswerSubject): string {
   const d = x.item.d ?? null;
   const p = x.item.f.properties;
+  // Closed both ways: the two meldingen of the pair name the stretch in opposite order. Sorted,
+  // they produce one line instead of two that look like two closures.
+  if (d?.from && d?.to && x.verdict.level === 'dicht' && closedBothWays(d)) return [d.from, d.to].sort((a, b) => a.localeCompare(b, 'nl')).join('–');
   if (d?.from && d?.to) return `${d.from}–${d.to}`;
   if (subject.kind === 'road') {
     // "Rijnsweerd → Eemnes" says where AND which way; "Bij Utrecht" says neither.
@@ -188,7 +191,14 @@ export function placeLabel(x: AnsweredItem, subject: AnswerSubject): string {
  */
 export function specificLine(x: AnsweredItem, subject: AnswerSubject, timePhrase = ''): string {
   const place = placeLabel(x, subject);
-  const what = isClosed(x) ? [x.verdict.label.toLowerCase(), x.verdict.detail, timePhrase] : [x.verdict.detail ?? x.verdict.label.toLowerCase()];
+  // "Afrit dicht" is the news of the line; every other label only fills in for a missing detail
+  // ("Werktijden nog niet bekend" next to its own detail said the same thing twice).
+  const ownLabel = x.verdict.level === 'hinder' && sideClosureLabel(x.item.f.properties.sub) === x.verdict.label;
+  const what = isClosed(x)
+    ? [x.verdict.label.toLowerCase(), x.verdict.detail, timePhrase]
+    : ownLabel
+      ? [x.verdict.label.toLowerCase(), x.verdict.detail]
+      : [x.verdict.detail ?? x.verdict.label.toLowerCase()];
   const text = what.filter((s): s is string => typeof s === 'string' && s !== '').join(' · ');
   return place ? `${place}: ${text}` : text.charAt(0).toUpperCase() + text.slice(1);
 }
@@ -242,8 +252,10 @@ function headlineFor(sel: AnsweredItem[], worst: VerdictLevel | null, subject: A
   if (worst === 'dicht' || worst === 'rijbaan') {
     const where = wherePhrase(first, subject);
     const to = directionOf(first);
-    const dir = to ? `, richting ${to}` : '';
-    const what = worst === 'rijbaan' ? 'Rijbaan dicht' : 'Dicht';
+    // "Dicht tussen A en B, richting B" for a road that is shut both ways named one direction.
+    const both = worst === 'dicht' && closedBothWays(first.item.d);
+    const dir = both ? ', in beide richtingen' : to ? `, richting ${to}` : '';
+    const what = worst === 'rijbaan' ? VERDICT_META.rijbaan.label : 'Dicht';
     if (severalPlaces(sel, worst)) {
       // Naming one place as if it were the only one hid the other closures on the road.
       const local = subject.kind === 'gemeente' || subject.kind === 'woonplaats';
@@ -259,7 +271,7 @@ function headlineFor(sel: AnsweredItem[], worst: VerdictLevel | null, subject: A
     if (!name) {
       // "Weg dicht in Vleuten" / "Weg dicht in Utrecht": the title itself named no street.
       const inPlace = where || (subject.name ? `in ${subject.name}` : '');
-      return `${worst === 'rijbaan' ? 'Rijbaan dicht' : 'Weg dicht'}${inPlace ? ` ${inPlace}` : ''}${dir}`;
+      return `${worst === 'rijbaan' ? VERDICT_META.rijbaan.label : 'Weg dicht'}${inPlace ? ` ${inPlace}` : ''}${dir}`;
     }
     return `${name} ${what.toLowerCase()}${where ? ` ${where}` : ''}${dir}`;
   }

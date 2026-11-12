@@ -111,7 +111,8 @@ export function mergedWoonplaatsen(gemeenten, woonplaatsenByGemeente) {
 
 /**
  * `activity` (activity.mjs, from the live data) says which place and bridge pages have nothing to
- * show today; with `indexState` (index-state.mjs: last day with activity per path, from the
+ * show today (since 2026-11-12 also N- and S-road pages; A-roads always stay indexed); with
+ * `indexState` (index-state.mjs: last day with activity per path, from the
  * previous deploy) a page only becomes `thin` (noindex, follow, out of the sitemap, no ads) after
  * 60 days without anything. Until then it is `quiet`: still indexed, but without ads, because an
  * ad next to "Niets gemeld" is what an AdSense reviewer calls a page without content.
@@ -190,7 +191,9 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
 
   // Bridges in an A-road and the curated ones carry the road's status: indexable on a quiet day too.
   const bridgesAlways = lists.bridges.filter((b) => alwaysIndexedBridge(b, bridgeExtras)).map((b) => `/brug/${b.slug}/`);
-  const { thin, quiet, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, alsoAlways: bridgesAlways, today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
+  // A motorway page answers "is er iets op de A28?" also when the answer is no: never out of Google.
+  const motorwaysAlways = lists.roads.filter((r) => r.type === 'A').map((r) => `/weg/${r.slug}/`);
+  const { thin, quiet, lastActive } = thinPaths({ routes, activity, indexState, indexStateFailed, site, alsoAlways: [...bridgesAlways, ...motorwaysAlways], today: now.toISOString().slice(0, 10), gemeenteCount: lists.gemeenten.length, warn });
   const pages = routes.map((p) => (thin.has(p.path) ? { ...p, thin: true, sitemap: false } : quiet.has(p.path) ? { ...p, quiet: true } : p));
 
   const counts = {
@@ -239,7 +242,9 @@ function believable(thin, gemeenteCount, warn) {
 function thinPaths({ routes, activity, indexState, indexStateFailed, site, alsoAlways = [], today, gemeenteCount, warn }) {
   const carried = { thin: new Set(), quiet: new Set(), lastActive: indexState ?? new Map() };
   if (!activity) return carried;
-  const candidates = routes.filter((p) => p.type === 'place' || p.type === 'bridge');
+  // Road pages since 2026-11-12 (activity.mjs). A road without a day in the memory counts as long
+  // quiet, like a place on the first run: the memory only started recording roads that day.
+  const candidates = routes.filter((p) => p.type === 'place' || p.type === 'bridge' || p.type === 'road');
   const emptyGemeenten = candidates.filter((p) => p.kind === 'gemeente' && isThinPage(p, activity)).length;
   if (!believable(emptyGemeenten, gemeenteCount, warn)) return carried;
   const alwaysIndex = new Set([...(Array.isArray(site.seo?.alwaysIndex) ? site.seo.alwaysIndex : []), ...alsoAlways]);
@@ -374,6 +379,8 @@ function snapshotVars(model, page, mapHrefValue) {
     hasSnapshot: Boolean(snap),
     /** Meldingen now and in the next 30 days; null without data (then nothing is decided from it). */
     snapshotCount: snap && Number.isFinite(snap.count) ? snap.count : null,
+    /** Works, closures and events among them: what lasts longer than a queue or a breakdown. */
+    snapshotLasting: snap && Number.isFinite(snap.lasting) ? snap.lasting : null,
     snapshotAnswer: snap?.answerHtml ?? '',
     snapshotList: snap?.listHtml ?? '',
     hasQuestions: Boolean(snap?.questionsHtml),
@@ -395,7 +402,10 @@ function emptyHtml(strong, text, mapHrefValue, tail = '') {
 function roadContext(model, page) {
   const r = page.entity;
   const kind = roadKind(r.type);
-  const related = nearestRoads(r, model.lists.roads, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
+  // Only roads whose page is in Google: a quiet N-road page is noindex since 2026-11-12, and a row
+  // of links to pages that say 'niets gemeld' helps nobody. The overview /wegen/ still lists them all.
+  const inGoogle = model.lists.roads.filter((o) => model.byPath.get(`/weg/${o.slug}/`)?.thin !== true);
+  const related = nearestRoads(r, inGoogle, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
   const { alongGemeenten, alongPlaces } = placesAlongRoad(model, r);
   const roadBridges = bridgesOnRoad(model, r);
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
@@ -413,9 +423,11 @@ function roadContext(model, page) {
       current: `Wegwerkzaamheden ${r.road}`,
       ogType: 'article',
     }),
-    // Nothing reported on the road now or in the next 30 days: no ads next to "Geen meldingen", as on a
-    // quiet place page (AdSense: no ads on screens without publisher content). Indexed all the same.
-    adsOff: snapVars.snapshotCount === 0,
+    // No works or closures on the road now or in the next 30 days: no ads, as on a quiet place page
+    // (AdSense: no ads on screens without publisher content). A queue or a broken-down vehicle alone
+    // does not count: it is gone within the hour, and on 2026-11-12 one stale incident switched ads
+    // on for three N-road pages that had nothing else. Without a snapshot the index decides (quiet).
+    adsOff: snapVars.snapshotLasting === null ? page.quiet === true : snapVars.snapshotLasting === 0,
     road: r.road,
     slug: r.slug,
     roadType: r.type,
@@ -565,6 +577,10 @@ function bridgeContext(model, page) {
         current: vars.heading,
         ogType: 'article',
       }),
+      // A bridge in a road shows the meldingen on and around it, like a road page: ads follow those,
+      // not the openings. On 2026-11-12 the Merwedebrug page (29 meldingen, no openings) had ads off
+      // while a page with one opening and nothing else had them on.
+      adsOff: snap && Number.isFinite(snap.lasting) ? snap.lasting === 0 : page.quiet === true,
       kicker: [`Brug in de ${b.road}`, b.water ? `over ${b.water}` : '', variant ? variant.charAt(0).toUpperCase() + variant.slice(1) : '', b.prov ?? ''].filter(Boolean).join(' · '),
       faq: roadBridgeFaq(b, { radiusKm: vars.radiusKm, roadHref: common.roadHref, openingsFaq: faq }),
     };

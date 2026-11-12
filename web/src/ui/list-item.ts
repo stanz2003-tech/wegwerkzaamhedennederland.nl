@@ -110,6 +110,8 @@ export interface ListItemOptions {
   periods?: readonly (readonly [string, string])[] | null;
   /** Direction / section from the detail, when known. */
   to?: string;
+  /** The detail says the closure holds for both directions (data/forecast.ts `closedBothWays`). */
+  both?: boolean;
   from?: string;
   /** The moment the verdict is asked for (period check); defaults to `now`. */
   at?: number;
@@ -156,6 +158,7 @@ export function listItemVerdict(m: ListItemModel, now: number, opts: ListItemOpt
     ...(opts.tlTo ? { tlTo: opts.tlTo } : {}),
     ...(opts.window ? { window: opts.window } : { now: opts.at ?? now }),
     ...(opts.to ? { to: opts.to } : {}),
+    ...(opts.both ? { both: true } : {}),
   });
 }
 

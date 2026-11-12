@@ -67,6 +67,19 @@ function noteOf(check: ConsistencyCheck, veh: readonly Vehicle[] | null | undefi
         title: 'Waarom dicht?',
         text: `De wegbeheerder schrijft ${quote(check.q)}, maar zet geen afsluiting in de gegevens. We gaan uit van die tekst.`,
       };
+    case 'tekst-beide':
+      return {
+        kind: 'reason',
+        title: 'Waarom weg dicht?',
+        text: `De wegbeheerder zet in de gegevens één rijrichting dicht, maar schrijft ${quote(check.q)}. We gaan uit van die tekst: de afsluiting geldt in beide richtingen.`,
+      };
+    case 'paar-beide':
+      return {
+        kind: 'reason',
+        title: 'Waarom weg dicht?',
+        // The id of the other melding (`check.q`) is for the run report, not for a reader.
+        text: 'De wegbeheerder meldt elke rijrichting apart als afgesloten, op dezelfde plek en voor dezelfde tijden. Samen is de weg dus in beide richtingen dicht.',
+      };
     case 'tekst-fietspad':
       return {
         kind: 'conflict',

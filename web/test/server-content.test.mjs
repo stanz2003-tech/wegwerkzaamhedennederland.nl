@@ -29,10 +29,10 @@ const visibleText = (html) =>
     .replace(/\s+/g, ' ');
 
 const fakeSnapshot = (page) => ({
-  answerHtml: '<section class="answer"><h2 class="answer__headline">Rijbaan dicht bij Teststraat</h2></section>',
+  answerHtml: '<section class="answer"><h2 class="answer__headline">Dicht in één richting bij Teststraat</h2></section>',
   listHtml: `<p class="entity-snapshot__stamp">Stand van di 20 okt 06:41: 3 meldingen.</p><a class="item">Teststraat · ${page.entity.naam ?? page.entity.road}</a>`,
   count: 3,
-  headline: 'Rijbaan dicht bij Teststraat',
+  headline: 'Dicht in één richting bij Teststraat',
   questionsHtml:
     page.type === 'road'
       ? '<dl class="road-questions__list"><div><dt>Is de A2 vandaag dicht?</dt><dd>Ja.</dd></div></dl>'
@@ -46,7 +46,7 @@ describe('the snapshot in the HTML', () => {
 
   it('a gemeente page carries the answer, the stamp and the streets as text', () => {
     const text = visibleText(html('/gemeente/eindhoven/'));
-    assert.match(text, /Rijbaan dicht bij Teststraat/);
+    assert.match(text, /Dicht in één richting bij Teststraat/);
     assert.match(text, /Stand van di 20 okt 06:41: 3 meldingen\./);
     assert.match(text, /Teststraat · Eindhoven/);
     assert.match(html('/gemeente/eindhoven/'), /<div id="entity-list" class="entity-list" data-snapshot>/);

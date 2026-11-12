@@ -9,7 +9,7 @@
 import type { Period } from './periods';
 import { parsePeriods, summarizePeriods } from './periods';
 import { heavier, parseTimeline, periodsFromTimeline, segmentAt, segmentsIn, type TimeSegment } from './timeline';
-import type { Category, DelayBand, Impact, Vehicle } from './types';
+import { SIDE_CLOSURE_SUBS, type Category, type DelayBand, type Impact, type Vehicle } from './types';
 
 /** Who is asking. Stored in the URL as `?v=` and in localStorage. */
 export type VehicleMode = 'auto' | 'vracht' | 'fiets';
@@ -51,8 +51,10 @@ export interface VerdictMeta {
 
 export const VERDICT_META: Record<VerdictLevel, VerdictMeta> = {
   dicht: { label: 'Weg dicht', meaning: 'Je kunt er niet langs; volg de omleiding.', color: '--v-dicht' },
-  rijbaan: { label: 'Rijbaan dicht', meaning: 'Een deel van de weg is dicht, meestal één richting. Rijd je die kant op, houd dan rekening met een omleiding.', color: '--v-rijbaan' },
-  hinder: { label: 'Doorrijden mogelijk', meaning: 'Je kunt er langs, met minder rijstroken, een lagere snelheid of vertraging.', color: '--v-hinder' },
+  // "Rijbaan dicht" until 2026-11-12. Readers took "rijbaan" for a lane, and the label could not
+  // say whether you get through; "één richting" is what the data means.
+  rijbaan: { label: 'Dicht in één richting', meaning: 'Eén rijrichting is dicht; de andere kant op kun je door, tenzij daar een eigen melding voor staat. Rijd je de dichte kant op, volg dan de omleiding.', color: '--v-rijbaan' },
+  hinder: { label: 'Doorrijden mogelijk', meaning: 'Je kunt er langs, met minder rijstroken, een lagere snelheid of vertraging. Staat er “Oprit dicht”, “Afrit dicht” of “Verbindingsweg dicht”, dan is alleen dat deel dicht en rijd je op de weg zelf door.', color: '--v-hinder' },
   geen: { label: 'Geen hinder', meaning: 'De melding heeft geen merkbaar gevolg voor het verkeer.', color: '--v-geen' },
   nvt: { label: 'Geldt niet voor jou', meaning: 'De maatregel geldt alleen voor een ander soort verkeer.', color: '--v-nvt' },
   onbekend: { label: 'Gevolgen onduidelijk', meaning: 'De wegbeheerder meldt niet duidelijk of en wanneer je erdoor kunt. Ga er niet van uit dat het kan.', color: '--v-onbekend' },
@@ -151,6 +153,8 @@ export function othersNoun(veh: readonly Vehicle[] | null | undefined): string {
  */
 export interface VerdictInput {
   cat: Category;
+  /** The item's sub type: names the closed part when only a ramp or connector is closed (`SIDE_CLOSURE_SUBS`). */
+  sub?: string | null;
   imp?: Impact | null;
   veh?: readonly Vehicle[] | null;
   per?: boolean | 0 | 1 | null;
@@ -160,6 +164,8 @@ export interface VerdictInput {
 
 export interface VerdictDetail {
   to?: string;
+  /** The closure holds for both directions of travel (the label, the text or a twin melding says so). */
+  both?: boolean;
   delay?: DelayBand;
   delaySec?: number;
   queueM?: number;
@@ -214,6 +220,35 @@ function hinderDetail(item: VerdictInput, d: VerdictDetail): string | undefined 
     else if (d.delay && DELAY_TEXT[d.delay]) parts.push(DELAY_TEXT[d.delay] ?? '');
   }
   return parts.length ? parts.join(' · ') : undefined;
+}
+
+/** "Afrit dicht" for an item whose closure only closes that part of the road; null otherwise. */
+export function sideClosureLabel(sub: string | null | undefined): string | null {
+  return sub && Object.hasOwn(SIDE_CLOSURE_SUBS, sub) ? SIDE_CLOSURE_SUBS[sub as keyof typeof SIDE_CLOSURE_SUBS] : null;
+}
+
+/**
+ * One sentence under the verdict in the detail view: what it means for someone who wants to drive
+ * there. Only for the closures, where "dicht" alone leaves open what exactly is shut. `road` is
+ * the road number when the item has one ("A27").
+ */
+export function verdictMeaning(v: Verdict, item: VerdictInput, d: Pick<VerdictDetail, 'to' | 'both'> = {}, road?: string | null): string {
+  const theRoad = road ? `de ${road}` : 'de weg';
+  if (v.level === 'dicht') {
+    return d.both ? 'De weg is in beide richtingen dicht. Je kunt er niet langs; volg de omleiding.' : 'Je kunt er niet langs; volg de omleiding.';
+  }
+  if (v.level === 'rijbaan') {
+    const which = d.to ? `${road ? `De ${road}` : 'De weg'} is richting ${d.to} dicht` : 'Eén rijrichting is dicht';
+    return `${which}. De andere kant op kun je door, tenzij daar een eigen melding voor staat.`;
+  }
+  const side = v.level === 'hinder' ? sideClosureLabel(item.sub) : null;
+  if (side) {
+    const part = side.replace(/ dicht$/, '').toLowerCase();
+    // "de op- en afrit" are two things: "zijn dicht".
+    const verb = / en /.test(part) ? 'zijn' : 'is';
+    return `Alleen de ${part} ${verb} dicht. Op ${theRoad} zelf rijd je door, tenzij een andere melding iets anders zegt.`;
+  }
+  return '';
 }
 
 /** "ma–vr 22:00–05:00" when the periods form a regular pattern, else null. */
@@ -278,11 +313,13 @@ function impactVerdict(
   }
   switch (imp) {
     case 'dicht':
-      return { level: 'dicht', label: 'Weg dicht', detail: join(d.to ? `richting ${d.to}` : undefined, per) };
+      // "Weg dicht · richting Utrecht" read as one direction for a road that is shut both ways.
+      return { level: 'dicht', label: 'Weg dicht', detail: join(d.both ? 'beide richtingen' : d.to ? `richting ${d.to}` : undefined, per) };
     case 'rijbaan':
-      return { level: 'rijbaan', label: 'Rijbaan dicht', detail: join(d.to ? `richting ${d.to}` : undefined, per) };
+      return { level: 'rijbaan', label: VERDICT_META.rijbaan.label, detail: join(d.to ? `richting ${d.to}` : undefined, per) };
     case 'hinder':
-      return { level: 'hinder', label: 'Doorrijden mogelijk', detail: join(hinderDetail(item, d), per) };
+      // Only a ramp, a connector or a parallel carriageway is closed: say which, in the pill.
+      return { level: 'hinder', label: sideClosureLabel(item.sub) ?? 'Doorrijden mogelijk', detail: join(hinderDetail(item, d), per) };
     case 'geen':
       return { level: 'geen', label: 'Geen hinder', detail: per };
     default:

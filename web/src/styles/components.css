@@ -891,6 +891,8 @@
 .detail__section { display: grid; gap: var(--s-2); }
 .detail__h { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); font-weight: 600; font-family: var(--font-display); }
 .detail__desc { font-size: var(--text-sm); color: var(--text-2); white-space: pre-line; overflow-wrap: break-word; }
+/* Under "Zo meldt de wegbeheerder het": where our verdict comes from, and that the signs win. */
+.detail__reported-note { font-size: var(--text-xs); color: var(--text-3); }
 .detail__pattern { display: flex; gap: 10px; align-items: flex-start; font-size: var(--text-sm); color: var(--text-2); }
 .detail__pattern svg { width: 18px; height: 18px; margin-top: 2px; color: var(--text-3); }
 .detail__pattern strong { color: var(--text); font-family: var(--font-mono); font-weight: 500; }
@@ -1215,6 +1217,8 @@
   overflow-wrap: break-word;
 }
 
+/* The verdict in one plain sentence: what exactly is shut, and whether you get through. */
+.vbanner__meaning { margin-top: 6px; font-size: var(--text-sm); color: var(--text); }
 .vbanner--dicht { --vbanner-text: var(--v-dicht-text); }
 .vbanner--rijbaan { --vbanner-text: var(--v-rijbaan-text); }
 .vbanner--hinder { --vbanner-text: var(--v-hinder-text); }

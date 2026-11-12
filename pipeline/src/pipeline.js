@@ -8,6 +8,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridgeBook, loadRegistry } from './bridges.js';
+import { raiseBothWayPairs } from './both-ways.js';
 import { annotateConsistency } from './consistency.js';
 import { createCorrections, loadCorrections } from './corrections.js';
 import { dedupeDoublePublications, spread } from './dedup.js';
@@ -171,6 +172,10 @@ export async function runPipeline(options) {
   if (deduped.stats.unproven.length > 0) {
     log.debug('merges without an explicit publisher link', { count: deduped.stats.unproven.length, pairs: deduped.stats.unproven.slice(0, 40) });
   }
+
+  // Both directions closed, published as two situations: together the road is shut.
+  const pairs = raiseBothWayPairs(deduped.items);
+  if (pairs.raised > 0) log.info('one-direction closures raised to closed both ways', pairs);
 
   // Does what the site says agree with what the publisher wrote? Runs on the final verdicts.
   const consistency = annotateConsistency(deduped.items);

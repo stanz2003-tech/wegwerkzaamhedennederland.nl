@@ -24,8 +24,8 @@ const REPO_ROOT = dirname(WEB_ROOT);
 const quiet = () => {};
 
 /** An IndexRow (web/src/data/types.ts) with only the fields activity.mjs reads filled in. */
-function row({ id = 'x', cat = 'werk', gemeente = null, woonplaats = null } = {}) {
-  return [id, cat, null, 1, 'titel', null, null, gemeente, woonplaats, null, '2026-10-16T08:00:00Z', null, 5, 52, 0, null, 1, 'hinder', null, 0, null, null];
+function row({ id = 'x', cat = 'werk', gemeente = null, woonplaats = null, road = null } = {}) {
+  return [id, cat, null, 1, 'titel', road, null, gemeente, woonplaats, null, '2026-10-16T08:00:00Z', null, 5, 52, 0, null, 1, 'hinder', null, 0, null, null];
 }
 
 /** Enough filler rows to pass the broken-data guard, none of them in a place the tests ask about. */
@@ -92,9 +92,25 @@ describe('buildActivity', () => {
     assert.equal(isThinPage(bridge('NIET_IN_BESTAND'), activity), true);
   });
 
-  it('never marks road, list or static pages as thin', () => {
+  it('a road page is thin without works or closures on that road; a queue or a breakdown does not count', () => {
+    const rows = [
+      row({ id: 'w', cat: 'werk', road: 'N57' }),
+      row({ id: 'v', cat: 'afsluiting', road: 'A12 hrb' }),
+      row({ id: 'i', cat: 'incident', road: 'N791' }),
+      row({ id: 'f', cat: 'file', road: 'N201' }),
+    ];
+    const activity = buildActivity({ index: index(rows), bridges: BRIDGES }, { warn: quiet });
+    const road = (r) => ({ type: 'road', entity: { road: r, slug: r.toLowerCase() } });
+    assert.equal(isThinPage(road('N57'), activity), false);
+    assert.equal(isThinPage(road('A12'), activity), false, 'a carriageway variant counts for its road, as on the page');
+    assert.equal(isThinPage(road('N791'), activity), true, 'only a broken-down vehicle');
+    assert.equal(isThinPage(road('N201'), activity), true, 'only a queue');
+    assert.equal(isThinPage(road('N999'), activity), true);
+    assert.equal(isThinPage({ type: 'road', entity: { road: 'Ring', slug: 'ring' } }, activity), false, 'not a road number: left alone');
+  });
+
+  it('never marks list or static pages as thin', () => {
     const activity = buildActivity({ index: index([]), bridges: BRIDGES }, { warn: quiet });
-    assert.equal(isThinPage({ type: 'road', entity: { road: 'A28', slug: 'a28' } }, activity), false);
     assert.equal(isThinPage({ type: 'list', slug: 'files' }, activity), false);
     assert.equal(isThinPage({ type: 'static', slug: 'over' }, activity), false);
   });
@@ -194,12 +210,26 @@ describe('generated pages', () => {
     assert.equal(robotsOf(renderPage(page, model, templates)), 'noindex, follow');
   });
 
-  it('a woonplaats with roadworks and every road page stay indexed', () => {
+  it('a woonplaats with roadworks stays indexed', () => {
     const page = pageOf(`/plaats/${busy.slug}/`);
     assert.equal(page.thin, undefined);
     assert.equal(page.sitemap, true);
     assert.match(robotsOf(renderPage(page, model, templates)), /^index, follow/);
-    for (const road of model.pages.filter((p) => p.type === 'road')) assert.equal(road.sitemap, true);
+  });
+
+  it('every A-road page stays indexed; an N-road page without works leaves Google like a quiet place (2026-11-12)', () => {
+    const roads = model.pages.filter((p) => p.type === 'road');
+    const motorways = roads.filter((p) => p.entity.type === 'A');
+    assert.ok(motorways.length > 30);
+    for (const road of motorways) assert.equal(road.sitemap, true, road.path);
+    // The activity of this model has no row with a road number: every N-road is quiet, and without
+    // a day in the memory it counts as long quiet.
+    const nRoads = roads.filter((p) => p.entity.type === 'N');
+    assert.ok(nRoads.length > 400);
+    assert.ok(nRoads.every((p) => p.thin === true && p.sitemap === false));
+    const html = renderPage(nRoads[0], model, templates);
+    // noindex is enough for the ads: the ad policy loads none on a noindex page (ui/ad-policy.ts).
+    assert.equal(robotsOf(html), 'noindex, follow');
   });
 
   it('a bridge with an opening stays indexed, the others do not', () => {

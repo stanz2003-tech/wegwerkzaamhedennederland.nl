@@ -13,7 +13,7 @@ updated: 2026-10-25
 
 ### [Zo lees je een melding](/uitleg/meldingen-lezen/)
 
-Wat "weg dicht", "rijbaan dicht", "doorrijden mogelijk" en "gevolgen onduidelijk" betekenen, hoe die oordelen afhangen van je voertuig en je vertrektijd, en wat de hindercategorieën A tot en met E van de wegbeheerder zeggen. Met uitleg over de kleuren op de kaart, de richtingspijl en de werktijden binnen een melding.
+Wat "weg dicht", "dicht in één richting", "doorrijden mogelijk" en "gevolgen onduidelijk" betekenen, hoe die oordelen afhangen van je voertuig en je vertrektijd, en wat de hindercategorieën A tot en met E van de wegbeheerder zeggen. Met uitleg over de kleuren op de kaart, de richtingspijl en de werktijden binnen een melding.
 
 ### [Omrijden bij een afsluiting](/uitleg/omrijden/)
 

@@ -18,9 +18,9 @@ describe('answerFor on the fixture roads', () => {
   it('A2 for cars right now: the rijbaan closure leads, the resurfacing work follows as a specific', () => {
     const a = answerFor(road('a2'), 'auto', nowMoment, { kind: 'road', name: 'A2' });
     assert.equal(a.level, 'rijbaan');
-    assert.equal(a.headline, 'Rijbaan dicht tussen Hintham en Vught, richting Vught');
+    assert.equal(a.headline, 'Dicht in één richting tussen Hintham en Vught, richting Vught');
     assert.equal(a.specifics.length, 2);
-    assert.equal(a.specifics[0], 'Hintham–Vught: rijbaan dicht · richting Vught · tot do 10 sep 04:00');
+    assert.equal(a.specifics[0], 'Hintham–Vught: dicht in één richting · richting Vught · tot do 10 sep 04:00');
     assert.equal(a.timePhrase, 'tot do 10 sep 04:00');
     assert.equal(a.subline, 'Rijd je richting Vught, houd dan rekening met een omleiding.');
     assert.equal(a.moreCount, 0);
@@ -151,20 +151,20 @@ describe('answer order, direction and time (zoek-11, overzicht-9, taal-1, voorui
   it('several closed places: the headline says so, the card counts what the specifics leave out', () => {
     const a = answerFor(items, 'auto', nowMoment, subject, NOW);
     // 'b' has the highest impact score among the four rijbaan items, so it leads.
-    assert.equal(a.headline, 'Rijbaan dicht op meerdere plekken, o.a. tussen Werkendam en Gorinchem');
+    assert.equal(a.headline, 'Dicht in één richting op meerdere plekken, o.a. tussen Werkendam en Gorinchem');
     assert.equal(a.subline, '', 'one direction would suggest the other places are open');
     assert.equal(a.timePhrase, 'tot do 10 sep 06:00');
-    assert.equal(a.specifics[0], 'Werkendam → Gorinchem: rijbaan dicht · tot do 10 sep 06:00');
+    assert.equal(a.specifics[0], 'Werkendam → Gorinchem: dicht in één richting · tot do 10 sep 06:00');
     assert.equal(a.specifics.length, 3);
     assert.equal(a.moreCount, 2);
   });
 
   it('on the map (d: null) the direction comes from the title arrow, never "niet gemeld"', () => {
     const one = answerFor([items[0]], 'auto', nowMoment, subject, NOW);
-    assert.equal(one.headline, 'Rijbaan dicht tussen Rijnsweerd en Eemnes, richting Eemnes');
+    assert.equal(one.headline, 'Dicht in één richting tussen Rijnsweerd en Eemnes, richting Eemnes');
     assert.equal(one.subline, 'Rijd je richting Eemnes, houd dan rekening met een omleiding.');
     const noArrow = answerFor([items[2]], 'auto', nowMoment, subject, NOW);
-    assert.equal(noArrow.headline, 'Rijbaan dicht bij Eemnes');
+    assert.equal(noArrow.headline, 'Dicht in één richting bij Eemnes');
     assert.equal(noArrow.subline, '', 'without the detail the direction may simply not be loaded');
     const loaded = answerFor([{ ...items[2], d: { from: 'Eemnes' } }], 'auto', nowMoment, subject, NOW);
     assert.equal(loaded.subline, 'De richting is niet gemeld; houd rekening met een omleiding.');
@@ -426,5 +426,46 @@ describe('answerOrder with each start parsed once (INP)', () => {
       }
     }
     assert.ok(compared > 100, `compared ${compared} items`);
+  });
+});
+
+describe('2026-11-12: a closed ramp in the specifics', () => {
+  it('names the ramp instead of only its speed limit', () => {
+    const subject = { kind: 'road', name: 'A27' };
+    const ramp = {
+      item: { f: { type: 'Feature', geometry: { type: 'Point', coordinates: [4.9, 51.8] }, properties: { id: 'r', cat: 'afsluiting', sub: 'entrySlipRoadClosed', sev: 2, title: 'A27 · Industriegebied Avelingen', road: 'A27', roadType: 'A', woonplaats: 'Gorinchem', start: '2026-09-01T00:00Z', src: 'x', imp: 'hinder', spd: 70 } }, d: null },
+      verdict: { level: 'hinder', label: 'Oprit dicht', detail: 'max 70 km/u' },
+    };
+    assert.equal(specificLine(ramp, subject), 'Bij Gorinchem: oprit dicht · max 70 km/u');
+    const plain = { ...ramp, verdict: { level: 'hinder', label: 'Doorrijden mogelijk', detail: 'max 70 km/u' } };
+    assert.equal(specificLine(plain, subject), 'Bij Gorinchem: max 70 km/u');
+  });
+});
+
+describe('2026-11-12: a road that is closed both ways', () => {
+  const subject = { kind: 'road', name: 'N57' };
+  const half = (id, from, to) => ({
+    f: { type: 'Feature', geometry: { type: 'Point', coordinates: [3.6, 51.5] }, properties: { id, cat: 'afsluiting', sub: 'carriagewayClosures', sev: 3, title: `N57 · ${from} → ${to}`, road: 'N57', roadType: 'N', start: '2026-09-01T00:00Z', end: '2026-09-20T00:00Z', src: 'x', imp: 'dicht' } },
+    d: { id, src: 'x', upd: '2026-09-01T00:00Z', from, to, dir: 'positive', chk: [{ c: 'paar-beide', q: 'other' }] },
+  });
+
+  it('the headline says both directions, and the pair is one line', () => {
+    const now = Date.parse('2026-09-09T12:00:00Z');
+    const a = answerFor([half('a', 'Harmsenbrug', 'Hellevoetsluis'), half('b', 'Hellevoetsluis', 'Harmsenbrug')], 'auto', { kind: 'moment', at: now }, subject, now);
+    assert.equal(a.level, 'dicht');
+    assert.match(a.headline, /^Dicht tussen .+, in beide richtingen$/);
+    assert.equal(a.specifics.length, 1);
+    assert.match(a.specifics[0], /^Harmsenbrug–Hellevoetsluis: weg dicht · beide richtingen/);
+  });
+});
+
+describe('review 2026-11-12: only a closed ramp puts its label in the specifics', () => {
+  it('"Werktijden nog niet bekend" keeps its one line', () => {
+    const subject = { kind: 'road', name: 'A27' };
+    const x = {
+      item: { f: { type: 'Feature', geometry: { type: 'Point', coordinates: [4.9, 51.8] }, properties: { id: 'w', cat: 'werk', sev: 2, title: 'A27 · Hank', road: 'A27', roadType: 'A', woonplaats: 'Hank', start: '2026-09-01T00:00Z', src: 'x', imp: 'hinder' } }, d: null },
+      verdict: { level: 'onbekend', label: 'Werktijden nog niet bekend', detail: 'de werktijden zijn bekend tot 5 maart' },
+    };
+    assert.equal(specificLine(x, subject), 'Bij Hank: de werktijden zijn bekend tot 5 maart');
   });
 });
