@@ -117,3 +117,24 @@ describe('fonts never change under the same name', () => {
     }
   });
 });
+
+describe('security headers (public/_headers)', () => {
+  const headersFor = (path) => Object.assign({}, ...rules.filter((r) => r.re.test(path)).map((r) => r.headers));
+
+  it('every response forces HTTPS and refuses camera, microphone, payment and USB', () => {
+    for (const path of ['/', '/weg/a2/', '/assets/page-boot-D2hO7jHP.css', '/ads.txt']) {
+      const h = headersFor(path);
+      assert.equal(h['strict-transport-security'], 'max-age=31536000', path);
+      assert.equal(h['permissions-policy'], 'camera=(), microphone=(), payment=(), usb=()', path);
+    }
+  });
+
+  it('does not bind subdomains, block geolocation ("mijn locatie"), or set what can break AdSense', () => {
+    const h = headersFor('/');
+    assert.doesNotMatch(h['strict-transport-security'], /includeSubDomains|preload/i);
+    assert.doesNotMatch(h['permissions-policy'], /geolocation/);
+    // A Content-Security-Policy or X-Frame-Options comes after the AdSense review, report-only first.
+    assert.equal(h['content-security-policy'], undefined);
+    assert.equal(h['x-frame-options'], undefined);
+  });
+});
