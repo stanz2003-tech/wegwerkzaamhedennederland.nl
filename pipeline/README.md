@@ -336,11 +336,13 @@ instead of replayed on HTTP 304.
 ## Entity files (`src/entities.js`)
 
 `roads/<slug>.json` for every road in `static/wegen.json` and
-`gemeenten/<slug>.json` for every gemeente in `static/plaatsen.json` that has
-≥ 1 item (active or planned within 30 days), shape `EntityFile`: the compact
-feature **with geometry** plus the full detail per item, active first, then by
-start. Absent file = no items, so files of entities that lost their last item
-are removed each run.
+`gemeenten/<slug>.json` for every gemeente in `static/plaatsen.json`, shape
+`EntityFile`: the compact feature **with geometry** plus the full detail per
+item (active or planned within 30 days), active first, then by start. An entity
+without items gets a file with `items: []` and a fixed `generated`: the
+uploader never deletes from R2, so without it the last file of a road that fell
+quiet stayed online (a broken-down vehicle of 21 October on /weg/n791/ until
+12 November). The empty file never changes, so it is uploaded once.
 
 * **Road matching** goes through `normalizeVildRoad()`: carriageway variants
   and branch letters fold onto the base road, so an item on "A12 hrb" lands in
