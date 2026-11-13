@@ -93,6 +93,49 @@ export function buildGeometry(locations, vildPoint) {
   return { geometry: null, dropped, fallback: false };
 }
 
+/** Shorter than this, a line or a stretch has no direction worth comparing (metres). */
+const MIN_ORIENT_M = 150;
+/** cos of the angle between line and stretch below which the line clearly runs the other way. */
+const AGAINST_COS = -0.5;
+const M_PER_DEG = 111_320;
+
+/**
+ * Make every line of the geometry run the way the measure runs: from the AlertC secondary point
+ * (`from`, where the stretch starts in the direction of travel) to the primary one (`to`). The map
+ * draws arrows along the line, and they must point the way the site says in words ("richting
+ * Werkendam", from the same AlertC stretch). Measured on the feeds of 2026-11-12: 4,885 of 4,942
+ * lines already run that way (98.8%); the 57 that run the other way are turned round here.
+ *
+ * Only a line that clearly runs against the stretch is turned: both at least `MIN_ORIENT_M` long,
+ * and the angle between them well over 90°. A short piece, a line across the stretch (a ramp, a
+ * loop) or a point is left as published. Returns the same object when nothing changes.
+ *
+ * @param {Geometry | null} geometry
+ * @param {[number, number] | undefined} from   [lon, lat] of the AlertC secondary location
+ * @param {[number, number] | undefined} to     [lon, lat] of the AlertC primary location
+ * @returns {Geometry | null}
+ */
+export function orientAlong(geometry, from, to) {
+  if (!geometry || !from || !to || geometry.type === 'Point') return geometry;
+  const k = Math.cos((from[1] * Math.PI) / 180);
+  const stretch = [(to[0] - from[0]) * M_PER_DEG * k, (to[1] - from[1]) * M_PER_DEG];
+  const stretchLen = Math.hypot(stretch[0], stretch[1]);
+  if (stretchLen < MIN_ORIENT_M) return geometry;
+  /** @param {[number, number][]} line */
+  const against = (line) => {
+    const a = line[0];
+    const b = line[line.length - 1];
+    const v = [(b[0] - a[0]) * M_PER_DEG * k, (b[1] - a[1]) * M_PER_DEG];
+    const len = Math.hypot(v[0], v[1]);
+    return len >= MIN_ORIENT_M && (v[0] * stretch[0] + v[1] * stretch[1]) / (len * stretchLen) < AGAINST_COS;
+  };
+  if (geometry.type === 'LineString') {
+    return against(geometry.coordinates) ? { type: 'LineString', coordinates: [...geometry.coordinates].reverse() } : geometry;
+  }
+  if (!geometry.coordinates.some(against)) return geometry;
+  return { type: 'MultiLineString', coordinates: geometry.coordinates.map((line) => (against(line) ? [...line].reverse() : line)) };
+}
+
 /**
  * Keep only vertices inside NL, rounded, with consecutive duplicates removed.
  * @param {[number, number][]} line

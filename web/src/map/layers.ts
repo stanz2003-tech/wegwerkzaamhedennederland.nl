@@ -1,12 +1,18 @@
 /**
  * Our overlay: three GeoJSON sources (lines, points, detour) and the layer stack bottom → top:
- * selected-line · werk-casing · werk-line · afsluiting-dash · live-line · hit-lines ·
+ * selected-line · werk-casing · werk-line · afsluiting-dash · werk-arrows · live-line · hit-lines ·
  * detour-casing · detour-line · detour-label · clusters · cluster-count · selected-point · points.
  *
  * Lines and points are coloured by the VERDICT for the chosen vehicle mode (property `v`, set by
  * the app on every feature it hands to the map), not by category: red = dicht/rijbaan (white
  * dash for `dicht`), amber = doorrijden met hinder, green = geen hinder, grey = onbekend, faded
  * = geldt niet voor jou (`nvt`). Files keep their own live colour; incidents keep theirs as points.
+ * A line that is closed in ONE direction (`rijbaan`) carries arrows in that direction and is drawn
+ * a few pixels to the right of its course, the side that direction drives on: at the zoom of a
+ * phone the two carriageways of a motorway lie on top of each other, and an orange line alone could
+ * not say which way is shut. The feed draws its lines in the direction of travel (measured
+ * 2026-11-13 on 46 pairs of opposite closures: 44 run in opposite order, and where the carriageways
+ * lie apart the other one is on the left in 11 of 12).
  * Clusters (national zoom) take the colour of the worst verdict inside them (`worst`, a cluster
  * property), so the country view shows where it is closed, not just how many items lie there.
  * Feature ids come from `properties.id` (promoteId) so feature-state (hover/selected) works.
@@ -33,6 +39,7 @@ export const LAYERS = {
   casing: 'werk-casing',
   line: 'werk-line',
   dash: 'afsluiting-dash',
+  arrows: 'werk-arrows',
   live: 'live-line',
   hit: 'hit-lines',
   detourCasing: 'detour-casing',
@@ -108,6 +115,113 @@ const sev: ExpressionSpecification = ['coalesce', ['get', 'sev'], 1];
 const verdict: ExpressionSpecification = ['coalesce', ['get', 'v'], 'onbekend'];
 const isNvt: ExpressionSpecification = ['==', verdict, 'nvt'];
 const isDichtV: ExpressionSpecification = ['==', verdict, 'dicht'];
+const isRijbaanV: ExpressionSpecification = ['==', verdict, 'rijbaan'];
+
+/** Name of the arrow image on the map (`arrowImage()`, added by `ensureOverlay`). */
+export const ARROW_IMAGE = 'ww-arrow';
+/** The arrow is drawn at twice its shown size, for sharp edges on a phone screen. */
+export const ARROW_PIXEL_RATIO = 2;
+/** Screen pixels between two arrows along a line. */
+export const ARROW_SPACING = 42;
+
+/** How far a one-direction closure sits to the right of its course, in pixels, per zoom. */
+const SIDE_OFFSET_STOPS: readonly (readonly [zoom: number, px: number])[] = [
+  [7, 1.5],
+  [11, 3],
+  // From here the feed's own line lies on its carriageway: no shift, or it would leave the road.
+  [15, 0],
+];
+
+/**
+ * `line-offset` for the item lines: a one-direction closure moves to the right of its direction of
+ * travel, every other line stays where it is. One zoom curve, outermost (style-check.ts).
+ */
+export const sideOffset: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  ...SIDE_OFFSET_STOPS.flatMap(([zoom, px]) => [zoom, ['case', isRijbaanV, px, 0] as ExpressionSpecification]),
+] as ExpressionSpecification;
+
+/** The same shift for the arrows (`icon-offset` is [along, across]; across is to the right). */
+const arrowOffset: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['zoom'],
+  ...SIDE_OFFSET_STOPS.flatMap(([zoom, px]) => [zoom, ['literal', [0, px]] as ExpressionSpecification]),
+] as ExpressionSpecification;
+
+export interface RgbaImage {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+/**
+ * The direction arrow: a white dart pointing right (the direction of the line), with a dark rim so
+ * it also reads where it sticks out over a light map. Drawn by hand into pixels: no canvas, so the
+ * same function runs in the tests, and no font that a basemap may or may not carry.
+ */
+export function arrowImage(size = 36): RgbaImage {
+  const unit = size / 36;
+  const dart: readonly (readonly [number, number])[] = [
+    [8, 6],
+    [29, 18],
+    [8, 30],
+    [14, 18],
+  ].map(([x, y]) => [(x as number) * unit, (y as number) * unit] as const);
+  const rim = 2.4 * unit;
+  const inside = (x: number, y: number): boolean => {
+    let hit = false;
+    for (let i = 0, j = dart.length - 1; i < dart.length; j = i++) {
+      const [xi, yi] = dart[i] as readonly [number, number];
+      const [xj, yj] = dart[j] as readonly [number, number];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  };
+  const distance = (x: number, y: number): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (let i = 0, j = dart.length - 1; i < dart.length; j = i++) {
+      const [ax, ay] = dart[j] as readonly [number, number];
+      const [bx, by] = dart[i] as readonly [number, number];
+      const dx = bx - ax;
+      const dy = by - ay;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
+      best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+    }
+    return best;
+  };
+  const SAMPLES = 3;
+  const data = new Uint8ClampedArray(size * size * 4);
+  for (let py = 0; py < size; py++) {
+    for (let px = 0; px < size; px++) {
+      let fill = 0;
+      let edge = 0;
+      for (let sy = 0; sy < SAMPLES; sy++) {
+        for (let sx = 0; sx < SAMPLES; sx++) {
+          const x = px + (sx + 0.5) / SAMPLES;
+          const y = py + (sy + 0.5) / SAMPLES;
+          if (inside(x, y)) fill += 1;
+          else if (distance(x, y) <= rim) edge += 1;
+        }
+      }
+      const total = SAMPLES * SAMPLES;
+      const white = fill / total;
+      const dark = edge / total;
+      const alpha = Math.min(1, white + dark * 0.85);
+      if (alpha === 0) continue;
+      // White over the dark rim colour (#15171b), weighted by how much of the pixel each covers.
+      const mix = white / (white + dark);
+      const o = (py * size + px) * 4;
+      data[o] = Math.round(0x15 + (255 - 0x15) * mix);
+      data[o + 1] = Math.round(0x17 + (255 - 0x17) * mix);
+      data[o + 2] = Math.round(0x1b + (255 - 0x1b) * mix);
+      data[o + 3] = Math.round(alpha * 255);
+    }
+  }
+  return { width: size, height: size, data };
+}
 
 export function categoryColour(theme: BasemapTheme): ExpressionSpecification {
   const hex = CATEGORY_HEX[theme];
@@ -256,6 +370,7 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
         'line-width': lineWidth(9),
         'line-opacity': ['case', selected, 0.75, 0],
         'line-blur': 0.5,
+        'line-offset': sideOffset,
       },
     },
     {
@@ -267,6 +382,7 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
         'line-color': ['case', hover, ACCENT, casing],
         'line-width': lineWidth(3, verdictScale),
         'line-opacity': ['case', isNvt, NVT_OPACITY, 0.95],
+        'line-offset': sideOffset,
       },
     },
     {
@@ -279,6 +395,7 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
         'line-color': colour,
         'line-width': lineWidth(0, verdictScale),
         'line-opacity': ['case', hover, 1, isNvt, NVT_OPACITY, 0.92],
+        'line-offset': sideOffset,
       },
     },
     {
@@ -292,6 +409,26 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
         'line-width': lineWidth(0, ['*', 0.42, verdictScale]),
         'line-dasharray': [1.6, 2.2],
         'line-opacity': ['case', isNvt, NVT_OPACITY, 0.95],
+      },
+    },
+    {
+      // Which way is shut: arrows along a one-direction closure, pointing the way the line runs.
+      id: LAYERS.arrows,
+      type: 'symbol',
+      source: SRC_LINES,
+      filter: ['all', notFile, isRijbaanV],
+      layout: {
+        'symbol-placement': 'line',
+        'symbol-spacing': ARROW_SPACING,
+        'icon-image': ARROW_IMAGE,
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 7, 0.62, 11, 0.74, 15, 0.95],
+        'icon-offset': arrowOffset,
+        'icon-rotation-alignment': 'map',
+        // Every arrow counts: a neighbour's label must not make one disappear, and a short line
+        // (a few hundred metres on a phone) still gets its arrow.
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true,
+        'icon-padding': 0,
       },
     },
     {
@@ -311,7 +448,7 @@ export function overlayLayers(opts: OverlayOptions): LayerSpecification[] {
       type: 'line',
       source: SRC_LINES,
       layout: roundLine,
-      paint: { 'line-color': '#000000', 'line-width': HIT_LINE_WIDTH, 'line-opacity': 0 },
+      paint: { 'line-color': '#000000', 'line-width': HIT_LINE_WIDTH, 'line-opacity': 0, 'line-offset': sideOffset },
     },
     {
       id: LAYERS.detourCasing,
@@ -412,6 +549,8 @@ export function ensureOverlay(map: MlMap, data: SplitData, opts: OverlayOptions)
   if (!map.getSource(SRC_LINES)) map.addSource(SRC_LINES, lineSourceSpec(data.lines));
   if (!map.getSource(SRC_POINTS)) map.addSource(SRC_POINTS, pointSourceSpec(data.points, opts.cluster));
   if (!map.getSource(SRC_DETOUR)) map.addSource(SRC_DETOUR, detourSourceSpec(EMPTY_DETOUR));
+  // A new style drops its images, so this runs after every `style.load`, before the layer that uses it.
+  if (!map.hasImage(ARROW_IMAGE)) map.addImage(ARROW_IMAGE, arrowImage(), { pixelRatio: ARROW_PIXEL_RATIO });
   const before = opts.beforeId && map.getLayer(opts.beforeId) ? opts.beforeId : undefined;
   for (const layer of overlayLayers(opts)) {
     if (!map.getLayer(layer.id)) map.addLayer(layer, before);
