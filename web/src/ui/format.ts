@@ -14,7 +14,7 @@ import {
   zonedParts,
   type TimeSpan,
 } from '../data/time';
-import type { Category, DelayBand, Direction, Hindrance, ItemDetail, Probability } from '../data/types';
+import type { Category, DelayBand, Direction, Hindrance, ItemDetail, Probability, ReportedMeasure } from '../data/types';
 import { CATEGORY_META } from './categories';
 
 const LOCALE = 'nl-NL';
@@ -271,7 +271,7 @@ export function lanesLabel(lanes: ItemDetail['lanes']): string | null {
     return `${closed} ${closed === 1 ? 'rijstrook' : 'rijstroken'} dicht`;
   }
   if (typeof open === 'number') return `${open} ${open === 1 ? 'rijstrook' : 'rijstroken'} open`;
-  if (typeof total === 'number') return `${total} rijstroken`;
+  if (typeof total === 'number') return `${total} ${total === 1 ? 'rijstrook' : 'rijstroken'}`;
   return null;
 }
 
@@ -315,6 +315,12 @@ const SUB_LABELS: Record<string, string> = {
   laneClosures: 'rijstrookafzetting',
   roadClosed: 'weg afgesloten',
   carriagewayClosures: 'rijbaan afgesloten',
+  entrySlipRoadClosed: 'oprit afgesloten',
+  exitSlipRoadClosed: 'afrit afgesloten',
+  slipRoadsClosed: 'op- en afrit afgesloten',
+  connectingCarriagewayClosed: 'verbindingsweg afgesloten',
+  parallelCarriagewayClosed: 'parallelbaan afgesloten',
+  sideCarriagewayClosed: 'op- of afrit afgesloten',
   speedRestrictionInOperation: 'snelheidsbeperking',
   slowTraffic: 'langzaam rijdend verkeer',
   stationaryTraffic: 'stilstaand verkeer',
@@ -348,7 +354,18 @@ export function subLabel(sub: string | null | undefined): string | null {
  * Not here: contraflow ("tegenverkeer" says something the pill does not), and the work and event
  * subs ("nieuw asfalt", "festival").
  */
-const EFFECT_SUBS: ReadonlySet<string> = new Set(['roadClosed', 'carriagewayClosures', 'laneClosures', 'narrowLanes']);
+const EFFECT_SUBS: ReadonlySet<string> = new Set([
+  'roadClosed',
+  'carriagewayClosures',
+  'laneClosures',
+  'narrowLanes',
+  'entrySlipRoadClosed',
+  'exitSlipRoadClosed',
+  'slipRoadsClosed',
+  'connectingCarriagewayClosed',
+  'parallelCarriagewayClosed',
+  'sideCarriagewayClosed',
+]);
 
 /**
  * The muted kind line of a row or the detail: "Werkzaamheden · nieuw asfalt", "Afsluiting",
@@ -400,6 +417,65 @@ const VEHICLE_LABELS: Record<string, string> = {
 export function vehiclesLabel(vehicles: string[] | undefined): string | null {
   if (!vehicles || vehicles.length === 0) return null;
   return Array.from(new Set(vehicles.map((v) => VEHICLE_LABELS[v] ?? 'ander verkeer'))).join(', ');
+}
+
+/** DATEX measure type → Dutch, as the road authority filled it in (`ItemDetail.ms`). */
+const MEASURE_LABELS: Record<string, string> = {
+  roadClosed: 'weg afgesloten',
+  carriagewayClosures: 'rijbaan afgesloten',
+  laneClosures: 'rijstrook afgesloten',
+  lanesDeviated: 'rijstroken verlegd',
+  narrowLanes: 'versmalde rijstroken',
+  contraflow: 'tegenverkeer op één rijbaan',
+  singleAlternateLineTraffic: 'om en om over één rijstrook',
+  useOfSpecifiedLanesOrCarriagewaysAllowed: 'alleen aangegeven rijstroken open',
+  hardShoulderRunningInOperation: 'spitsstrook open',
+  doNotUseSpecifiedLanesOrCarriageways: 'aangegeven rijstroken niet gebruiken',
+  keepToTheLeft: 'links houden',
+  keepToTheRight: 'rechts houden',
+  speedRestrictionInOperation: 'snelheidsbeperking',
+  temporaryTrafficLights: 'tijdelijke verkeerslichten',
+  trafficBeingManuallyDirected: 'verkeersregelaars',
+  bridgeSwingInOperation: 'brug open',
+  followDiversionSigns: 'omleiding met borden',
+  followLocalDiversion: 'lokale omleiding',
+  followSpecialMarkers: 'omleiding met borden',
+  useIntersectionOrJunction: 'omleiding via een andere afslag',
+  useEntry: 'omleiding via een andere oprit',
+  useExit: 'omleiding via een andere afrit',
+  rerouting: 'omleiding',
+};
+
+/** DATEX carriageway → the part of the road, in the road authority's own terms. */
+const CARRIAGEWAY_LABELS: Record<string, string> = {
+  mainCarriageway: 'hoofdrijbaan',
+  entrySlipRoad: 'oprit',
+  exitSlipRoad: 'afrit',
+  slipRoads: 'op- en afrit',
+  connectingCarriageway: 'verbindingsweg',
+  parallelCarriageway: 'parallelbaan',
+  leftHandParallelCarriageway: 'parallelbaan',
+  rightHandParallelCarriageway: 'parallelbaan',
+  serviceRoad: 'ventweg',
+  oppositeCarriageway: 'rijbaan van de andere richting',
+  flyover: 'viaduct',
+  underpass: 'onderdoorgang',
+};
+
+/**
+ * One measure exactly as the road authority filled it in, in Dutch: "rijbaan afgesloten · op de
+ * afrit · voor vrachtverkeer". An unknown type keeps its DATEX name: hiding it would be the one
+ * thing this line must not do.
+ */
+export function reportedMeasureLabel(m: ReportedMeasure): string {
+  const parts = [MEASURE_LABELS[m.t] ?? m.t];
+  if (typeof m.n === 'number' && m.n > 0) parts.push(`${m.n} ${m.n === 1 ? 'rijstrook' : 'rijstroken'}`);
+  if (typeof m.spd === 'number' && m.spd > 0) parts.push(`${m.spd} km/u`);
+  const where = Array.from(new Set((m.cw ?? []).map((c) => CARRIAGEWAY_LABELS[c] ?? c)));
+  if (where.length > 0) parts.push(`op: ${where.join(', ')}`);
+  const who = vehiclesLabel(m.veh);
+  if (who) parts.push(`voor: ${who}`);
+  return parts.join(' · ');
 }
 
 export function formatCount(n: number): string {

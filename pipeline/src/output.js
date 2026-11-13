@@ -188,15 +188,23 @@ export function writeOutputs({ outDir, generated, actueel, gepland, live, bridge
 
   put('bruggen.json', { generated, bridges });
 
-  // Entity files: one per road / gemeente that has items. A road or gemeente
-  // that lost its last item gets no file this run, so its stale file is
-  // removed — "absent file = no items" is part of the contract.
+  // Entity files: one per road / gemeente of the registries, also when it has no items. Until
+  // 2026-11-12 an entity without items got no file ("absent file = no items"). That holds in this
+  // directory, but the uploader never deletes from R2, so the last file of a road that fell quiet
+  // stayed online: /weg/n791/ showed a broken-down vehicle of 21 October for three weeks. An empty
+  // file overwrites it. Its bytes never change, so it is uploaded once.
   const groups = groupEntities([...actueel, ...live, ...gepland], roads, gemeenten);
   const entityPaths = new Set();
   for (const group of groups) {
     const rel = entityPath(group.kind, group.slug);
     entityPaths.add(rel);
     put(rel, entityFileOf(generated, group));
+  }
+  for (const group of emptyEntities(roads, gemeenten)) {
+    const rel = entityPath(group.kind, group.slug);
+    if (entityPaths.has(rel)) continue;
+    entityPaths.add(rel);
+    put(rel, { generated: EMPTY_ENTITY_GENERATED, kind: group.kind, key: group.key, slug: group.slug, items: [] });
   }
   removeStaleEntityFiles(outDir, entityPaths);
 
@@ -205,6 +213,25 @@ export function writeOutputs({ outDir, generated, actueel, gepland, live, bridge
   const manifestJson = JSON.stringify(sortKeys(manifest));
   writeFileAtomic(join(outDir, 'manifest.json'), manifestJson);
   return manifest;
+}
+
+/**
+ * `generated` of an entity file without items: a fixed moment, so the file is byte-identical in
+ * every run and the uploader skips it (see `entityFileOf`).
+ */
+export const EMPTY_ENTITY_GENERATED = '1970-01-01T00:00Z';
+
+/**
+ * Every road and gemeente of the registries as a group without items, first entry per slug.
+ * @param {import('./entities.js').RoadEntry[]} roads
+ * @param {import('./entities.js').GemeenteEntry[]} gemeenten
+ * @returns {{ kind: 'road' | 'gemeente', key: string, slug: string }[]}
+ */
+function emptyEntities(roads, gemeenten) {
+  return [
+    ...roads.map((r) => ({ kind: /** @type {'road'} */ ('road'), key: r.road, slug: r.slug })),
+    ...gemeenten.map((g) => ({ kind: /** @type {'gemeente'} */ ('gemeente'), key: g.naam, slug: g.slug })),
+  ];
 }
 
 /** @param {Item[]} items */

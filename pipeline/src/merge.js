@@ -8,6 +8,7 @@
 
 import { mainRecord } from './classify.js';
 import { detourGeomOf } from './detour.js';
+import { sidePartsOf } from './impact.js';
 
 const MAX_DESC = 2000;
 /**
@@ -41,6 +42,7 @@ const MAX_PERIODS_KEPT = 400;
  * @property {number=} queueM
  * @property {string=} roadNr         sit:roadOrJunctionNumber (rerouting records)
  * @property {[number, number][]=} detourGeom   simplified alternativeRoute of the first rerouting record with one
+ * @property {Reported[]=} reported   the measures as the publisher filled them in (`ItemDetail.ms`)
  * @property {import('./impact.js').ImpactRecord[]} measures   every record reduced to what the impact verdict reads
  * @property {import('./timeline.js').TimedRecord[]} timed    the same records with their OWN validity (contract v4):
  *                                    `measures` loses start/end/periods, and a verdict that ignores
@@ -86,6 +88,7 @@ export function mergeSituation(situation) {
     vehicles: uniqueStrings(recs.flatMap((r) => r.vehicles ?? [])),
     roadNr: firstDefined(recs, (r) => r.roadNr),
     detourGeom: detourGeomOf(recs),
+    reported: reportedOf(recs),
     measures: recs.map(measureOf),
     timed: recs.map((r) => ({ m: measureOf(r), start: r.start, end: r.end, periods: r.periods, isMain: r === main })),
     upd: situation.ver ?? main.ver,
@@ -264,7 +267,42 @@ function measureOf(r) {
     gnm: r.gnm,
     rerouteType: r.rerouteType,
     vehicles: r.vehicles,
+    // Which part of the road a closure closes, when it is not the road itself (impact.js).
+    side: r.lane === 'roadClosed' || r.lane === 'carriagewayClosures' ? sidePartsOf((r.locs ?? []).map((l) => l.carriageway)) : undefined,
   });
+}
+
+/**
+ * One measure as the publisher filled it in: the DATEX type (`t`), the carriageway(s) it lies on
+ * (`cw`), the vehicles it is for (`veh`), the number of lanes closed (`n`) and the speed limit
+ * (`spd`). The site shows these next to its own verdict, so a reader can check the one against
+ * the other.
+ * @typedef {{ t: string, cw?: string[], veh?: string[], n?: number, spd?: number }} Reported
+ */
+
+const REPORTED_MAX = 8;
+
+/**
+ * @param {import('./parse.js').SituationRecord[]} recs
+ * @returns {Reported[] | undefined}
+ */
+function reportedOf(recs) {
+  /** @type {Map<string, Reported>} */
+  const seen = new Map();
+  for (const r of recs) {
+    const t = r.lane ?? r.speedType ?? r.gnm ?? (r.type === 'ReroutingManagement' ? (r.rerouteType ?? 'rerouting') : undefined);
+    if (!t) continue;
+    const entry = compact({
+      t,
+      cw: r.lane ? uniqueStrings((r.locs ?? []).map((l) => l.carriageway).filter((c) => c !== undefined)) : undefined,
+      veh: r.vehicles && r.vehicles.length > 0 ? [...r.vehicles] : undefined,
+      n: r.lane && r.lanesRestricted !== undefined && r.lanesRestricted > 0 ? r.lanesRestricted : undefined,
+      spd: r.type === 'SpeedManagement' ? r.speed : undefined,
+    });
+    const key = JSON.stringify(entry);
+    if (!seen.has(key)) seen.set(key, entry);
+  }
+  return seen.size > 0 ? [...seen.values()].slice(0, REPORTED_MAX) : undefined;
 }
 
 /** @param {import('./parse.js').SituationRecord} main */

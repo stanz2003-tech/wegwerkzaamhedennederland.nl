@@ -100,13 +100,17 @@ describe('ads only where Google may index', () => {
 
   it('a road with nothing reported says wegwerk-ads off; a road with meldingen or without data does not', () => {
     // On 2026-11-09, 33 of 550 N-road pages showed "geen werkzaamheden gemeld" with ads allowed.
-    const counts = new Map([['/weg/n201/', 0], ['/weg/a2/', 4]]);
-    const snapshotFor = (page) =>
-      counts.has(page.path) ? { count: counts.get(page.path), answerHtml: '<p>x</p>', listHtml: '', questionsHtml: '' } : null;
+    // [count, lasting]: the N203 only has a broken-down vehicle, which is gone within the hour.
+    const counts = new Map([['/weg/n201/', [0, 0]], ['/weg/a2/', [4, 3]], ['/weg/n203/', [1, 0]]]);
+    const snapshotFor = (page) => {
+      const c = counts.get(page.path);
+      return c ? { count: c[0], lasting: c[1], answerHtml: '<p>x</p>', listHtml: '', questionsHtml: '' } : null;
+    };
     const withData = buildModel({ webRoot: WEB_ROOT, repoRoot: REPO_ROOT, snapshotFor, warn: quiet });
     const adsOff = (m, path) => /<meta name="wegwerk-ads" content="off">/.test(renderPage(m.byPath.get(path), m, templates));
     assert.equal(adsOff(withData, '/weg/n201/'), true, 'nothing reported: no ads');
     assert.equal(adsOff(withData, '/weg/a2/'), false, 'meldingen: ads allowed');
+    assert.equal(adsOff(withData, '/weg/n203/'), true, 'only an incident: no content of its own, no ads');
     assert.equal(adsOff(withData, '/weg/n202/'), false, 'no snapshot (no data): nothing decided, as before');
     assert.equal(adsOff(model, '/weg/n201/'), false, 'a build without live data changes nothing');
     assert.match(renderPage(withData.byPath.get('/weg/n201/'), withData, templates), /<meta name="robots" content="index, follow/, 'still indexed');

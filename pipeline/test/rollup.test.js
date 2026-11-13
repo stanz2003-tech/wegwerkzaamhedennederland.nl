@@ -122,3 +122,13 @@ test('segments already heavier than the family verdict keep their own', () => {
   rollUpRelatedImpact([parent, { id: 'C', props: { imp: 'rijbaan' } }]);
   assert.deepEqual(parent.detail.tl[0], ['2026-09-21T20:00:00Z', '2026-09-22T04:00:00Z', 'dicht']);
 });
+
+test('2026-11-12: an item whose own closure is a ramp or a connector keeps its own verdict', () => {
+  // The Dampoort parent closes the N57 both ways; the ramp on the A58 that leads to it is a ramp.
+  const parent = { id: 'P', rel: ['R'], props: { imp: 'dicht' }, detail: {} };
+  const ramp = { id: 'R', rel: ['P'], props: { imp: 'hinder', sub: 'entrySlipRoadClosed' }, detail: {} };
+  const result = rollUpRelatedImpact([parent, ramp]);
+  assert.equal(ramp.props.imp, 'hinder');
+  assert.equal(parent.props.imp, 'dicht');
+  assert.equal(result.raised, 0);
+});

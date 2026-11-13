@@ -59,7 +59,10 @@
   letter-spacing: 0.005em;
   text-transform: uppercase;
   text-wrap: balance;
-  overflow-wrap: break-word;
+  /* `anywhere`, not `break-word`: it also shrinks the min-content width, so a long stretch name
+     ("HELLEVOETSLUIS/OUDENHOORN,") breaks instead of pushing the card 14px past a phone screen. */
+  overflow-wrap: anywhere;
+  min-width: 0;
   hyphens: manual;
   color: var(--answer-text, var(--text));
 }

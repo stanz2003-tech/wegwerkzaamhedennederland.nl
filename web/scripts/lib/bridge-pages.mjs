@@ -152,7 +152,7 @@ export function roadBridgeFaq(b, { radiusKm, roadHref = '', movable = isMovableB
   return [
     {
       q: `Is ${the} dicht?`,
-      a: `Het antwoord staat bovenaan deze pagina, voor nu en voor elke dag van de komende twee weken. Een afsluiting van de brug zelf, van een rijbaan of van een op- of afrit vlak ervoor telt mee; ook als maar één richting dicht is, zie je dat. ${authority}`,
+      a: `Het antwoord staat bovenaan deze pagina, voor nu en voor elke dag van de komende twee weken. Een afsluiting van de brug zelf telt mee, ook als maar één richting dicht is. Is alleen een op- of afrit vlak ervoor dicht, dan staat dat er apart bij en kun je over de brug zelf gewoon door. ${authority}`,
     },
     {
       q: `Welke meldingen tellen mee voor ${the}?`,

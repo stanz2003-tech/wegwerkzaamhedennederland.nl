@@ -318,3 +318,118 @@ test('review 2026-10-16: the label only overrules a closure, and reads the detou
   assert.deepEqual(impactOf([WORK, fiets], { ...ctx, allRecords: [WORK, fiets, detour] }), { imp: 'dicht', overruled: ['bicycle'] });
   assert.deepEqual(impactOf([WORK, fiets], ctx), { imp: 'dicht', veh: ['bicycle'] });
 });
+
+/* ------------------- 2026-11-12: which part of the road is closed ------------------- */
+
+const ramp = (side, extra = {}) => lane('carriagewayClosures', { side, ...extra });
+
+test('a closed on-ramp, off-ramp, connecting or parallel carriageway is not a closed road: hinder + part', () => {
+  // Measured on the feeds of 2026-11-12: of Rijkswaterstaat's carriagewayClosures records 863 were
+  // on an entry slip road, 602 on an exit, 140 on a connecting carriageway and 255 on the main one.
+  // All of them read "Rijbaan dicht" while through traffic could simply drive on.
+  assert.deepEqual(impactOf([WORK, ramp(['oprit'])], { cat: 'afsluiting', roadType: 'A' }), { imp: 'hinder', part: ['oprit'] });
+  assert.deepEqual(impactOf([ramp(['afrit']), ramp(['oprit'])], { cat: 'afsluiting', roadType: 'A' }), { imp: 'hinder', part: ['oprit', 'afrit'] });
+  assert.deepEqual(impactOf([ramp(['verbinding'])], { cat: 'afsluiting', roadType: 'A' }), { imp: 'hinder', part: ['verbinding'] });
+  assert.deepEqual(impactOf([ramp(['parallel'])], { cat: 'afsluiting', roadType: 'N' }), { imp: 'hinder', part: ['parallel'] });
+  // A `roadClosed` on a ramp is the ramp, not the road — also on a street, where a carriageway
+  // closure otherwise shuts the street.
+  assert.deepEqual(impactOf([lane('roadClosed', { side: ['oprit'] })], { cat: 'afsluiting', roadType: 'A' }), { imp: 'hinder', part: ['oprit'] });
+  assert.deepEqual(impactOf([ramp(['afrit'])], { cat: 'afsluiting', roadType: 'lokaal' }), { imp: 'hinder', part: ['afrit'] });
+  // The ramp's own vehicle list is kept.
+  assert.deepEqual(impactOf([ramp(['afrit'], { vehicles: ['lorry'] })], { cat: 'afsluiting', roadType: 'A' }), { imp: 'hinder', veh: ['lorry'], part: ['afrit'] });
+});
+
+test('a closure of the main carriageway next to a closed ramp still decides, and names no part', () => {
+  assert.deepEqual(impactOf([ramp(['afrit']), lane('carriagewayClosures')], { cat: 'afsluiting', roadType: 'A' }), { imp: 'rijbaan' });
+  assert.deepEqual(impactOf([ramp(['oprit']), lane('roadClosed')], { cat: 'afsluiting', roadType: 'A' }), { imp: 'dicht' });
+  // Melvin's label still makes it heavier: the publisher says one direction is shut.
+  assert.deepEqual(impactOf([ramp(['oprit'])], { cat: 'afsluiting', roadType: 'N', gevolg: 'weg dicht in een richting' }), { imp: 'rijbaan', by: 'gevolg' });
+});
+
+test('"De verbindingsweg is afgesloten" plus a detour is not a closure of the road itself', () => {
+  const texts = ['De verbindingsweg van de A27 naar de A59 is afgesloten. Verkeer wordt omgeleid.'];
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', texts }).imp, 'hinder');
+  const parallel = ['De parallelbaan richting Utrecht is afgesloten. Verkeer rijdt over de hoofdrijbaan.'];
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', texts: parallel }).imp, 'hinder');
+});
+
+test('one carriageway in the records, "in beide richtingen afgesloten" in the text → dicht (real N57 Dampoort text)', () => {
+  // Rijkswaterstaat publishes each direction as its own situation; both read "Rijbaan dicht"
+  // under a title that says the road is shut both ways.
+  const texts = ['SLOT | Dampoort N57 HRR dicht', 'Dampoort Aquaduct dicht. N57 in beide richtingen afgesloten. Het verkeer wordt lokaal omgeleid'];
+  assert.deepEqual(impactOf([WORK, lane('carriagewayClosures'), reroute()], { cat: 'afsluiting', roadType: 'N', texts }), { imp: 'dicht', by: 'beide' });
+  // The closure's own vehicle list stays: shut both ways for lorries is not shut for cars.
+  assert.deepEqual(impactOf([lane('carriagewayClosures', { vehicles: ['lorry'] })], { cat: 'afsluiting', roadType: 'A', texts: ['De A9 is in beide richtingen afgesloten.'] }), {
+    imp: 'dicht',
+    veh: ['lorry'],
+    by: 'beide',
+  });
+});
+
+test('"beide richtingen" that is not about a closure of the road leaves the carriageway verdict alone', () => {
+  const rec = [WORK, lane('carriagewayClosures')];
+  const ctx = { cat: 'afsluiting', roadType: 'A' };
+  // Real A1 Stroe text: both directions keep two lanes.
+  assert.deepEqual(impactOf(rec, { ...ctx, texts: ['In beide richtingen zijn 2 rijstroken beschikbaar. Daarnaast zijn er toe en afritten bij aansluiting Stroe dicht.'] }), { imp: 'rijbaan' });
+  // A path or a ramp shut both ways is not the road.
+  assert.deepEqual(impactOf(rec, { ...ctx, texts: ['Het fietspad is in beide richtingen afgesloten.'] }), { imp: 'rijbaan' });
+  // Real Westerscheldetunnel text: half an hour to set up contraflow, then traffic passes.
+  const tunnel = ['Tussen 20.30 en 21.00 uur is de Westerscheldetunnel in beide richtingen afgesloten voor het instellen van tegenverkeer.'];
+  assert.deepEqual(impactOf(rec, { ...ctx, roadType: 'N', texts: tunnel }), { imp: 'rijbaan' });
+});
+
+test('2026-11-12: "is volledig afgesloten", a closed tunnel without a verb, and a vierkantafsluiting are closures', () => {
+  const work = (texts, roadType = 'A') => impactOf([WORK, reroute()], { cat: 'werk', roadType, texts });
+  // Real RWS texts that read "Doorrijden mogelijk" on the site.
+  assert.deepEqual(work(['Afsluiting N33 Delfzijl-Eemshaven', 'De N33 is volledig afgesloten. Er zijn omleidingen ingesteld.'], 'N'), { imp: 'dicht', by: 'tekst' });
+  assert.deepEqual(work(['Schippholtunnel afgesloten van Amsterdam richting Den Haag, Schiphol bereikbaar, omleiding via A9 en A5']), { imp: 'rijbaan', by: 'tekst' });
+  assert.deepEqual(work(['A22 HRR - Velsertunnel Vierkantafsluiting Test - 8 dec', 'Verkeer wordt omgeleid via de A9 Wijkertunnel']), { imp: 'rijbaan', by: 'tekst' });
+  // No closure record, only the words: both ways when the text says so.
+  assert.deepEqual(work(['SLOT | Dampoort N57 HRR dicht', 'Dampoort Aquaduct dicht. N57 in beide richtingen afgesloten. Het verkeer wordt lokaal omgeleid'], 'N'), { imp: 'dicht', by: 'tekst' });
+  // "Volledig afgesloten" in one direction is one direction.
+  assert.deepEqual(work(['De A4 is volledig afgesloten richting Den Haag.']), { imp: 'rijbaan', by: 'tekst' });
+  // A cycle tunnel, a ramp, and a text without a detour record are not the road.
+  assert.equal(work(['Fietstunnel afgesloten, fietsers worden omgeleid.']).imp, 'hinder');
+  assert.equal(work(['Afrit Velsertunnel afgesloten.']).imp, 'hinder');
+  assert.equal(impactOf([WORK], { cat: 'werk', roadType: 'A', texts: ['De N33 is volledig afgesloten.'] }).imp, 'onbekend');
+});
+
+test("2026-11-12: Melvin's own label is not read as a sentence about both directions", () => {
+  // The label is weighed by the label rule: over a closure for some vehicles it means that list.
+  const rec = [lane('carriagewayClosures', { vehicles: ['bicycle', 'moped'] })];
+  const out = impactOf(rec, { cat: 'afsluiting', roadType: 'N', gevolg: 'weg dicht in beide richtingen', texts: ['Weg dicht in beide richtingen'] });
+  assert.deepEqual(out, { imp: 'rijbaan', veh: ['bicycle', 'moped'] });
+  // …and over a closure for all traffic it still closes the road, as before.
+  assert.deepEqual(impactOf([lane('carriagewayClosures')], { cat: 'afsluiting', roadType: 'N', gevolg: 'weg dicht in beide richtingen', texts: ['Weg dicht in beide richtingen'] }), { imp: 'dicht', by: 'gevolg' });
+});
+
+test('review 2026-11-12: the new closure wordings keep the guards of the old ones', () => {
+  const work = (texts, roadType = 'N') => impactOf([WORK, reroute()], { cat: 'werk', roadType, texts }).imp;
+  // One kind of traffic is not the road for everyone — also without a closure record to carry the list.
+  assert.equal(work(['De N57 is in beide richtingen afgesloten voor vrachtverkeer.']), 'hinder');
+  assert.equal(impactOf([lane('carriagewayClosures')], { cat: 'afsluiting', roadType: 'N', texts: ['De N57 is in beide richtingen afgesloten voor vrachtverkeer.'] }).imp, 'rijbaan');
+  assert.equal(work(['De N57 is in beide richtingen afgesloten voor al het verkeer.']), 'dicht');
+  assert.equal(work(['Aquaduct afgesloten voor fietsers']), 'hinder');
+  assert.equal(work(['Maastunnel dicht voor gevaarlijke stoffen']), 'hinder');
+  // "Dicht bij" is near.
+  assert.equal(work(['Tunnel dicht bij Hank']), 'hinder');
+  // A path named after the match.
+  assert.equal(work(['Totaalafsluiting van de fietstunnel']), 'hinder');
+  // A time without minutes is still a time: the records know the hours better.
+  assert.equal(impactOf([lane('carriagewayClosures')], { cat: 'afsluiting', roadType: 'N', texts: ['In beide richtingen afgesloten tussen 21 en 5 uur.'] }).imp, 'rijbaan');
+});
+
+test('2026-11-12: all traffic sent over another motorway means this road is closed to it (real A22 Velsertunnel text)', () => {
+  const texts = ['A22 HRL - Velsertunnel', 'Verkeer richting het Zuiden wordt omgeleid via de A9 links Wijkertunnel'];
+  // Rijkswaterstaat files the tunnel closure as a closed entry slip road; the parent has a detour only.
+  assert.deepEqual(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', road: 'A22', texts }), { imp: 'rijbaan', by: 'tekst' });
+  // A detour that stays on the road itself is the traffic of a closed ramp (real A27 Oosterhout text).
+  const ramp = ['Het verkeer wordt omgeleid via de A27 en via het onderliggend wegennet'];
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', road: 'A27', texts: ramp }).imp, 'hinder');
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', road: 'A15', texts: ['Verkeer wordt omgeleid via A27-A59-A2-A15.'] }).imp, 'hinder');
+  // No numbered road, a ramp as the subject, no road number of our own, or no detour record: no closure.
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', road: 'A58', texts: ['Het verkeer wordt via het onderliggend wegennet omgeleid.'] }).imp, 'hinder');
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'A', road: 'A22', texts: ['Verkeer vanaf de oprit wordt omgeleid via de A9.'] }).imp, 'hinder');
+  assert.equal(impactOf([WORK, reroute()], { cat: 'werk', roadType: 'lokaal', texts }).imp, 'hinder');
+  assert.equal(impactOf([WORK], { cat: 'werk', roadType: 'A', road: 'A22', texts }).imp, 'onbekend');
+});

@@ -48,6 +48,12 @@ export interface EntitySnapshot {
   listHtml: string;
   /** Meldingen now active plus planned in the coming 30 days (all traffic). */
   count: number;
+  /**
+   * The part of `count` that stays for a while: works, closures, events and other measures. A
+   * queue or a broken-down vehicle is gone within the hour, and a page that holds nothing else has
+   * no content of its own to put an advertisement next to (the same rule as scripts/lib/activity.mjs).
+   */
+  lasting: number;
   /** The card's headline: "Rijbaan dicht bij Gorinchem", "Geen hinder gemeld". */
   headline: string;
   /**
@@ -62,6 +68,9 @@ export interface Authority {
   name: string;
   count: number;
 }
+
+/** Categories that stay for a while; files, incidents and bridge openings come and go. */
+const LASTING_CATEGORIES: ReadonlySet<string> = new Set(['werk', 'afsluiting', 'evenement', 'overig']);
 
 /** Publishers of the given meldingen with their number, most first, then by name. */
 export function authoritiesOf(items: readonly ForecastItem[], ids: ReadonlySet<string>): Authority[] {
@@ -126,6 +135,7 @@ export function entitySnapshot(input: SnapshotInput): EntitySnapshot {
   const moreLine = more > 0 ? `<p class="entity-snapshot__more">En nog ${plural(more, 'melding', 'meldingen')}: <a href="${esc(input.mapHref)}">bekijk ze op de kaart</a>.</p>` : '';
   const listHtml = `<p class="entity-snapshot__stamp">${esc(stamp)}</p>${html}${moreLine}`;
   const authorities = authoritiesOf(items, new Set([...active, ...upcoming].map((r) => r.id)));
-  return { answerHtml, listHtml, count, headline, authorities };
+  const lasting = [...active, ...upcoming].filter((r) => LASTING_CATEGORIES.has(r.cat)).length;
+  return { answerHtml, listHtml, count, lasting, headline, authorities };
 }
 

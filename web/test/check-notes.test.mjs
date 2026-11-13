@@ -100,3 +100,21 @@ describe('detail with consistency notes', () => {
     assert.doesNotMatch(html, /detail__check/);
   });
 });
+
+describe('2026-11-12: why "weg dicht" when the records close one direction', () => {
+  it('quotes the text that says both directions are closed', () => {
+    const [note] = checkNotes.checkNotes([{ c: 'tekst-beide', q: 'N57 in beide richtingen afgesloten' }], null);
+    assert.equal(note.kind, 'reason');
+    assert.equal(note.title, 'Waarom weg dicht?');
+    assert.match(note.text, /‘N57 in beide richtingen afgesloten’/);
+    assert.match(note.text, /de afsluiting geldt in beide richtingen/);
+  });
+
+  it('explains that each direction was reported on its own', () => {
+    const [note] = checkNotes.checkNotes([{ c: 'paar-beide', q: 'RWS01_SP465615_D2' }], null);
+    assert.equal(note.kind, 'reason');
+    assert.match(note.text, /elke rijrichting apart/);
+    assert.match(note.text, /in beide richtingen dicht/);
+    assert.doesNotMatch(note.text, /RWS01_/, 'a feed id means nothing to a reader');
+  });
+});

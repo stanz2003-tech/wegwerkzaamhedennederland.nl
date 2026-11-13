@@ -32,13 +32,15 @@ export function renderVerdictPill(v: Pick<Verdict, 'level' | 'label'>, opts: Pil
  * "Weg dicht · richting Utrecht · tot za 3 okt 10:00" as a full-width banner. `extra` lines are
  * appended after the verdict detail (the time phrase, the period pattern). `kicker` names who and
  * when the verdict is for ("Voor auto's · wo 21 okt 12:00") when that is not simply "now".
+ * `meaning` is one plain sentence under it ("Alleen de oprit is dicht. Op de A27 zelf rijd je door").
  */
-export function renderVerdictBanner(v: Verdict, extra: readonly string[] = [], kicker = ''): string {
+export function renderVerdictBanner(v: Verdict, extra: readonly string[] = [], kicker = '', meaning = ''): string {
   const meta = VERDICT_META[v.level];
   const parts = [v.detail, ...extra].filter((p): p is string => typeof p === 'string' && p.trim() !== '');
   return `<div class="vbanner vbanner--${v.level}" style="--vpill-color: var(${meta.color})" role="status">
       ${kicker ? `<p class="vbanner__kicker">${esc(kicker)}</p>` : ''}
       <p class="vbanner__label">${esc(v.label)}</p>
       ${parts.length ? `<p class="vbanner__detail">${parts.map((p) => esc(p)).join(' <span aria-hidden="true">·</span> ')}</p>` : ''}
+      ${meaning ? `<p class="vbanner__meaning">${esc(meaning)}</p>` : ''}
     </div>`;
 }

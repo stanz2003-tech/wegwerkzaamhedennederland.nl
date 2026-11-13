@@ -94,14 +94,14 @@ describe('the build snapshot of a bridge in a road', async () => {
 
   it('holds the bridge question, its verdict and only the meldingen that touch the bridge', () => {
     assert.match(page, /Kan ik nu over de Merwedebrug bij Gorinchem\?/);
-    assert.match(page, /Rijbaan dicht tussen Gorinchem en Werkendam/);
+    assert.match(page, /Dicht in één richting tussen Gorinchem en Werkendam/);
     assert.match(page, /1 melding op en rond de Merwedebrug bij Gorinchem/);
     assert.doesNotMatch(page, /Breda → Oosterhout|Van Gochstraat/);
     assert.match(page, /<section class="entity-forecast" id="entity-forecast" data-reserve/);
   });
 
   it('the meta description carries the current verdict', () => {
-    assert.match(descriptionOf(page), /^Kan ik over de Merwedebrug bij Gorinchem \(A27\)\? Stand .+?: Rijbaan dicht tussen Gorinchem en Werkendam/);
+    assert.match(descriptionOf(page), /^Kan ik over de Merwedebrug bij Gorinchem \(A27\)\? Stand .+?: Dicht in één richting tussen Gorinchem en Werkendam/);
   });
 
   it('its lastmod follows the meldingen on the bridge, not those elsewhere on the road', () => {

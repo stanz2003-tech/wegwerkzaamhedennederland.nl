@@ -5,6 +5,7 @@
  * app panel.
  */
 import type { IndexItem } from '../data/index';
+import { closedBothWays } from '../data/forecast';
 import type { ItemDetail } from '../data/types';
 import { VERDICT_SEVERITY, type Verdict, type VehicleMode } from '../data/verdict';
 import { esc, formatCount, plural } from './format';
@@ -72,6 +73,7 @@ function rowOptions(it: IndexItem, opts: EntityListOptions): ListItemOptions {
     ...(d?.tlTo ? { tlTo: d.tlTo } : {}),
     ...(d?.to ? { to: d.to } : {}),
     ...(d?.from ? { from: d.from } : {}),
+    ...(closedBothWays(d) ? { both: true } : {}),
   };
 }
 

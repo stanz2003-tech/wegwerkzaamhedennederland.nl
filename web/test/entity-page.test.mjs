@@ -293,7 +293,7 @@ describe('mode and moment travel between map and entity pages (zoek-10, zoek-6)'
   });
 
   it('the page link leaves the headline of the card untouched', () => {
-    const answer = { level: 'rijbaan', headline: 'Rijbaan dicht bij Gorinchem', specifics: [], hidden: [], beyondHorizon: false, horizonMs: null };
+    const answer = { level: 'rijbaan', headline: 'Dicht in één richting bij Gorinchem', specifics: [], hidden: [], beyondHorizon: false, horizonMs: null };
     const base = { road: 'A27', whenLabel: 'nu', mode: 'auto', answer, total: 3 };
     const linked = answerCard.renderAnswerCard({ ...base, pageHref: '/weg/a27/', pageLabel: 'Per dag vooruitkijken op de A27 →' });
     assert.ok(linked.includes(`>${answerCard.cardHeadline(base)}</h2>`));

@@ -243,6 +243,9 @@ test('writeOutputs writes the full file set, deterministic key order, manifest l
     'roads/a7-hrb.json',
     'roads/a9.json',
     'gemeenten/zwolle.json',
+    // registry entries without items: an empty file each
+    'roads/a2.json',
+    'gemeenten/utrecht.json',
   ];
   for (const rel of expected) {
     assert.ok(statSync(join(dir, rel)).isFile(), `missing ${rel}`);
@@ -302,8 +305,12 @@ test('writeOutputs writes the full file set, deterministic key order, manifest l
   assert.equal(zwolle.kind, 'gemeente');
   assert.equal(zwolle.key, 'Zwolle');
   assert.equal(zwolle.items[0].f.id, closed.props.id);
-  assert.equal(existsSync(join(dir, 'roads/a2.json')), false);
-  assert.equal(existsSync(join(dir, 'gemeenten/utrecht.json')), false);
+  // A road or gemeente of the registry without items gets an empty file: it overwrites whatever
+  // R2 still holds for it (the uploader never deletes), with bytes that never change.
+  const a2 = JSON.parse(readFileSync(join(dir, 'roads/a2.json'), 'utf8'));
+  assert.deepEqual(a2, { generated: '1970-01-01T00:00Z', kind: 'road', key: 'A2', slug: 'a2', items: [] });
+  assert.deepEqual(Object.keys(a2), entityFields);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'gemeenten/utrecht.json'), 'utf8')).items, []);
 
   // deterministic: writing the same input again yields the same hashes
   const again = writeOutputs({
@@ -350,9 +357,12 @@ test('writeOutputs writes the full file set, deterministic key order, manifest l
     meta: { sources: {}, counts: {}, upcoming: {}, dropped: 0, unknownTypes: {} },
   });
   assert.equal(fresh['roads/a7.json'], manifest['roads/a7.json'], 'same hash without a previous file on disk');
-  assert.equal(later['roads/a9.json'], undefined);
-  assert.equal(existsSync(join(dir, 'roads/a9.json')), false, 'stale road file left behind');
-  assert.equal(existsSync(join(dir, 'gemeenten/zwolle.json')), false, 'stale gemeente file left behind');
+  // A road or gemeente that lost its last item is overwritten with the empty file, the same
+  // bytes as any other empty one of its kind apart from its own name.
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'roads/a9.json'), 'utf8')).items, [], 'stale road items left behind');
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, 'gemeenten/zwolle.json'), 'utf8')).items, [], 'stale gemeente items left behind');
+  assert.equal(later['roads/a9.json'], sha1Hex(readFileSync(join(dir, 'roads/a9.json'))));
+  assert.equal(later['roads/a2.json'], manifest['roads/a2.json'], 'an empty entity file never changes');
   assert.ok(existsSync(join(dir, 'roads/a7.json')));
   const changedItem = { ...active, detail: { ...active.detail, desc: 'changed' } };
   const changed = writeOutputs({

@@ -46,7 +46,7 @@ Daarom blijven de borden langs de weg en de aanwijzingen van verkeersregelaars a
 Wegwerk verandert niets aan de meldingen zelf. We voegen drie dingen toe:
 
 1. **Plaats en weg.** Veel meldingen op snelwegen hebben alleen een code uit de landelijke locatietabel (VILD). Die vertalen we naar een wegnummer, de namen van begin- en eindpunt en een richting, zoals "A2 Utrecht → Amsterdam". Voor andere meldingen zoeken we via de Locatieserver van PDOK (Kadaster) de straat, de woonplaats en de gemeente erbij.
-2. **Het oordeel.** Uit alle velden van een maatregel maken we één antwoord per voertuig en per moment: weg dicht, rijbaan dicht, doorrijden mogelijk of geen hinder. Hoe je dat leest, staat in [zo lees je een melding](/uitleg/meldingen-lezen/).
+2. **Het oordeel.** Uit alle velden van een maatregel maken we één antwoord per voertuig en per moment: weg dicht, dicht in één richting, doorrijden mogelijk of geen hinder. Hoe je dat leest, staat in [zo lees je een melding](/uitleg/meldingen-lezen/).
 3. **Samenhang.** Een groot project bestaat in de gegevens vaak uit tientallen losse maatregelen: per rijbaan, per nacht, per afrit. We bundelen die tot één melding met het zwaarste oordeel, zodat je niet twintig keer hetzelfde ziet.
 
 ## Hoe we controleren of het klopt

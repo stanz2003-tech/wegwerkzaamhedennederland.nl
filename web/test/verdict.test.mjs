@@ -59,10 +59,10 @@ describe('impact levels', () => {
     assert.equal(verdictFor(item({ imp: 'dicht' }), 'auto', { to: 'Utrecht' }).detail, 'richting Utrecht');
   });
 
-  it('rijbaan → "Rijbaan dicht" + richting', () => {
+  it('rijbaan → "Dicht in één richting" + richting', () => {
     const v = verdictFor(item({ imp: 'rijbaan' }), 'vracht', { to: 'Breda' });
     assert.equal(v.level, 'rijbaan');
-    assert.equal(v.label, 'Rijbaan dicht');
+    assert.equal(v.label, 'Dicht in één richting');
     assert.equal(v.detail, 'richting Breda');
   });
 
@@ -155,5 +155,89 @@ describe('helpers', () => {
       assert.ok(VERDICT_META[level].label.length > 0);
       assert.match(VERDICT_META[level].color, /^--v-/);
     }
+  });
+});
+
+describe('2026-11-12: what exactly is closed', () => {
+  const base = { cat: 'afsluiting', imp: 'hinder' };
+
+  it('a closed ramp, connector or parallel carriageway names itself in the pill and stays passable', () => {
+    const cases = {
+      entrySlipRoadClosed: 'Oprit dicht',
+      exitSlipRoadClosed: 'Afrit dicht',
+      slipRoadsClosed: 'Op- en afrit dicht',
+      connectingCarriagewayClosed: 'Verbindingsweg dicht',
+      parallelCarriagewayClosed: 'Parallelbaan dicht',
+      sideCarriagewayClosed: 'Op- of afrit dicht',
+    };
+    for (const [sub, label] of Object.entries(cases)) {
+      const v = verdictFor({ ...base, sub }, 'auto');
+      assert.equal(v.level, 'hinder', sub);
+      assert.equal(v.label, label, sub);
+    }
+  });
+
+  it('the part only shows while the verdict is "doorrijden mogelijk"', () => {
+    assert.equal(verdictFor({ ...base, sub: 'laneClosures' }, 'auto').label, 'Doorrijden mogelijk');
+    assert.equal(verdictFor({ ...base, sub: 'toString' }, 'auto').label, 'Doorrijden mogelijk', 'an inherited key is not a sub type');
+    // A related situation closed the carriageway: the heavier verdict speaks.
+    assert.equal(verdictFor({ cat: 'afsluiting', imp: 'rijbaan', sub: 'entrySlipRoadClosed' }, 'auto').label, 'Dicht in één richting');
+    // A ramp closed for lorries does not concern a car.
+    assert.equal(verdictFor({ ...base, sub: 'exitSlipRoadClosed', veh: ['lorry'] }, 'auto').level, 'nvt');
+    assert.equal(verdictFor({ ...base, sub: 'exitSlipRoadClosed', veh: ['lorry'] }, 'vracht').label, 'Afrit dicht');
+  });
+
+  it('a ramp closure keeps its own detail', () => {
+    const v = verdictFor({ ...base, sub: 'exitSlipRoadClosed', spd: 70 }, 'auto');
+    assert.equal(v.label, 'Afrit dicht');
+    assert.equal(v.detail, 'max 70 km/u');
+  });
+
+  it('"weg dicht" for both directions says so instead of naming one direction', () => {
+    assert.equal(verdictFor({ cat: 'afsluiting', imp: 'dicht' }, 'auto', { to: 'Utrecht', both: true }).detail, 'beide richtingen');
+    assert.equal(verdictFor({ cat: 'afsluiting', imp: 'dicht' }, 'auto', { to: 'Utrecht' }).detail, 'richting Utrecht');
+    // One direction stays one direction, whatever the flag says.
+    assert.equal(verdictFor({ cat: 'afsluiting', imp: 'rijbaan' }, 'auto', { to: 'Utrecht', both: true }).detail, 'richting Utrecht');
+  });
+});
+
+describe('verdictMeaning: the verdict in one plain sentence (detail view)', () => {
+  const { verdictMeaning } = verdict;
+  const closure = (imp, sub) => ({ cat: 'afsluiting', imp, ...(sub ? { sub } : {}) });
+
+  it('a closed ramp: only the ramp, the road itself stays open', () => {
+    const item = closure('hinder', 'entrySlipRoadClosed');
+    assert.equal(
+      verdictMeaning(verdictFor(item, 'auto'), item, {}, 'A27'),
+      'Alleen de oprit is dicht. Op de A27 zelf rijd je door, tenzij een andere melding iets anders zegt.',
+    );
+    const both = closure('hinder', 'slipRoadsClosed');
+    assert.match(verdictMeaning(verdictFor(both, 'auto'), both, {}, 'A27'), /^Alleen de op- en afrit zijn dicht\./);
+    const connector = closure('hinder', 'connectingCarriagewayClosed');
+    assert.match(verdictMeaning(verdictFor(connector, 'auto'), connector, {}, null), /^Alleen de verbindingsweg is dicht\. Op de weg zelf rijd je door/);
+  });
+
+  it('one direction: which one, and that the other way is open', () => {
+    const item = closure('rijbaan');
+    assert.equal(
+      verdictMeaning(verdictFor(item, 'auto', { to: 'Utrecht' }), item, { to: 'Utrecht' }, 'A27'),
+      'De A27 is richting Utrecht dicht. De andere kant op kun je door, tenzij daar een eigen melding voor staat.',
+    );
+    assert.match(verdictMeaning(verdictFor(item, 'auto'), item, {}, 'A27'), /^Eén rijrichting is dicht\./);
+    assert.match(verdictMeaning(verdictFor(item, 'auto', { to: 'Utrecht' }), item, { to: 'Utrecht' }, null), /^De weg is richting Utrecht dicht\./);
+  });
+
+  it('closed: nobody gets through, and both directions when the data says so', () => {
+    const item = closure('dicht');
+    assert.equal(verdictMeaning(verdictFor(item, 'auto'), item, {}, 'N57'), 'Je kunt er niet langs; volg de omleiding.');
+    assert.match(verdictMeaning(verdictFor(item, 'auto', { both: true }), item, { both: true }, 'N57'), /^De weg is in beide richtingen dicht\./);
+  });
+
+  it('says nothing where the pill already says it all', () => {
+    const work = { cat: 'werk', imp: 'hinder' };
+    assert.equal(verdictMeaning(verdictFor(work, 'auto'), work), '');
+    // A ramp closed for lorries does not concern a car: no sentence about the ramp.
+    const lorries = { ...closure('hinder', 'exitSlipRoadClosed'), veh: ['lorry'] };
+    assert.equal(verdictMeaning(verdictFor(lorries, 'auto'), lorries, {}, 'A27'), '');
   });
 });

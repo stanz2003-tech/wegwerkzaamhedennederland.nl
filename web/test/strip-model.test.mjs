@@ -44,7 +44,7 @@ describe('the strip with an open-ended closure (vooruit-2)', () => {
   const model = buildStripModel(items, 'auto', NOW, A27);
 
   it('names the every-day closure once, above the strip', () => {
-    assert.deepEqual(model.constantLines, ['Elke dag, de hele dag: rijbaan dicht bij Gorinchem (einde onbekend)']);
+    assert.deepEqual(model.constantLines, ['Elke dag, de hele dag: dicht in één richting bij Gorinchem (einde onbekend)']);
     assert.equal(model.moreConstants, 0);
   });
 
@@ -68,14 +68,14 @@ describe('the strip with an open-ended closure (vooruit-2)', () => {
     assert.equal(fri.line, '+ weg dicht bij Lexmond en 1 andere plek · tot 05:00 en 21:00–05:00');
     assert.deepEqual(fri.parts.map((p) => p.worst), ['dicht', 'hinder', 'hinder', 'dicht']);
     const quiet = model.cells[13];
-    assert.equal(quiet.headline, 'Rijbaan dicht');
+    assert.equal(quiet.headline, 'Dicht in één richting');
     assert.equal(quiet.line, 'verder niets');
     assert.deepEqual(quiet.parts.map((p) => p.worst), [null, null, null, null]);
     assert.notEqual(model.cells[10].line, quiet.line);
   });
 
   it('every cell is a full sentence for screen readers', () => {
-    assert.equal(model.cells[13].aria, 'dinsdag 22 september: rijbaan dicht; verder niets');
+    assert.equal(model.cells[13].aria, 'dinsdag 22 september: dicht in één richting; verder niets');
     assert.equal(model.cells[3].aria, 'zaterdag 12 september: weg dicht; daarnaast weg dicht bij Lexmond en 1 andere plek tot 05:00 en 21:00–05:00');
   });
 });
@@ -140,7 +140,7 @@ describe('the question shows the moment (vooruit-10)', () => {
   });
 
   it('the card asks the full question, in the display style, with "Terug naar nu"', () => {
-    const answer = { level: 'rijbaan', headline: 'Rijbaan dicht bij Gorinchem', specifics: [], hidden: [], beyondHorizon: false, horizonMs: null };
+    const answer = { level: 'rijbaan', headline: 'Dicht in één richting bij Gorinchem', specifics: [], hidden: [], beyondHorizon: false, horizonMs: null };
     const html = answerCard.renderAnswerCard({ road: 'A27', whenLabel: 'wo 30 sep', questionWhen: 'woensdag 30 september', backToNow: true, mode: 'auto', answer, total: 1 });
     assert.match(html, /class="answer__kicker answer__kicker--when" id="answer-q">Kan ik woensdag 30 september over de A27\? <span class="answer__mode">voor auto&#39;s<\/span>/);
     assert.match(html, /data-answer-now/);

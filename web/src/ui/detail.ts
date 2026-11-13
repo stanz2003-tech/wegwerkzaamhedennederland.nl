@@ -11,13 +11,13 @@
  */
 import { bridgeWithArticle } from '../data/bridge-select';
 import { entityPagesNow } from '../data/entity-pages';
-import { itemVerdict, type ForecastItem } from '../data/forecast';
+import { closedBothWays, itemVerdict, type ForecastItem } from '../data/forecast';
 import { toMs } from '../data/time';
 import { OPEN_END_PHRASE, phraseAt, phraseIn } from '../data/time-phrase';
 import { parseTimeline, segmentAt } from '../data/timeline';
 import type { ItemDetail, ItemGeometry, ItemProperties } from '../data/types';
 import { slugify } from '../data/types';
-import { PERIOD_HINT, othersNoun, type Verdict, type VehicleMode } from '../data/verdict';
+import { PERIOD_HINT, othersNoun, verdictMeaning, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
 import {
@@ -33,6 +33,7 @@ import {
   queueLabel,
   relatedIds,
   relatedNote,
+  reportedMeasureLabel,
   sourceLabel,
   subLabel,
   vehiclesLabel,
@@ -83,6 +84,8 @@ function impactRows(p: ItemProperties, d: ItemDetail | null): Row[] {
   const push = (icon: string, label: string, value: string | null): void => {
     if (value) rows.push({ icon, label, value });
   };
+  // The measures exactly as filled in: what our verdict above was read from.
+  for (const m of d?.ms ?? []) push(ICONS.construction, 'Maatregel', reportedMeasureLabel(m));
   // Melvin's own "gevolg voor het verkeer", unless it already is the title.
   if (d?.gevolg && !p.title.toLowerCase().startsWith(d.gevolg.toLowerCase())) push(ICONS.info, 'Volgens wegbeheerder', d.gevolg);
   if (d) {
@@ -182,6 +185,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   const ref = win ? win.from : at;
   const kicker = win ? `${MODE_FOR[state.mode]} · ${state.whenLabel ?? fmtDayTime(win.from)}` : isNow(at, now) ? '' : `${MODE_FOR[state.mode]} · ${fmtDayTime(at)}`;
   const phrase = win ? phraseIn(item, state.mode, win.from, win.to) : phraseAt(item, state.mode, at);
+  const meaning = verdictMeaning(verdict, p, { ...(d?.to ? { to: d.to } : {}), ...(closedBothWays(d) ? { both: true } : {}) }, p.road);
   const rows = impactRows(p, d);
   const notes = checkNotes(d?.chk, p.veh);
   const route = routeUrl(state.center);
@@ -226,7 +230,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
         <button type="button" class="btn btn--ghost detail__back" data-back>${ICONS.arrowLeft}<span>Terug</span></button>
         <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Deel deze melding">${ICONS.share2}<span>Deel</span></button>
       </div>
-      ${renderVerdictBanner(bannerVerdict(verdict), bannerWhen, kicker)}
+      ${renderVerdictBanner(bannerVerdict(verdict), bannerWhen, kicker, meaning)}
       <header class="detail__head">
         ${badge}
         <div>
@@ -270,7 +274,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
       }
       ${
         rows.length
-          ? `<dl class="impact">${rows.map((r) => `<div class="impact__row">${r.icon}<dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl>`
+          ? `<section class="detail__section" aria-labelledby="detail-reported"><h3 class="detail__h" id="detail-reported">Zo meldt de wegbeheerder het</h3><dl class="impact">${rows.map((r) => `<div class="impact__row">${r.icon}<dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl><p class="detail__reported-note">Het oordeel bovenaan maakt Wegwerk uit deze gegevens. Wijkt het af van de borden ter plaatse, dan gelden de borden.</p></section>`
           : ''
       }
       ${phasesBlock(item, state.mode, now, ref)}

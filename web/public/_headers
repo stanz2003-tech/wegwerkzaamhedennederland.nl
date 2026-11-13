@@ -15,3 +15,18 @@
 
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Security headers on every response (added 2026-11-12, security check before the AdSense request).
+#   Strict-Transport-Security  browsers only ever use HTTPS for this host. No includeSubDomains and
+#                              no preload: those bind every subdomain and are hard to undo.
+#   Permissions-Policy         the site never asks for camera, microphone, payment or USB; a script
+#                              that tries (also a third party's) is refused. Geolocation stays
+#                              allowed: "mijn locatie" on the map uses it.
+# Deliberately NOT set here:
+#   Content-Security-Policy    a wrong one blocks AdSense or Google's consent message. Introduce it
+#                              as Content-Security-Policy-Report-Only first, after the review.
+#   X-Frame-Options            AdSense shows the site in a frame for its ad preview.
+# X-Content-Type-Options and Referrer-Policy are already added by Cloudflare.
+/*
+  Strict-Transport-Security: max-age=31536000
+  Permissions-Policy: camera=(), microphone=(), payment=(), usb=()

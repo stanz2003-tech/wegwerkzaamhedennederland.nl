@@ -253,3 +253,30 @@ test('helpers: baseId strips only the actual-measure suffix; distance is metres'
   assert.ok(Math.abs(metersBetween([5.4, 53.09], [east(250), 53.09]) - 250) < 2);
   assert.equal(Math.round(metersBetween([5.4, 53.09], [5.4, 53.09])), 0);
 });
+
+test('2026-11-12: the live measure takes "Weg dicht in beide richtingen" from its planning twin and is closed both ways', () => {
+  const live = (over = {}) => ({ id: 'NDW18_x_SIT', role: 'live', props: { imp: 'rijbaan', ...(over.props ?? {}) }, detail: { ...(over.detail ?? {}) }, qa: { texts: [], imp: 'rijbaan' } });
+  const planning = (gevolg) => ({ id: 'NDW03_1', role: 'planning', props: { imp: 'dicht' }, detail: { gevolg } });
+
+  const raised = live();
+  assert.equal(absorb(raised, planning('Weg dicht in beide richtingen')), true);
+  assert.equal(raised.props.imp, 'dicht');
+  assert.equal(raised.detail.gevolg, 'Weg dicht in beide richtingen');
+  // …and the site can say why: the label, quoted.
+  assert.deepEqual(raised.qa, { texts: [], imp: 'dicht', by: 'beide', quote: 'Weg dicht in beide richtingen' });
+
+  // One direction in the label is what the record already says.
+  const oneWay = live();
+  absorb(oneWay, planning('Weg dicht in een richting'));
+  assert.equal(oneWay.props.imp, 'rijbaan');
+
+  // A closure for some vehicles keeps its verdict: the label may be about the cycle path.
+  const lorries = live({ props: { veh: ['lorry'] } });
+  absorb(lorries, planning('Weg dicht in beide richtingen'));
+  assert.equal(lorries.props.imp, 'rijbaan');
+
+  // A label the live measure already had was weighed by impactOf(); it is not weighed twice.
+  const own = live({ detail: { gevolg: 'Weg dicht in beide richtingen' } });
+  absorb(own, planning('Weg dicht in beide richtingen'));
+  assert.equal(own.props.imp, 'rijbaan');
+});

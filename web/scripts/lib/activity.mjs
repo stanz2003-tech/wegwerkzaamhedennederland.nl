@@ -7,8 +7,11 @@
  * `noindex, follow`, leave the sitemap and load no ads, until the data has something for them
  * again. The Deploy workflow rebuilds daily so this follows the data.
  *
- * Road pages are never thin: "is er iets op de A28?" is a real question, also when the answer is
- * no. A data outage must never take pages out of Google, so nothing is thin without data (no
+ * Road pages followed on 2026-11-12, at the owner's choice before the second AdSense request: 241
+ * of the 550 N-road pages had nothing to report and were about 90% the same text. A road page is
+ * now judged like a place page, on works, closures and events on that road. A-roads stay indexed
+ * whatever happens (pages.mjs): "is er iets op de A28?" is a real question, also when the answer
+ * is no. A data outage must never take pages out of Google, so nothing is thin without data (no
  * DATA_BASE, a failed fetch), with an index that looks broken (too few rows, a failed planning
  * source), and no bridge is thin when the bridge source failed or listed no bridge at all. The
  * page model adds one more guard: if most gemeenten would be thin, the data is not believed
@@ -25,6 +28,7 @@ const FETCH_TIMEOUT_MS = 30_000;
 
 // Positions in an IndexRow (web/src/data/types.ts).
 const ROW_CAT = 1;
+const ROW_ROAD = 5;
 const ROW_GEMEENTE = 7;
 const ROW_WOONPLAATS = 8;
 
@@ -48,6 +52,15 @@ export function normalizeName(input) {
 }
 
 /**
+ * Same as `roadKey()` in web/src/data/entity.ts, which the road pages match items with: the
+ * letter plus the number, ignoring a suffix. "A12 hrb" → "A12", "n 057" → "N57"; null otherwise.
+ */
+export function roadKey(road) {
+  const m = /^([ANSE])\s*0*(\d{1,3})/i.exec(String(road ?? '').trim());
+  return m ? `${m[1].toUpperCase()}${Number(m[2])}` : null;
+}
+
+/**
  * A woonplaats page reads the file of its gemeente (`gemeenten/<slug>.json`, matched on the
  * gemeente slug) and keeps the items whose woonplaats name matches; this key does the same.
  */
@@ -61,6 +74,7 @@ export function woonplaatsKey(gemeente, woonplaats) {
  * @property {number} rows                   rows in the index
  * @property {Set<string>} gemeenten          gemeente slugs with at least one lasting item
  * @property {Set<string>} woonplaatsen       `woonplaatsKey()`s with at least one lasting item
+ * @property {Set<string>} roads              `roadKey()`s with at least one lasting item
  * @property {Set<string> | null} bridges     bridge ids open now or with a planned opening; null = unknown
  */
 
@@ -90,8 +104,11 @@ export function buildActivity({ index, bridges, meta }, { warn = console.warn } 
 
   const gemeenten = new Set();
   const woonplaatsen = new Set();
+  const roads = new Set();
   for (const row of rows) {
     if (!Array.isArray(row) || !LASTING_CATEGORIES.has(row[ROW_CAT])) continue;
+    const road = roadKey(row[ROW_ROAD]);
+    if (road) roads.add(road);
     const gemeente = row[ROW_GEMEENTE];
     if (typeof gemeente !== 'string' || gemeente === '') continue;
     gemeenten.add(slugify(gemeente));
@@ -113,12 +130,13 @@ export function buildActivity({ index, bridges, meta }, { warn = console.warn } 
     rows: rows.length,
     gemeenten,
     woonplaatsen,
+    roads,
     bridges: activeBridges,
   };
 }
 
 /**
- * True when the page would show no roadworks (place) or no openings (bridge) today.
+ * True when the page would show no roadworks (road, place) or no openings (bridge) today.
  * @param {{ type: string, kind?: string, entity?: any }} page  a page from buildModel()
  * @param {Activity | null} activity
  */
@@ -129,6 +147,11 @@ export function isThinPage(page, activity) {
     return !activity.woonplaatsen.has(woonplaatsKey(page.entity.gemeente ?? '', page.entity.naam));
   }
   if (page.type === 'bridge') return activity.bridges !== null && !activity.bridges.has(page.entity.id);
+  if (page.type === 'road') {
+    // An entry that is not a road number (should not occur) is left alone rather than judged empty.
+    const key = roadKey(page.entity?.road);
+    return key !== null && !activity.roads.has(key);
+  }
   return false;
 }
 

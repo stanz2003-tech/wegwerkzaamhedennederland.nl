@@ -74,6 +74,12 @@ export const TYPE_LABELS = Object.freeze({
   // sub types
   roadClosed: 'Weg afgesloten',
   carriagewayClosures: 'Rijbaan afgesloten',
+  entrySlipRoadClosed: 'Oprit afgesloten',
+  exitSlipRoadClosed: 'Afrit afgesloten',
+  slipRoadsClosed: 'Op- en afrit afgesloten',
+  connectingCarriagewayClosed: 'Verbindingsweg afgesloten',
+  parallelCarriagewayClosed: 'Parallelbaan afgesloten',
+  sideCarriagewayClosed: 'Op-, afrit of verbindingsweg afgesloten',
   laneClosures: 'Rijstrook afgesloten',
   lanesDeviated: 'Rijstroken verlegd',
   narrowLanes: 'Versmalde rijstroken',

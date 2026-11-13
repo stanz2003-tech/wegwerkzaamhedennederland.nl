@@ -126,3 +126,27 @@ test('a hand-corrected item says so first, and its old conflict is gone', () => 
   assert.deepEqual(item.detail.chk, [{ c: 'correctie', q: reden }]);
   assert.equal(report.counts.correctie, 1);
 });
+
+test('2026-11-12: "in beide richtingen afgesloten" over one carriageway, and twins, are explained', () => {
+  const texts = ['Dampoort Aquaduct dicht. N57 in beide richtingen afgesloten. Het verkeer wordt lokaal omgeleid'];
+  assert.deepEqual(checkItem({ imp: 'dicht', by: 'beide', texts }), [{ c: 'tekst-beide', q: 'N57 in beide richtingen afgesloten' }]);
+  assert.deepEqual(checkItem({ imp: 'dicht', pair: 'RWS01_B', texts: [] }), [{ c: 'paar-beide', q: 'RWS01_B' }]);
+  // A twin that a later step made lighter again is not explained as closed.
+  assert.deepEqual(checkItem({ imp: 'rijbaan', pair: 'RWS01_B', texts: [] }), []);
+});
+
+test('2026-11-12: closed both ways from the words quotes the sentence that says so', () => {
+  const texts = ['Dampoort Aquaduct dicht. N57 in beide richtingen afgesloten. Het verkeer wordt lokaal omgeleid'];
+  assert.deepEqual(checkItem({ imp: 'dicht', by: 'tekst', texts }), [{ c: 'tekst-dicht', q: 'N57 in beide richtingen afgesloten' }]);
+  // One direction: the sentence about the closure itself.
+  assert.deepEqual(checkItem({ imp: 'rijbaan', by: 'tekst', texts }), [{ c: 'tekst-dicht', q: 'Dampoort Aquaduct dicht' }]);
+});
+
+test('review 2026-11-12: a label taken from the planning twin is quoted as the reason for "weg dicht"', () => {
+  assert.deepEqual(checkItem({ imp: 'dicht', by: 'beide', quote: 'Weg dicht in beide richtingen', texts: [] }), [{ c: 'tekst-beide', q: 'Weg dicht in beide richtingen' }]);
+});
+
+test('2026-11-12: a verdict read from a detour over another road quotes that sentence', () => {
+  const texts = ['Verkeer richting het Zuiden wordt omgeleid via de A9 links Wijkertunnel'];
+  assert.deepEqual(checkItem({ imp: 'rijbaan', by: 'tekst', road: 'A22', texts }), [{ c: 'tekst-dicht', q: texts[0] }]);
+});

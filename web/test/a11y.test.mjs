@@ -53,7 +53,7 @@ function announcer() {
 describe('announce (toeg-1)', () => {
   it('writes only after the debounce, and only the last text of a burst', () => {
     const { region, timers, say } = announcer();
-    say('A27, voor auto’s, nu: Rijbaan dicht bij Gorinchem.');
+    say('A27, voor auto’s, nu: Dicht in één richting bij Gorinchem.');
     say('A27, voor auto’s, morgen: Weg dicht bij Gorinchem.');
     assert.equal(region.textContent, '', 'nothing is spoken before the debounce');
     assert.equal(timers.size, 1, 'the earlier text of the burst is dropped');
@@ -116,8 +116,8 @@ describe('the spoken answer is the card answer', () => {
   const answer = (level, headline) => ({ level, headline, specifics: [], hidden: [], counts: {}, closedRoads: 0, beyondHorizon: false, horizonMs: null });
 
   it('subject, mode, moment, then the headline', () => {
-    const m = { road: 'A27', whenLabel: 'morgen', mode: 'auto', answer: answer('rijbaan', 'Rijbaan dicht bij Gorinchem'), total: 3 };
-    assert.equal(answerAnnouncement(m), "A27, voor auto's, morgen: Rijbaan dicht bij Gorinchem.");
+    const m = { road: 'A27', whenLabel: 'morgen', mode: 'auto', answer: answer('rijbaan', 'Dicht in één richting bij Gorinchem'), total: 3 };
+    assert.equal(answerAnnouncement(m), "A27, voor auto's, morgen: Dicht in één richting bij Gorinchem.");
   });
 
   it('uses the headline the card shows, and names stale data', () => {

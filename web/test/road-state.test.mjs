@@ -48,7 +48,7 @@ describe('worstActiveByKey', () => {
 describe('roadStateHtml', () => {
   it('only closures get a hint, worded as reported', () => {
     assert.match(roadState.roadStateHtml('dicht'), /class="road-state road-state--dicht">ergens dicht gemeld</);
-    assert.match(roadState.roadStateHtml('rijbaan'), />rijbaan dicht gemeld</);
+    assert.match(roadState.roadStateHtml('rijbaan'), />dicht in één richting gemeld</);
     for (const level of ['hinder', 'geen', 'nvt', 'onbekend', null, undefined]) assert.equal(roadState.roadStateHtml(level), '', String(level));
   });
 });
