@@ -8,7 +8,7 @@
 
 import { classify } from './classify.js';
 import { gevolgOf } from './consistency.js';
-import { buildGeometry, midpoint } from './geometry.js';
+import { buildGeometry, midpoint, orientAlong } from './geometry.js';
 import { impactOf, labelClosesRoad, sideSubOf } from './impact.js';
 import { mergeSituation } from './merge.js';
 import { detectRoad } from './roads.js';
@@ -65,6 +65,8 @@ export function buildItem(situation, role, ctx) {
   if (!geo.geometry) return { skip: 'nogeom', dropped: geo.dropped + 1, unknown: cls.unknown };
 
   const alertC = ctx.vild.describe(merged.alertC);
+  // The line runs the way the detail says the measure runs ("richting <to>"): the map's arrows follow it.
+  const geometry = orientAlong(geo.geometry, ctx.vild.point(merged.alertC?.s), ctx.vild.point(merged.alertC?.p));
   const source = friendlySource(merged.src);
   merged.locations = []; // coordinates now live in `geometry`; free the record copies
   const provFromGemeente = source.gemeente ? ctx.provOfGemeente?.(source.gemeente) : undefined;
@@ -75,8 +77,8 @@ export function buildItem(situation, role, ctx) {
     role,
     state,
     cat: cls.cat,
-    geometry: geo.geometry,
-    mid: midpoint(geo.geometry),
+    geometry,
+    mid: midpoint(geometry),
     rel: situation.rel,
     provCode: source.provCode ?? provFromGemeente?.provCode,
     props: {},

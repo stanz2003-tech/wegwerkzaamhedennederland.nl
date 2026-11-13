@@ -98,3 +98,37 @@ test('bboxOf', () => {
   assert.deepEqual(bboxOf({ type: 'LineString', coordinates: [[4, 51], [6, 53]] }), [4, 51, 6, 53]);
   assert.deepEqual(bboxOf({ type: 'MultiLineString', coordinates: [[[4, 51], [5, 52]], [[6, 53], [3.5, 50.6]]] }), [3.5, 50.6, 6, 53]);
 });
+
+test('2026-11-13: orientAlong turns a line that runs against the stretch, and nothing else', async () => {
+  const { orientAlong } = await import('../src/geometry.js');
+  // The A27 from Gorinchem (north) to Werkendam (south): the stretch runs south-west.
+  const from = [4.95, 51.83];
+  const to = [4.92, 51.8];
+  const southward = [[4.95, 51.83], [4.94, 51.82], [4.92, 51.8]];
+  const northward = [...southward].reverse();
+
+  // Already the way of travel: the very same object comes back.
+  const along = { type: 'LineString', coordinates: southward };
+  assert.equal(orientAlong(along, from, to), along);
+
+  // Against it: turned round, the input untouched.
+  const againstLine = { type: 'LineString', coordinates: northward };
+  assert.deepEqual(orientAlong(againstLine, from, to), { type: 'LineString', coordinates: southward });
+  assert.deepEqual(againstLine.coordinates, northward, 'the input is not mutated');
+
+  // Per part of a MultiLineString; a part across the stretch (a ramp) and a short piece stay.
+  const across = [[4.93, 51.815], [4.96, 51.8]];
+  const short = [[4.94, 51.82], [4.9401, 51.8201]];
+  const multi = { type: 'MultiLineString', coordinates: [northward, southward, across, short] };
+  assert.deepEqual(orientAlong(multi, from, to).coordinates, [southward, southward, across, short]);
+  const fine = { type: 'MultiLineString', coordinates: [southward, across] };
+  assert.equal(orientAlong(fine, from, to), fine);
+
+  // Nothing to go on: no stretch, a stretch too short to have a direction, a point, no geometry.
+  assert.equal(orientAlong(againstLine, undefined, to), againstLine);
+  assert.equal(orientAlong(againstLine, from, undefined), againstLine);
+  assert.equal(orientAlong(againstLine, from, [4.9501, 51.8301]), againstLine);
+  const point = { type: 'Point', coordinates: [4.95, 51.83] };
+  assert.equal(orientAlong(point, from, to), point);
+  assert.equal(orientAlong(null, from, to), null);
+});

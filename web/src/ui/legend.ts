@@ -18,6 +18,7 @@ const LEVELS: readonly VerdictLevel[] = VERDICT_SEVERITY;
 /** How each level looks on the map, in words (the swatch shows it; the text says it for everyone). */
 const LINE_NOTE: Partial<Record<VerdictLevel, string>> = {
   dicht: 'rood met witte streepjes',
+  rijbaan: 'pijltjes wijzen de rijrichting aan die dicht is',
   nvt: 'vervaagd',
 };
 

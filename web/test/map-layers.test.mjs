@@ -349,3 +349,88 @@ describe('sending the map only what changed (featureDiff, INP)', () => {
     assert.equal(featureDiff(fc(f('a'), f('b'), f('c')), fc(f('a'), f('b'), f('c'))), null, 'every geometry a new object: the refresh');
   });
 });
+
+describe('2026-11-13: which way a one-direction closure is shut', () => {
+  const { ARROW_IMAGE, ARROW_PIXEL_RATIO, arrowImage, sideOffset, ensureOverlay } = layers;
+  const RIJBAAN = ['==', ['coalesce', ['get', 'v'], 'onbekend'], 'rijbaan'];
+
+  it('arrows lie along the lines that are closed in one direction, above the line and below the live layer', () => {
+    for (const theme of ['light', 'dark']) {
+      const list = overlayLayers({ theme, labelFont: ['x'], beforeId: undefined, cluster: true });
+      const ids = list.map((l) => l.id);
+      const arrows = list.find((l) => l.id === LAYERS.arrows);
+      assert.ok(arrows, 'the arrow layer exists');
+      assert.ok(ids.indexOf(LAYERS.arrows) > ids.indexOf(LAYERS.line));
+      assert.ok(ids.indexOf(LAYERS.arrows) < ids.indexOf(LAYERS.hit), 'a tap still reaches the line under an arrow');
+      assert.equal(arrows.type, 'symbol');
+      assert.deepEqual(arrows.filter, ['all', ['!=', ['get', 'cat'], 'file'], RIJBAAN]);
+      assert.equal(arrows.layout['symbol-placement'], 'line');
+      assert.equal(arrows.layout['icon-image'], ARROW_IMAGE);
+      // Follows the line's own direction: never flipped upright, never dropped for a neighbour.
+      assert.equal(arrows.layout['icon-rotation-alignment'], 'map');
+      assert.equal(arrows.layout['icon-keep-upright'], undefined);
+      assert.equal(arrows.layout['icon-allow-overlap'], true);
+    }
+  });
+
+  it('only a one-direction closure moves aside, to the right of its direction, and not once the carriageways are apart', () => {
+    assert.deepEqual(sideOffset.slice(0, 3), ['interpolate', ['linear'], ['zoom']], 'one zoom curve, outermost');
+    const stops = sideOffset.slice(3);
+    for (let i = 0; i < stops.length; i += 2) {
+      const [op, test, px, otherwise] = stops[i + 1];
+      assert.equal(op, 'case');
+      assert.deepEqual(test, RIJBAAN);
+      assert.ok(px >= 0, 'positive line-offset = right of the direction of travel');
+      assert.equal(otherwise, 0, 'every other line stays on its course');
+    }
+    assert.equal(stops.at(-1)[2], 0, 'zoomed in, the feed line lies on its own carriageway');
+    const list = overlayLayers({ theme: 'light', labelFont: ['x'], beforeId: undefined, cluster: true });
+    for (const id of [LAYERS.selectedLine, LAYERS.casing, LAYERS.line, LAYERS.hit]) {
+      assert.deepEqual(list.find((l) => l.id === id).paint['line-offset'], sideOffset, `${id} moves with the line`);
+    }
+  });
+
+  it('the arrow is a white dart with a dark rim that points right, the direction of the line', () => {
+    const img = arrowImage();
+    assert.equal(img.data.length, img.width * img.height * 4);
+    const at = (x, y) => img.data.subarray((y * img.width + x) * 4, (y * img.width + x) * 4 + 4);
+    const opaqueCols = (y) => Array.from({ length: img.width }, (_, x) => x).filter((x) => at(x, y)[3] > 128);
+    const mid = Math.floor(img.height / 2);
+    const top = Math.floor(img.height * 0.25);
+    assert.ok(Math.max(...opaqueCols(mid)) > Math.max(...opaqueCols(top)) + 4, 'the tip is on the right, in the middle row');
+    // Symmetric top to bottom, so it points along the line and not up or down.
+    for (const y of [4, 8, 12]) assert.deepEqual(opaqueCols(y), opaqueCols(img.height - 1 - y), `row ${y}`);
+    // White inside, dark at the rim, transparent corners.
+    const core = at(Math.floor(img.width * 0.55), mid);
+    assert.ok(core[0] > 240 && core[3] === 255, 'white core');
+    assert.equal(at(0, 0)[3], 0);
+    assert.equal(at(img.width - 1, img.height - 1)[3], 0);
+    const rim = Array.from({ length: img.width }, (_, x) => at(x, mid)).find((p) => p[3] > 100 && p[0] < 120);
+    assert.ok(rim, 'a dark rim pixel on the middle row');
+  });
+
+  it('ensureOverlay adds the arrow image before its layer, once, also after a new style dropped it', () => {
+    const calls = [];
+    const images = new Set();
+    const map = {
+      getSource: () => null,
+      addSource: () => {},
+      getLayer: () => null,
+      addLayer: (layer) => calls.push(`layer:${layer.id}`),
+      hasImage: (name) => images.has(name),
+      addImage: (name, image, options) => {
+        images.add(name);
+        calls.push(`image:${name}:${image.width}:${options.pixelRatio}`);
+      },
+    };
+    const data = { lines: { type: 'FeatureCollection', features: [] }, points: { type: 'FeatureCollection', features: [] } };
+    ensureOverlay(map, data, { theme: 'light', labelFont: ['x'], beforeId: undefined, cluster: false });
+    ensureOverlay(map, data, { theme: 'light', labelFont: ['x'], beforeId: undefined, cluster: false });
+    const imageCalls = calls.filter((c) => c.startsWith('image:'));
+    assert.deepEqual(imageCalls, [`image:${ARROW_IMAGE}:36:${ARROW_PIXEL_RATIO}`]);
+    assert.ok(calls.indexOf(imageCalls[0]) < calls.indexOf(`layer:${LAYERS.arrows}`));
+    images.clear(); // a theme switch loads a new style
+    ensureOverlay(map, data, { theme: 'dark', labelFont: ['x'], beforeId: undefined, cluster: false });
+    assert.equal(calls.filter((c) => c.startsWith('image:')).length, 2);
+  });
+});

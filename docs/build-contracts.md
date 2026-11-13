@@ -91,7 +91,7 @@ rather than with every run (see `startOfLocalDay` in pipeline/src/time.js).
 
 Frontend data base URL: `import.meta.env.VITE_DATA_BASE ?? '/data/'` (always trailing slash). Production: `https://data.<domein>/v1/`.
 
-Feature geometry: `Point`, `LineString` or `MultiLineString` in WGS84 `[lon, lat]`, 5 decimals, inside NL bbox `[3.2, 50.5, 7.3, 53.7]` (parts outside are dropped and counted). Feature `id` (GeoJSON top-level) = `properties.id` (so MapLibre `promoteId`/feature-state works).
+Feature geometry: `Point`, `LineString` or `MultiLineString` in WGS84 `[lon, lat]`, 5 decimals, inside NL bbox `[3.2, 50.5, 7.3, 53.7]` (parts outside are dropped and counted). Since 2026-11-13 a line runs in the direction of travel: the feed draws 98.8% of its lines that way, and a line that clearly runs against the item's AlertC stretch (`from` → `to`) is turned round (`orientAlong` in pipeline/src/geometry.js). The map draws arrows along the lines of one-direction closures (`imp: rijbaan`) and relies on this order. Feature `id` (GeoJSON top-level) = `properties.id` (so MapLibre `promoteId`/feature-state works).
 
 ## Static lists (owner A creates the generators; committed in `pipeline/static/`; C copies them to `web/public/lists/`)
 
