@@ -4,26 +4,40 @@
  * Filled only when site.config `ads.enabled` is true: one <ins> per slot, fixed height reserved so
  * nothing jumps when the ad arrives. A slot AdSense leaves unfilled collapses (components.css),
  * and so does one whose script is blocked: that moves the text below it up once, which beats a
- * permanent empty box. Otherwise the slots stay hidden with zero height. The AdSense script itself loads once, when the page is done (`load`,
+ * permanent empty box. Otherwise the slots stay hidden with zero height.
+ * Two kinds of slot: `top` stands high on the page (under the small map, or between two sections
+ * of a guide), keeps its room from the first paint and asks for its ad as soon as the script is
+ * there; `side` is its neighbour in the same row, on screens wide enough for two columns only;
+ * every other slot stands further down and only opens when the reader comes near
+ * (ui/ad-lazy.ts), so an ad nobody scrolls to is never requested.
+ * The AdSense script itself loads once, when the page is done (`load`,
  * the page's own start-up, an idle moment: ui/ad-loader.ts); the slots wait in the
  * `window.adsbygoogle` queue until it arrives.
  * Consent: Google's own CMP ("Privacy & messaging") ships with the AdSense script; `openCmp()`
  * re-opens it for the footer link (`data-cmp-open`).
  */
 import site from '../../site.config.json';
-import { hideIfNotTaken } from './ad-fill';
+import { hideIfNotTaken, slotTaken } from './ad-fill';
+import { standsApart, whenNear, type Span } from './ad-lazy';
 import { deferAdScript, type AdScript } from './ad-loader';
 import { pageAllowsAds } from './ad-policy';
 import { createCmpOpener, type GoogleFc } from './cmp';
 
-type SlotName = 'panel' | 'list' | 'article';
+type SlotName = 'panel' | 'list' | 'article' | 'top' | 'side';
 
-const SLOT_HEIGHT: Record<SlotName, number> = { panel: 250, list: 100, article: 280 };
+const SLOT_HEIGHT: Record<SlotName, number> = { panel: 250, list: 100, article: 280, top: 280, side: 280 };
 /**
  * The ad shape that fits each reserved box: the 250 and 280 px boxes take a rectangle (300×250,
  * 336×280); a horizontal banner there would leave most of the box empty.
  */
-const SLOT_FORMAT: Record<SlotName, 'rectangle' | 'horizontal'> = { panel: 'rectangle', list: 'horizontal', article: 'rectangle' };
+const SLOT_FORMAT: Record<SlotName, 'rectangle' | 'horizontal'> = { panel: 'rectangle', list: 'horizontal', article: 'rectangle', top: 'rectangle', side: 'rectangle' };
+/** The slots high on the page: shown from the first paint. The others wait for the reader (ui/ad-lazy.ts). */
+const EAGER_SLOTS: ReadonlySet<SlotName> = new Set<SlotName>(['top', 'side']);
+/**
+ * From here the road and place pages have two columns (pages.css): room for two rectangles side by
+ * side. Narrower, `side` would stand right under `top`: two ads on one screen.
+ */
+const TWO_COLUMNS = '(min-width: 1024px)';
 /** Reclamecode: ads must be recognisable; AdSense allows only "Advertenties" or "Gesponsorde links". */
 const AD_LABEL = 'Advertenties';
 /** Must match --ad-label-h in components.css; reserved up front so the page does not jump. */
@@ -39,7 +53,7 @@ declare global {
 }
 
 function isSlotName(v: string | undefined): v is SlotName {
-  return v === 'panel' || v === 'list' || v === 'article';
+  return v === 'panel' || v === 'list' || v === 'article' || v === 'top' || v === 'side';
 }
 
 export function adsEnabled(): boolean {
@@ -84,41 +98,105 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
   return ins;
 }
 
+/** A slot of this page that has an AdSense ad unit to show. */
+interface PageSlot {
+  el: HTMLElement;
+  name: SlotName;
+  slotId: string;
+}
+
+/**
+ * The ad unit of a slot. `top` and `side` borrow the unit of the slot before them until they have
+ * one of their own in site.config; `side` has none on a screen without room for two columns.
+ */
+function slotIdFor(name: SlotName): string {
+  const slots = site.ads.slots;
+  if (name === 'top') return slots.top || slots.article;
+  if (name === 'side') return window.matchMedia(TWO_COLUMNS).matches ? slots.side || slots.top || slots.article : '';
+  return slots[name];
+}
+
+/** The slots in `root` that can show an ad and are not wired yet. */
+function pageSlots(root: ParentNode): PageSlot[] {
+  return Array.from(root.querySelectorAll<HTMLElement>('[data-ad-slot]')).flatMap((el) => {
+    const name = el.dataset.adSlot;
+    if (!isSlotName(name) || el.dataset.adFilled === '1' || el.dataset.adSkipped === '1' || el.classList.contains('is-waiting')) return [];
+    const slotId = slotIdFor(name);
+    return slotId ? [{ el, name, slotId }] : [];
+  });
+}
+
+/** Where a slot stands on the page right now; a hidden or collapsed slot has no height. */
+function spanOf(el: HTMLElement): Span {
+  const box = el.getBoundingClientRect();
+  return { top: box.top, bottom: box.bottom };
+}
+
+/** True when AdSense has taken this slot's `<ins>`: an ad is there or on its way. */
+function hasAd(el: HTMLElement): boolean {
+  const ins = el.querySelector('ins.adsbygoogle');
+  return ins !== null && slotTaken(ins);
+}
+
 /** Wires every `[data-ad-slot]` in `root`. Safe to call more than once (idempotent per slot). */
 export function mountAds(root: ParentNode = document): void {
   const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content;
   const adsMeta = document.querySelector<HTMLMetaElement>('meta[name="wegwerk-ads"]')?.content;
   const enabled = adsEnabled() && pageAllowsAds(robots, adsMeta);
   window.__ADS_ENABLED__ = enabled;
-  const slots = root.querySelectorAll<HTMLElement>('[data-ad-slot]');
   if (!enabled) {
-    slots.forEach((el) => {
+    root.querySelectorAll<HTMLElement>('[data-ad-slot]').forEach((el) => {
       el.hidden = true;
     });
     return;
   }
   const client = site.ads.adsenseClient;
   const script = loadAdsenseScript(client);
-  slots.forEach((el) => {
-    const name = el.dataset.adSlot;
-    if (!isSlotName(name)) return;
-    const slotId = site.ads.slots[name];
-    if (!slotId) return;
-    el.hidden = false;
-    const ins = fillSlot(el, name, client, slotId);
-    // A blocked script brings no ad: no empty box with an "Advertenties" label either.
-    script?.onFail(() => {
+  const slots = pageSlots(root);
+  let retired = false;
+  let cancels: ReadonlyArray<() => void> = [];
+  /**
+   * No ad will come: the script is blocked, or an ad blocker's stand-in loaded in its place and
+   * never takes a slot (ui/ad-fill.ts). No empty box with an "Advertenties" label then, neither
+   * the slots on screen nor the ones still waiting; a slot that does carry an ad stays.
+   */
+  const retire = (): void => {
+    retired = true;
+    cancels.forEach((cancel) => cancel());
+    slots.forEach(({ el }) => {
+      if (hasAd(el)) return;
+      el.dataset.adSkipped = '1';
       el.hidden = true;
     });
-    // Nor does an ad blocker's stand-in script, which loads but never takes the slot (ui/ad-fill.ts).
-    if (ins) {
-      script?.onLoaded(() => {
-        hideIfNotTaken(ins, () => {
-          el.hidden = true;
-        });
-      });
+  };
+  const show = (slot: PageSlot): void => {
+    if (retired) return;
+    slot.el.classList.remove('is-waiting');
+    const ins = fillSlot(slot.el, slot.name, client, slot.slotId);
+    if (ins) script?.onLoaded(() => hideIfNotTaken(ins, retire));
+  };
+  /** A waiting slot opens only with a screen of page between it and the ads already shown. */
+  const showIfApart = (slot: PageSlot): void => {
+    if (retired) return;
+    const shown = slots.filter((other) => other !== slot && other.el.classList.contains('is-enabled')).map((other) => spanOf(other.el));
+    if (standsApart(spanOf(slot.el), shown.filter((span) => span.bottom > span.top), window.innerHeight)) {
+      show(slot);
+      return;
     }
+    slot.el.classList.remove('is-waiting');
+    slot.el.dataset.adSkipped = '1'; // for this page view: a second mountAds() leaves it alone
+    slot.el.hidden = true;
+  };
+  cancels = slots.map((slot) => {
+    slot.el.hidden = false;
+    if (EAGER_SLOTS.has(slot.name)) {
+      show(slot);
+      return () => undefined;
+    }
+    slot.el.classList.add('is-waiting');
+    return whenNear(slot.el, () => showIfApart(slot));
   });
+  script?.onFail(retire);
 }
 
 /** The AdSense script also waits for this work of the page (its data, answer and map). */

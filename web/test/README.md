@@ -65,8 +65,9 @@ Not covered (and why):
 - `map/**` and the DOM parts of `ui/**` (`panel`, `list`, `detail`, `topbar`, `search`,
   `chips`, `controls`, `theme`, `toast`, `ads`, `analytics`, `badge`, `icons`, `list-item`) —
   they need a browser (MapLibre needs WebGL2). These belong in a Playwright suite. The pure
-  parts of the ad code are tested: `ad-policy`, `ad-loader` (the deferred script) and `cmp`
-  (the cookie link); `ad-slots.test.mjs` reads the `ads.ts` source for the wiring.
+  parts of the ad code are tested: `ad-policy`, `ad-loader` (the deferred script), `ad-lazy`
+  (a slot waits for the reader and keeps a screen between two ads) and `cmp` (the cookie link);
+  `ad-slots.test.mjs` reads the `ads.ts` source and the templates for the wiring.
 
 ## Fixtures
 

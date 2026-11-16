@@ -25,6 +25,6 @@ describe('ad label', () => {
   });
 
   it('the label only exists in filled slots; disabled slots stay hidden', () => {
-    assert.match(ads, /if \(!enabled\) \{\s*slots\.forEach\(\(el\) => \{\s*el\.hidden = true;/);
+    assert.match(ads, /if \(!enabled\) \{\s*root\.querySelectorAll<HTMLElement>\('\[data-ad-slot\]'\)\.forEach\(\(el\) => \{\s*el\.hidden = true;/);
   });
 });

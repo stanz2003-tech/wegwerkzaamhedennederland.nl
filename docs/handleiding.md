@@ -469,8 +469,14 @@ aanmelden → site toevoegen → je krijgt een id `ca-pub-…`. Zet in `web/site
 `ads.adsenseClient` dat id en `ads.enabled` op `true`; commit en push. De site plaatst dan
 automatisch het AdSense-script en het bestand `/ads.txt` (`google.com, pub-…, DIRECT,
 f08c47fec0942fa0`). Vraag in AdSense de beoordeling aan (enkele dagen tot 2–4 weken). Maak daarna
-advertentieblokken aan en zet hun ids in `ads.slots`. De pagina's hebben nu één vak, `article`
-(onder de lijst met meldingen); `panel` en `list` worden nergens gebruikt en mogen leeg blijven.
+advertentieblokken aan en zet hun ids in `ads.slots`. De pagina's hebben twee plekken (op een
+breed scherm staat naast `top` een tweede vak, `side`; dat valt terug op het blok van `top`): `top`
+(onder het kaartje, vóór de lijst met meldingen; in een gids of de veelgestelde vragen tussen twee
+hoofdstukken) en `article` (onder de lijst en de vragen, of onder de tekst). `top` staat er vanaf
+het begin; `article` opent pas als de lezer er op één scherm afstand van is, en alleen als er dan
+minstens één scherm pagina tussen de twee advertenties zit. Zolang `top` leeg is, gebruikt dat vak
+het blok van `article`; met een eigen blok zie je in AdSense per plek wat het opbrengt. `panel` en
+`list` worden nergens gebruikt en mogen leeg blijven.
 Kies **Advertenties → Per advertentieblok → Displayadvertenties**, vorm *Vierkant*, formaat
 *Responsief* **(controleer** de namen**)**; uit de code die AdSense toont heb je alleen het getal
 achter `data-ad-slot` nodig.

@@ -159,6 +159,10 @@ leeg vak zien: `web/src/ui/ad-fill.ts`.)
      daar laadt het AdSense-script niet (`web/src/ui/ads.ts`).
    - Een tweede eigen blok onder de veelgestelde vragen op weg- en plaatspagina's is goedkoper
      voor de snelheid dan in-page Auto ads (vaste hoogte, geen verspringing).
+   - **Let op bij de ankeradvertentie (toegevoegd 16 november):** weg-, plaats- en brugpagina's
+     hebben op een telefoon al een eigen balk onderaan ("Nu: … · Andere dag"). Een
+     ankeradvertentie van Google komt op dezelfde plek. Zet hem dus niet aan zonder eerst op een
+     telefoon te kijken hoe die twee samen uitpakken; zie §6.
 
 **Opnieuw afgewezen**
 - Lees de reden letterlijk. Bij weer "Content van weinig waarde":
@@ -166,3 +170,77 @@ leeg vak zien: `web/src/ui/ad-fill.ts`.)
   - schrijf een paar stukken onder je eigen naam, bijvoorbeeld een wekelijks "Dit weekend op de weg";
   - werk aan externe vermeldingen: een forum, NDW, lokale pers.
 - Wacht minstens 4 weken met de volgende aanvraag.
+
+---
+
+## 6. Meer opbrengst uit dezelfde bezoekers (16 november 2026)
+
+**Meting op de eerste dag** (AdSense → Rapporten → Vandaag, 16 nov ±21:00; kleine steekproef):
+85 paginaweergaven, 71 vertoningen, € 0,03, pagina-RPM € 0,39, RPM per vertoning € 0,46 en
+**zichtbare actieve weergave 10%**. Negen van de tien advertenties zijn dus niet gezien.
+
+**Oorzaak.** Elke tekstpagina had één blok, onder de hele lijst met meldingen. Gemeten op een
+telefoon (375 × 812): /plaats/maarssen/ 3.560 px diep (4 schermen), /weg/a2/ 8.080 px (10
+schermen), /gemeente/s-hertogenbosch/ 9.600 px (12 schermen), /plaatsen/ 21.000 px. Adverteerders
+betalen voor advertenties die gezien worden.
+
+**Wat er veranderd is (branch `claude/adsense-revenue-optimization-4192cb`).**
+
+| Plek | Waar | Gedrag |
+|---|---|---|
+| `top` op weg-, plaats- en brugpagina's | Telefoon: tussen het kaartje en de lijst (±2e scherm). Breed scherm: een rij boven kaart en lijst | Staat er vanaf het begin, met vaste hoogte: niets verspringt |
+| `side` op dezelfde pagina's | Alleen op een breed scherm (vanaf 1.024 px): rechts naast `top`, in dezelfde rij | Idem. Eén breed vak kreeg meestal één rechthoek met lege ruimte ernaast; twee vakken zijn twee advertenties op dezelfde hoogte. Heeft Google er voor één geen advertentie, dan krijgt de andere de hele rij |
+| `top` in gidsen en de veelgestelde vragen | Tussen twee hoofdstukken, na ongeveer één scherm lezen | Idem. Niet op privacy, cookies, disclaimer, colofon en contact |
+| `article` (bestond al) | Onder de lijst en de vragen, of onder de tekst | Opent pas als de lezer er één scherm vandaan is. Wie er niet komt, laadt hem niet |
+
+Regels die in de code vastliggen (`web/src/ui/ads.ts`, `web/src/ui/ad-lazy.ts`):
+
+- Nooit een advertentie boven het antwoord. De bezoeker krijgt eerst te zien of hij erdoor kan.
+- Nooit twee advertenties onder elkaar in beeld: het onderste blok opent alleen met minstens één
+  schermhoogte pagina ertussen (op een korte brugpagina blijft het dus weg). Op een telefoon is er
+  dus nooit meer dan één tegelijk te zien; op een breed scherm staan er twee naast elkaar in één rij.
+- Geen advertenties op de kaart, op lege pagina's en op pagina's die uit Google zijn (ongewijzigd).
+- Geen eigen "meeschuivende" advertentie. Op een breed scherm schuift het kaartje mee; daarom
+  staat het blok daar boven kaart en lijst, niet in de kaartkolom. Google's hulppagina's noemen
+  zelfgebouwde meeschuivende blokken niet als toegestaan.
+- Pas laden bij nadering staat niet in Google's lijst van toegestane codewijzigingen, en ook niet
+  bij de verboden technieken (hulppagina's 1354736 en 1346295, gelezen 16 nov). De
+  advertentiecode zelf blijft ongewijzigd; alleen het moment van aanvragen verschuift. Het vak
+  bevat tot dat moment geen advertentiecode, dus er wordt niets verborgen.
+
+**Wat je ervan mag verwachten.** Geen belofte: de eerste dag is te kort om op te rekenen. Het doel
+is dat de zichtbaarheid van 10% naar ruim 50% gaat (mijn schatting, uit de plek op de pagina);
+de prijs per vertoning volgt die zichtbaarheid. De bandbreedte die op 16 november is uitgezocht
+voor Nederlandse sites: pagina-RPM € 0,15 (laag), € 0,80 (midden), € 2,50 (hoog). De onderkant van
+€ 1 tot € 4 is met deze twee plekken haalbaar; voor meer zijn de plekken hieronder nodig, en
+bezoekers die toestemming geven voor gepersonaliseerde advertenties.
+
+**Na een week meten (rond 24 november).** AdSense → Rapporten → *Ad units*: per blok de
+zichtbare actieve weergave en de RPM. Cloudflare Web Analytics: INP en CLS van de tekstpagina's
+naast de week ervoor.
+
+**Bewust geaccepteerd, wel in de gaten houden.** Heeft Google voor het bovenste vak geen
+advertentie, dan klapt het vak in en schuift de lijst ±320 px omhoog. Stond het vak vroeger tien
+schermen diep, nu staat het op het tweede scherm: wie binnen een paar seconden al in de lijst
+leest, ziet dat verspringen. Chrome en Firefox corrigeren de scrollpositie zelf; van Safari op
+oudere iPhones is dat niet zeker. Loopt de CLS van de tekstpagina's in Cloudflare op, dan is de
+oplossing: de scrollpositie zelf corrigeren op het moment dat het vak inklapt (`ads.ts`).
+
+**Nog te beslissen, in volgorde van opbrengst.**
+
+1. **Eigen blokken voor `top` en `side`.** Nu delen alle vakken het blok "Tekstpagina onder
+   antwoord" (`8500343403`). Met twee extra blokken ("Tekstpagina onder kaart" en "Tekstpagina
+   onder kaart rechts", display, vierkant, responsief) en de ID's in `ads.slots.top` en
+   `ads.slots.side` zie je per plek wat hij doet. Kost niets aan snelheid.
+2. **Ankeradvertentie onderaan (telefoon).** Vaak de best verdienende plek, maar hij botst met
+   de eigen balk onderaan ("Nu: … · Andere dag"). Eerst proberen op een telefoon; als de twee
+   elkaar in de weg zitten, de eigen balk omhoog laten schuiven of de ankeradvertentie laten.
+3. **Zijbalken van Google op brede schermen** (Auto ads → alleen "zijbalk"). Ze staan naast de
+   pagina, niet erin, en verschijnen alleen op schermen die breed genoeg zijn.
+4. **Een blok in de lijst zelf**, na de eerste groep meldingen. Levert op drukke pagina's (Den
+   Bosch: lijst van 7.400 px) het meeste op, maar staat midden in het product. Pas doen als de
+   cijfers van punt 1 laten zien dat het onderste blok te weinig gezien wordt.
+5. **De kaart.** Blijft reclamevrij. Hooguit later één blok in het zijpaneel op een breed scherm.
+
+**Niet doen:** vignetten (schermvullend bij doorklikken), "Automatisch optimaliseren" aanzetten
+zonder die te blokkeren, advertenties verversen, of het blok boven het antwoord zetten.

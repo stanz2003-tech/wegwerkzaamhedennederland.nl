@@ -7,6 +7,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { markdownToHtml, parseFrontMatter, splitSections, stripMarkdown } from './markdown.mjs';
+import { withInArticleAd } from './in-article-ad.mjs';
 import { escapeHtml, protectEmails } from './render.mjs';
 import { isThinPage, normalizeName } from './activity.mjs';
 import { decideThin } from './index-state.mjs';
@@ -59,6 +60,9 @@ export const GUIDE_ROUTES = ['meldingen-lezen', 'omrijden', 'weekend-en-nachtafs
 }));
 
 export const NOT_FOUND_SLUG = 'niet-gevonden';
+
+/** Legal and contact pages keep their text whole: no ad between two of their sections. */
+const NO_IN_ARTICLE_AD = new Set(['privacy', 'cookies', 'disclaimer', 'colofon', 'contact', NOT_FOUND_SLUG]);
 
 /* ------------------------------------------------------------------------------------------ */
 /* Loading                                                                                    */
@@ -737,7 +741,7 @@ function staticContext(model, page) {
     updatedLabel: updated ? fmtDate(updated) : '',
     // A guide shows who wrote it (the same name as its Article JSON-LD author); without an owner name, nothing.
     author: page.parent && String(model.site.owner?.name ?? '').trim() ? String(model.site.owner.name).trim() : '',
-    body: markdownToHtml(bodyMd),
+    body: NO_IN_ARTICLE_AD.has(page.slug) ? markdownToHtml(bodyMd) : withInArticleAd(markdownToHtml(bodyMd)),
     isFaq,
     isNotFound: page.slug === NOT_FOUND_SLUG,
   };
