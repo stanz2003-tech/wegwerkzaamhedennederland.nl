@@ -146,6 +146,19 @@ leeg vak zien: `web/src/ui/ad-fill.ts`.)
    opties te beheren. "Cookie-instellingen" onderaan moet hem opnieuw openen.
 3. Controleer na een week in Cloudflare de **snelheid (INP)** van de tekstpagina's.
 4. Begin pas daarna met Auto ads of meer blokken, en houd de kaart reclamevrij.
+   - **Automatisch optimaliseren staat uit** (16 november 2026). Het stond standaard aan, op 50%
+     van het verkeer, met "winnaar automatisch toepassen": Google mag dan zelf een indeling voor
+     automatische advertenties aanzetten, ook een schermvullende. Zet het pas weer aan als de
+     gewenste indelingen vastliggen, en blokkeer dan onder *Geblokkeerde experimenten* in elk
+     geval vignetten en op intentie gerichte indelingen.
+   - Advies voor Auto ads (Advertenties → Op site → potlood → Advertentie-instellingen):
+     **ankeradvertentie onderaan** en **zijbalken** aan; **vignetten**, **op intentie gerichte
+     indelingen** (BÈTA) en **in-page-indelingen** uit. Een vignet verschijnt ook bij een klik
+     van een wegpagina naar de kaart; intentielinks komen in teksten als "A2 dicht"; in-page
+     blokken laten de pagina verspringen. De kaart en lege pagina's blijven vanzelf reclamevrij:
+     daar laadt het AdSense-script niet (`web/src/ui/ads.ts`).
+   - Een tweede eigen blok onder de veelgestelde vragen op weg- en plaatspagina's is goedkoper
+     voor de snelheid dan in-page Auto ads (vaste hoogte, geen verspringing).
 
 **Opnieuw afgewezen**
 - Lees de reden letterlijk. Bij weer "Content van weinig waarde":
