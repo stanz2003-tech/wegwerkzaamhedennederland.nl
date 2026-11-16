@@ -126,3 +126,28 @@ describe('ads only where Google may index', () => {
     assert.ok(mount.indexOf('pageAllowsAds') < mount.indexOf('loadAdsenseScript'), 'the policy decides before the script loads');
   });
 });
+
+describe('ad slots on the text pages', () => {
+  const slotsOf = (doc) => [...doc.matchAll(/data-ad-slot="(\w+)"/g)].map((m) => m[1]);
+
+  it('a guide and the FAQ carry one slot between two sections and one under the text', () => {
+    for (const path of ['/uitleg/omrijden/', '/uitleg/meldingen-lezen/', '/veelgestelde-vragen/']) {
+      const doc = html(path);
+      assert.deepEqual(slotsOf(doc), ['top', 'article'], path);
+      assert.match(doc, /data-ad-slot="top" aria-hidden="true"><\/div>\n<h2/, `${path}: right before a heading`);
+      assert.ok(doc.indexOf('<h2') < doc.indexOf('data-ad-slot="top"'), `${path}: never above the first section`);
+    }
+  });
+
+  it('the legal and contact pages keep their text whole', () => {
+    for (const path of ['/privacy/', '/cookies/', '/disclaimer/', '/colofon/', '/contact/']) assert.deepEqual(slotsOf(html(path)), ['article'], path);
+  });
+
+  it('the 404 page has no slot at all', () => {
+    assert.deepEqual(slotsOf(html('/404.html')), []);
+  });
+
+  it('road and place pages carry the row under the map and the slot under the list, in that order', () => {
+    for (const path of ['/weg/a2/', '/gemeente/s-hertogenbosch/']) assert.deepEqual(slotsOf(html(path)), ['top', 'side', 'article'], path);
+  });
+});

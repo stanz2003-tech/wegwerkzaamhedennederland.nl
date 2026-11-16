@@ -949,6 +949,9 @@
 /* ------------------------------------------------------------------ ad slots */
 .ad-slot { height: 0; overflow: hidden; margin: 0; }
 .ad-slot.is-enabled { margin: var(--s-6) 0; background: var(--surface-2); border-radius: var(--r-2); }
+/* A slot further down waits for the reader (ui/ad-lazy.ts): in the page, so its place can be
+   watched, but without height or margin, so nothing shows and nothing moves. */
+.ad-slot.is-waiting { display: block; height: 0; margin: 0; }
 /* AdSense had no ad for this slot: collapse the box and its label instead of leaving them empty. */
 .ad-slot:has(> ins.adsbygoogle[data-ad-status='unfilled']) { display: none; }
 .ad-slot { --ad-label-h: 20px; }

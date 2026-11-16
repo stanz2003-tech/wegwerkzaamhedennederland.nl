@@ -1205,6 +1205,43 @@
   background: var(--surface-2);
 }
 
+/* The ad row under the small map (road, place and bridge pages). On a phone it holds one slot,
+   between the map and the list; the grid's own gap spaces it. On a wide screen the map column is
+   sticky and an ad of our own must not stick along: there the row lies above map and list, with
+   two slots side by side (one wide box mostly got one rectangle with empty space beside it).
+   The row only exists while a slot in it shows or still expects its ad, so an unfilled or blocked
+   slot leaves no empty grid row, and the slot that is left takes the full width. */
+.ad-row {
+  display: none;
+}
+
+.ad-row:has(> .ad-slot.is-enabled:not([hidden]) > ins.adsbygoogle:not([data-ad-status='unfilled'])) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.ad-row > .ad-slot.is-enabled {
+  margin: 0;
+}
+
+@media (min-width: 1024px) {
+  .entity-live > .ad-row {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+}
+
+/* Narrower than two columns: never two ads on one screen (ui/ads.ts does not fill this slot
+   there; this covers a window that was made narrower afterwards). */
+@media (max-width: 1023.98px) {
+  .ad-row > .ad-slot--side {
+    display: none;
+  }
+}
+
 /* ---------------------------------------------------------------------------------------- */
 /* State label next to a link on /wegen/, /plaatsen/, /bruggen/ (pages/list.ts, road-state.ts) */
 /*                                                                                           */
