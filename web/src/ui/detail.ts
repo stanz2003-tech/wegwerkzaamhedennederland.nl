@@ -10,13 +10,14 @@
  * around, before the background. The time parts live in ui/detail-when.ts.
  */
 import { bridgeWithArticle } from '../data/bridge-select';
-import { entityPagesNow } from '../data/entity-pages';
+import type { BridgePage, EntityPages } from '../data/entity-pages';
 import { closedBothWays, itemVerdict, type ForecastItem } from '../data/forecast';
 import { toMs } from '../data/time';
 import { OPEN_END_PHRASE, phraseAt, phraseIn } from '../data/time-phrase';
 import { parseTimeline, segmentAt } from '../data/timeline';
 import type { ItemDetail, ItemGeometry, ItemProperties } from '../data/types';
 import { slugify } from '../data/types';
+import { DEFAULT_URL_STATE, type PlaceRef } from '../data/url-state';
 import { PERIOD_HINT, othersNoun, verdictMeaning, type Verdict, type VehicleMode } from '../data/verdict';
 import { roadBadge } from './badge';
 import { CATEGORY_META } from './categories';
@@ -42,6 +43,8 @@ import { checkNotes } from './check-notes';
 import { NO_DESCRIPTION } from './copy';
 import { isNow, periodsBlock, phasesBlock, timelineBar, whenBlock } from './detail-when';
 import { ICONS } from './icons';
+import { roadPageHref, type MapQuestion } from './map-link';
+import { entityPageHref, placePageHref, placeSubject } from './place-mode';
 import { renderVerdictBanner } from './verdict-pill';
 
 export interface DetailState {
@@ -63,6 +66,13 @@ export interface DetailState {
   whenLabel?: string;
   /** The road the app is already showing on its own (`?weg=`); "Alleen de A27 bekijken" is then moot. */
   roadMode?: string | null;
+  /**
+   * Which /weg/, /plaats/, /gemeente/ and /brug/ pages exist (data/entity-pages.ts). Null until
+   * the manifest has arrived: the page links are then left out, never guessed.
+   */
+  pages?: EntityPages | null;
+  /** The map's vehicle and moment or day, carried into the page links. Default: now, `mode`. */
+  question?: MapQuestion;
 }
 
 export interface DetailCallbacks {
@@ -170,6 +180,61 @@ function bannerVerdict(v: Verdict): Verdict {
   return { level: v.level, label: v.label, ...(detail ? { detail } : {}) };
 }
 
+export interface PageLink {
+  kind: 'road' | 'place' | 'bridge';
+  href: string;
+  label: string;
+}
+
+export interface DetailPageLinks {
+  /** The block under the route buttons: road page, village (else gemeente) page, road bridges. */
+  top: PageLink[];
+  /** The gemeente of a village that has its own link above: a smaller link further down. */
+  gemeente: PageLink | null;
+}
+
+const NO_PAGE_LINKS: DetailPageLinks = { top: [], gemeente: null };
+
+/**
+ * Where a melding on the map links on to: "Alles op de A27, per dag →", "Alles in Almkerk, per
+ * dag →" (the gemeente when the village has no page) and its road bridges. Only pages the
+ * manifest knows; each carries the map's vehicle and moment or day, as the answer cards do.
+ */
+export function detailPageLinks(
+  p: Pick<ItemProperties, 'road' | 'woonplaats' | 'gemeente'>,
+  pages: EntityPages | null,
+  q: MapQuestion,
+  bridges: readonly BridgePage[],
+): DetailPageLinks {
+  if (!pages) return NO_PAGE_LINKS;
+  const top: PageLink[] = [];
+  if (p.road && pages.hasRoadPage(slugify(p.road))) {
+    top.push({ kind: 'road', href: roadPageHref(p.road, q), label: `Alles op de ${p.road}, per dag →` });
+  }
+  // The village itself before its gemeente (21 villages in Altena).
+  const village = p.woonplaats ? pages.findWoonplaats(p.woonplaats, p.gemeente) : null;
+  const gemeente = p.gemeente ? pages.findGemeente(p.gemeente) : null;
+  const place: PlaceRef | null = village
+    ? { kind: 'woonplaats', slug: village.slug, name: village.name }
+    : gemeente
+      ? { kind: 'gemeente', slug: gemeente.slug, name: gemeente.name }
+      : null;
+  if (place) top.push({ kind: 'place', href: placePageHref(place, q), label: `Alles in ${placeSubject(place)}, per dag →` });
+  // Road bridge pages read the vehicle and day as the road and place pages do (pages/bridge-road.ts).
+  for (const b of bridges) top.push({ kind: 'bridge', href: entityPageHref(`/brug/${b.slug}/`, q), label: `Alles over ${bridgeWithArticle(b.name)} →` });
+  const gemeenteLink: PageLink | null =
+    village && gemeente ? { kind: 'place', href: placePageHref({ kind: 'gemeente', slug: gemeente.slug }, q), label: `Gemeente ${gemeente.name}` } : null;
+  return { top, gemeente: gemeenteLink };
+}
+
+const PAGE_ICON: Record<PageLink['kind'], string> = { road: ICONS.milestone, place: ICONS.mapPin, bridge: ICONS.ship };
+
+function pagesNav(links: readonly PageLink[]): string {
+  if (!links.length) return '';
+  const items = links.map((l) => `<a class="btn btn--secondary detail__page" href="${esc(l.href)}">${PAGE_ICON[l.kind]}<span>${esc(l.label)}</span></a>`);
+  return `<nav class="detail__pages" aria-labelledby="detail-pages"><h3 class="detail__h" id="detail-pages">Meer over deze plek</h3>${items.join('')}</nav>`;
+}
+
 export const GMAPS_DETOUR_NOTE =
   'Google Maps kent de omleiding niet zelf; we sturen de route langs de omleidingsborden. Controleer onderweg de borden.';
 
@@ -203,18 +268,17 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   // An open end is said once, in the "Wanneer" status line under the title (taal-7).
   const bannerWhen = phrase && phrase !== OPEN_END_PHRASE ? [phrase] : [];
 
+  // The pages about this road, place and road bridges, right under the route buttons: the map is
+  // where people click, the pages hold the day-by-day view and every other melding. The bridges
+  // are the ones whose page counts this melding (data/bridge-select.ts): the same selection.
+  const pages = state.pages ?? null;
+  const question: MapQuestion = state.question ?? { mode: state.mode, time: DEFAULT_URL_STATE.time, moment: null, day: null, part: null };
+  const located: ForecastItem = state.geometry ? { f: { ...item.f, geometry: state.geometry }, d } : item;
+  const pageLinks = detailPageLinks(p, pages, question, pages?.bridgesForItem(located) ?? []);
+
   const links: string[] = [];
   if (d?.url) links.push(`<a class="btn btn--link" href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${ICONS.externalLink}<span>Meer info bij wegbeheerder</span></a>`);
-  if (p.road) links.push(`<a class="btn btn--link" href="/weg/${esc(slugify(p.road))}/">${ICONS.milestone}<span>Wegpagina ${esc(p.road)}</span></a>`);
-  // The village itself before its gemeente (21 villages in Altena): only when the page exists.
-  const placePage = p.woonplaats ? (entityPagesNow()?.findWoonplaats(p.woonplaats, p.gemeente) ?? null) : null;
-  if (placePage) links.push(`<a class="btn btn--link" href="/plaats/${esc(placePage.slug)}/">${ICONS.mapPin}<span>Alles in ${esc(placePage.name)}</span></a>`);
-  if (p.gemeente) links.push(`<a class="btn btn--link" href="/gemeente/${esc(slugify(p.gemeente))}/">${ICONS.mapPin}<span>Gemeente ${esc(p.gemeente)}</span></a>`);
-  // The road bridges whose page counts this melding (data/bridge-select.ts): the same selection.
-  const located: ForecastItem = state.geometry ? { f: { ...item.f, geometry: state.geometry }, d } : item;
-  for (const b of entityPagesNow()?.bridgesForItem(located) ?? []) {
-    links.push(`<a class="btn btn--link" href="/brug/${esc(b.slug)}/">${ICONS.ship}<span>Alles over ${esc(bridgeWithArticle(b.name))} →</span></a>`);
-  }
+  if (pageLinks.gemeente) links.push(`<a class="btn btn--link" href="${esc(pageLinks.gemeente.href)}">${ICONS.mapPin}<span>${esc(pageLinks.gemeente.label)}</span></a>`);
 
   const badge = roadBadge(p.road, p.roadType, { size: 'xl', place: p.woonplaats ?? p.gemeente });
   // A visible, focusable button instead of a clickable badge with only a title: the badge route to
@@ -262,6 +326,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
       }
       ${detourUrl ? `<p class="detail__gmaps-note">${esc(GMAPS_DETOUR_NOTE)}</p>` : ''}
       ${onlyRoad}
+      ${pagesNav(pageLinks.top)}
       ${
         state.loading
           ? `<div class="skeleton skeleton--detail" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Details worden geladen</p>`

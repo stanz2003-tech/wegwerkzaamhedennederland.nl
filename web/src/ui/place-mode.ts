@@ -54,10 +54,15 @@ export function placeMatcher(place: PlaceRef, pages: EntityPages | null): (p: Pi
   };
 }
 
+/** An entity page path with the map's vehicle and moment or day: `/brug/x/?v=fiets&dag=2026-10-06`. */
+export function entityPageHref(path: string, q: Pick<PanelQuestion, 'mode' | 'time' | 'moment' | 'day' | 'part'>): string {
+  const qs = serializeUrlState({ ...DEFAULT_URL_STATE, mode: q.mode, time: q.time, moment: q.moment, day: q.day, part: q.part });
+  return `${path}${qs ? `?${qs}` : ''}`;
+}
+
 /** The place page with the same vehicle and moment or day: `/plaats/almkerk/?v=fiets&dag=2026-10-06`. */
 export function placePageHref(place: Pick<PlaceRef, 'kind' | 'slug'>, q: Pick<PanelQuestion, 'mode' | 'time' | 'moment' | 'day' | 'part'>): string {
-  const qs = serializeUrlState({ ...DEFAULT_URL_STATE, mode: q.mode, time: q.time, moment: q.moment, day: q.day, part: q.part });
-  return `/${place.kind === 'gemeente' ? 'gemeente' : 'plaats'}/${place.slug}/${qs ? `?${qs}` : ''}`;
+  return entityPageHref(`/${place.kind === 'gemeente' ? 'gemeente' : 'plaats'}/${place.slug}/`, q);
 }
 
 /** "Almkerk per dag bekijken →" / "De gemeente Altena per dag bekijken →". */

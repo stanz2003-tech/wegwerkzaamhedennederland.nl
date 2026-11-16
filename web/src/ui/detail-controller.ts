@@ -5,6 +5,7 @@
  * same way ui/place-controller.ts works, so the page entry stays the wiring.
  */
 import { loadDetail } from '../data/detail';
+import { entityPagesNow } from '../data/entity-pages';
 import { midpointOf } from '../data/filter';
 import type { ItemDetail, ItemFeature } from '../data/types';
 import { detailStepBackAllowed, itemDeepLink, type HistoryMarker, type UrlState } from '../data/url-state';
@@ -92,6 +93,10 @@ export function createDetailController(host: DetailHost): DetailController {
         at: url.moment ?? now,
         ...(win ? { window: win, whenLabel: whenLabelOf(url) } : {}),
         roadMode: url.road,
+        // Null until /entity-pages.json is here; the render after its arrival repaints the open
+        // detail (main.ts), and the page links appear then.
+        pages: entityPagesNow(),
+        question: { mode: url.mode, time: url.time, moment: url.moment, day: url.day, part: url.part },
       },
       now,
       {
