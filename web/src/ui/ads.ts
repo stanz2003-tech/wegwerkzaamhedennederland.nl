@@ -8,6 +8,8 @@
  * Two kinds of slot: `top` stands high on the page (under the small map, or between two sections
  * of a guide), keeps its room from the first paint and asks for its ad as soon as the script is
  * there; `side` is its neighbour in the same row, on screens wide enough for two columns only;
+ * `feed` stands inside the list of meldingen, after the first dozen rows, on narrower screens only
+ * (ui/entity-list.ts builds the list around it and never takes it out of the page);
  * every other slot stands further down and only opens when the reader comes near
  * (ui/ad-lazy.ts), so an ad nobody scrolls to is never requested.
  * The AdSense script itself loads once, when the page is done (`load`,
@@ -23,14 +25,14 @@ import { deferAdScript, type AdScript } from './ad-loader';
 import { pageAllowsAds } from './ad-policy';
 import { createCmpOpener, type GoogleFc } from './cmp';
 
-type SlotName = 'panel' | 'list' | 'article' | 'top' | 'side';
+type SlotName = 'panel' | 'list' | 'article' | 'top' | 'side' | 'feed';
 
-const SLOT_HEIGHT: Record<SlotName, number> = { panel: 250, list: 100, article: 280, top: 280, side: 280 };
+const SLOT_HEIGHT: Record<SlotName, number> = { panel: 250, list: 100, article: 280, top: 280, side: 280, feed: 280 };
 /**
  * The ad shape that fits each reserved box: the 250 and 280 px boxes take a rectangle (300×250,
  * 336×280); a horizontal banner there would leave most of the box empty.
  */
-const SLOT_FORMAT: Record<SlotName, 'rectangle' | 'horizontal'> = { panel: 'rectangle', list: 'horizontal', article: 'rectangle', top: 'rectangle', side: 'rectangle' };
+const SLOT_FORMAT: Record<SlotName, 'rectangle' | 'horizontal'> = { panel: 'rectangle', list: 'horizontal', article: 'rectangle', top: 'rectangle', side: 'rectangle', feed: 'rectangle' };
 /** The slots high on the page: shown from the first paint. The others wait for the reader (ui/ad-lazy.ts). */
 const EAGER_SLOTS: ReadonlySet<SlotName> = new Set<SlotName>(['top', 'side']);
 /**
@@ -53,7 +55,7 @@ declare global {
 }
 
 function isSlotName(v: string | undefined): v is SlotName {
-  return v === 'panel' || v === 'list' || v === 'article' || v === 'top' || v === 'side';
+  return v === 'panel' || v === 'list' || v === 'article' || v === 'top' || v === 'side' || v === 'feed';
 }
 
 export function adsEnabled(): boolean {
@@ -107,12 +109,14 @@ interface PageSlot {
 
 /**
  * The ad unit of a slot. `top` and `side` borrow the unit of the slot before them until they have
- * one of their own in site.config; `side` has none on a screen without room for two columns.
+ * one of their own in site.config, and so does `feed`. A screen shows either `side` (room for two
+ * columns: three ads with the one under the list) or `feed` (one column, where the list is long).
  */
 function slotIdFor(name: SlotName): string {
   const slots = site.ads.slots;
   if (name === 'top') return slots.top || slots.article;
   if (name === 'side') return window.matchMedia(TWO_COLUMNS).matches ? slots.side || slots.top || slots.article : '';
+  if (name === 'feed') return window.matchMedia(TWO_COLUMNS).matches ? '' : slots.feed || slots.article;
   return slots[name];
 }
 

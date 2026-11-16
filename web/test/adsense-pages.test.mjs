@@ -147,7 +147,7 @@ describe('ad slots on the text pages', () => {
     assert.deepEqual(slotsOf(html('/404.html')), []);
   });
 
-  it('road and place pages carry the row under the map and the slot under the list, in that order', () => {
-    for (const path of ['/weg/a2/', '/gemeente/s-hertogenbosch/']) assert.deepEqual(slotsOf(html(path)), ['top', 'side', 'article'], path);
+  it('road and place pages carry the row under the map, the slot in the list and the one under it, in that order', () => {
+    for (const path of ['/weg/a2/', '/gemeente/s-hertogenbosch/']) assert.deepEqual(slotsOf(html(path)), ['top', 'side', 'feed', 'article'], path);
   });
 });

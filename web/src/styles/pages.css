@@ -1234,6 +1234,17 @@
   }
 }
 
+/* The slot inside the list of meldingen (one column only; ui/entity-list.ts builds the list around
+   it). The list is a flex column with a gap: while the slot waits it must not add a second gap
+   between two cards, and once open it gets the same air as the cards around it. */
+.entity-list > .ad-slot.is-waiting {
+  margin-top: calc(-1 * var(--s-2));
+}
+
+.entity-list > .ad-slot.is-enabled {
+  margin: var(--s-4) 0;
+}
+
 /* Narrower than two columns: never two ads on one screen (ui/ads.ts does not fill this slot
    there; this covers a window that was made narrower afterwards). */
 @media (max-width: 1023.98px) {
