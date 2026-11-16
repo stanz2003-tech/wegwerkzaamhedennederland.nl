@@ -1,7 +1,8 @@
 /**
  * "Nu dicht op snelwegen: [A2] [A27] …" — at national zoom the map panel names the motorways on
  * which something is closed, instead of a count sentence ("In beeld: 2604 plekken dicht, …",
- * overzicht-5). Every badge is a button that opens road mode with the answer for that road.
+ * overzicht-5). Every badge links to that road's page; without a known page it is a button that
+ * opens road mode with the answer for that road.
  *
  * Built from the answer the panel already computed for the view (same mode and moment), so a
  * road is named exactly when one of its relevant items there is "dicht" or "rijbaan". When no
@@ -52,8 +53,17 @@ export function closedMotorways(items: readonly AnsweredItem[], max = MAX_CLOSED
 /**
  * Fills `el` with the lead and the badges, or hides it. Returns the sentence a screen reader
  * hears after a user action ("Nu dicht op snelwegen: A2, A27."), or null when hidden.
+ * `hrefOf` gives a road's page (with the map's vehicle and moment): the badge is then a link
+ * straight to it. Without a page (or before the manifest has arrived) the badge stays the button
+ * that opens road mode on the map (main.ts).
  */
-export function renderClosedRoads(el: HTMLElement, roads: readonly ClosedRoad[], whenLabel: string, more: boolean): string | null {
+export function renderClosedRoads(
+  el: HTMLElement,
+  roads: readonly ClosedRoad[],
+  whenLabel: string,
+  more: boolean,
+  hrefOf?: (road: string) => string | null,
+): string | null {
   if (roads.length === 0) {
     el.hidden = true;
     el.innerHTML = '';
@@ -62,8 +72,15 @@ export function renderClosedRoads(el: HTMLElement, roads: readonly ClosedRoad[],
   const lead = closedMotorwaysLead(whenLabel);
   const buttons = roads
     .map((r) => {
-      const name = `${r.road}: ${VERDICT_META[r.level].label.toLowerCase()}. Toon het antwoord voor de ${r.road}`;
-      return `<li><button type="button" class="closed-roads__btn" data-road="${esc(r.road)}" data-level="${r.level}" aria-label="${esc(name)}" title="${esc(name)}">${roadBadge(r.road, 'A', { size: 'md' })}</button></li>`;
+      const verdict = `${r.road}: ${VERDICT_META[r.level].label.toLowerCase()}.`;
+      const badge = roadBadge(r.road, 'A', { size: 'md' });
+      const href = hrefOf?.(r.road) ?? null;
+      if (href) {
+        const name = `${verdict} Naar de pagina over de ${r.road}`;
+        return `<li><a class="closed-roads__btn" href="${esc(href)}" data-level="${r.level}" aria-label="${esc(name)}" title="${esc(name)}">${badge}</a></li>`;
+      }
+      const name = `${verdict} Toon het antwoord voor de ${r.road}`;
+      return `<li><button type="button" class="closed-roads__btn" data-road="${esc(r.road)}" data-level="${r.level}" aria-label="${esc(name)}" title="${esc(name)}">${badge}</button></li>`;
     })
     .join('');
   el.hidden = false;
