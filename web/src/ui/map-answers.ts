@@ -6,9 +6,10 @@
  * the road card, the place card, the closed motorways, the sentence.
  */
 import type { EntityPages } from '../data/entity-pages';
-import type { Category, ItemFeature } from '../data/types';
+import { slugify, type Category, type ItemFeature } from '../data/types';
 import type { PlaceRef, UrlState } from '../data/url-state';
 import { MAX_CLOSED_ROADS, NATIONAL_ZOOM, closedMotorways, renderClosedRoads } from './closed-roads';
+import { roadPageHref } from './map-link';
 import { renderPanelSummary, renderRoadAnswer, whenLabelOf, type PanelAnswerEls } from './panel-answer';
 import { clearPlaceAnswer, hasPlacePage, placePageHref, placePrefix, renderPlaceAnswer } from './place-mode';
 
@@ -50,7 +51,9 @@ export function renderMapAnswers(i: MapAnswersInput): MapAnswers {
   // At national zoom, outside road, place and text mode: name the motorways with a closure.
   const national = !url.road && !url.query && !place && i.zoom < NATIONAL_ZOOM;
   const closed = national ? closedMotorways(summary.answer.items, Number.POSITIVE_INFINITY) : [];
-  const closedText = renderClosedRoads(i.closedRoadsEl, closed.slice(0, MAX_CLOSED_ROADS), whenLabelOf(url), closed.length > MAX_CLOSED_ROADS);
+  // A badge goes straight to the road page (the day strip, every melding, the questions).
+  const roadHref = (road: string): string | null => (i.pages?.hasRoadPage(slugify(road)) ? roadPageHref(road, url) : null);
+  const closedText = renderClosedRoads(i.closedRoadsEl, closed.slice(0, MAX_CLOSED_ROADS), whenLabelOf(url), closed.length > MAX_CLOSED_ROADS, roadHref);
   const stale = i.dataAsOf ? { dataAsOf: i.dataAsOf } : {};
   const roadText = renderRoadAnswer(els, url, inCats(i.roadAll), now, {
     ...stale,
