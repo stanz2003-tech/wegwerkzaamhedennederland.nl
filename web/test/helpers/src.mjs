@@ -58,6 +58,7 @@ export const closedRoads = await load('ui/closed-roads.ts');
 export const motorwayBlock = await load('ui/motorway-block.ts');
 export const copy = await load('ui/copy.ts');
 export const adPolicy = await load('ui/ad-policy.ts');
+export const adFill = await load('ui/ad-fill.ts');
 export const adLoader = await load('ui/ad-loader.ts');
 export const cmp = await load('ui/cmp.ts');
 export const mapSelection = await load('ui/map-selection.ts');

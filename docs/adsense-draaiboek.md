@@ -133,7 +133,11 @@ Doe het op een werkdag, 's ochtends.
 
 ## 5. Na de uitslag
 
-**Goedgekeurd**
+**Goedgekeurd** (16 november 2026, 05:32. Identiteitsverificatie ingediend, AdSense meldt 2 tot 4
+dagen. Blok "Tekstpagina onder antwoord" aangemaakt, ID `8500343403` staat in `ads.slots.article`.
+Toestemmingsmelding getest met `?fc=alwaysshow`: verschijnt met drie knoppen. Een plek die het
+AdSense-script na 3 seconden niet heeft opgepakt, verdwijnt, zodat bezoekers met een adblocker geen
+leeg vak zien: `web/src/ui/ad-fill.ts`.)
 1. Maak **één advertentieblok** aan: Advertenties → Per advertentieblok → Display, vierkant,
    responsief. Zet het ID in `web/site.config.json` → `ads.slots.article`. Alleen dat blok bestaat
    in de templates (handleiding §10.2).

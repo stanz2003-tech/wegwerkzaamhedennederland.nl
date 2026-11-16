@@ -11,6 +11,7 @@
  * re-opens it for the footer link (`data-cmp-open`).
  */
 import site from '../../site.config.json';
+import { hideIfNotTaken } from './ad-fill';
 import { deferAdScript, type AdScript } from './ad-loader';
 import { pageAllowsAds } from './ad-policy';
 import { createCmpOpener, type GoogleFc } from './cmp';
@@ -57,8 +58,9 @@ function loadAdsenseScript(client: string): AdScript | null {
   return adScript;
 }
 
-function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: string): void {
-  if (el.dataset.adFilled === '1') return;
+/** Builds the slot's `<ins>` and queues it for AdSense; null when the slot was already filled. */
+function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: string): HTMLElement | null {
+  if (el.dataset.adFilled === '1') return null;
   el.dataset.adFilled = '1';
   el.classList.add('is-enabled');
   el.style.height = `${SLOT_HEIGHT[name] + LABEL_HEIGHT}px`;
@@ -79,6 +81,7 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
   ins.dataset.fullWidthResponsive = 'false';
   el.appendChild(ins);
   (window.adsbygoogle = window.adsbygoogle ?? []).push({});
+  return ins;
 }
 
 /** Wires every `[data-ad-slot]` in `root`. Safe to call more than once (idempotent per slot). */
@@ -102,11 +105,19 @@ export function mountAds(root: ParentNode = document): void {
     const slotId = site.ads.slots[name];
     if (!slotId) return;
     el.hidden = false;
-    fillSlot(el, name, client, slotId);
+    const ins = fillSlot(el, name, client, slotId);
     // A blocked script brings no ad: no empty box with an "Advertenties" label either.
     script?.onFail(() => {
       el.hidden = true;
     });
+    // Nor does an ad blocker's stand-in script, which loads but never takes the slot (ui/ad-fill.ts).
+    if (ins) {
+      script?.onLoaded(() => {
+        hideIfNotTaken(ins, () => {
+          el.hidden = true;
+        });
+      });
+    }
   });
 }
 
