@@ -60,6 +60,15 @@ describe('the AdSense script waits for the page', () => {
     assert.match(mount, /script\?\.onFail\(\(\) => \{\s*el\.hidden = true;\s*\}\);/);
   });
 
+  it("an ad blocker's stand-in script that never takes the slot hides it too (ui/ad-fill.ts)", () => {
+    assert.match(ads, /import \{ hideIfNotTaken \} from '\.\/ad-fill';/);
+    assert.match(mount, /const ins = fillSlot\(el, name, client, slotId\);/);
+    assert.match(
+      mount,
+      /script\?\.onLoaded\(\(\) => \{\s*hideIfNotTaken\(ins, \(\) => \{\s*el\.hidden = true;\s*\}\);\s*\}\);/,
+    );
+  });
+
   it('the cookie link goes through ui/cmp.ts, which knows about the deferred script', () => {
     assert.match(ads, /export function openCmp\(onUnavailable\?: \(\) => void\): boolean \{\s*return openConsentDialog\(adScript, onUnavailable\);/);
     assert.match(ads, /if \(!openCmp\(onUnavailable\)\) onUnavailable\(\);/);
