@@ -50,10 +50,17 @@ const count = (html, needle) => html.split(needle).length - 1;
 describe('detail: links on to the road, place and bridge pages', () => {
   it('links the road page and the village page in one block, labelled as pages', () => {
     const block = pagesBlock(render());
-    assert.match(block, /aria-labelledby="detail-pages"/);
-    assert.match(block, /<h3 class="detail__h" id="detail-pages">Meer over deze plek<\/h3>/);
+    assert.match(block, /aria-label="Meer over deze plek"/);
     assert.match(block, /href="\/weg\/a27\/"[^>]*>[\s\S]*?Alles op de A27, per dag →/);
     assert.match(block, /href="\/plaats\/almkerk\/"[^>]*>[\s\S]*?Alles in Almkerk, per dag →/);
+  });
+
+  it('puts the block right under the title, above the times and the route buttons (in view on a phone)', () => {
+    const html = render();
+    const at = html.indexOf('class="detail__pages"');
+    assert.ok(at > html.indexOf('id="detail-title"'), 'after the title');
+    assert.ok(at < html.indexOf('Route hiernaartoe'), 'before the route buttons');
+    assert.ok(at < html.indexOf('detail__status'), 'before the "Wanneer" status line');
   });
 
   it('puts the block above what the wegbeheerder reported and the explanation', () => {

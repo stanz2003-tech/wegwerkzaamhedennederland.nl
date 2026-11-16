@@ -232,7 +232,7 @@ const PAGE_ICON: Record<PageLink['kind'], string> = { road: ICONS.milestone, pla
 function pagesNav(links: readonly PageLink[]): string {
   if (!links.length) return '';
   const items = links.map((l) => `<a class="btn btn--secondary detail__page" href="${esc(l.href)}">${PAGE_ICON[l.kind]}<span>${esc(l.label)}</span></a>`);
-  return `<nav class="detail__pages" aria-labelledby="detail-pages"><h3 class="detail__h" id="detail-pages">Meer over deze plek</h3>${items.join('')}</nav>`;
+  return `<nav class="detail__pages" aria-label="Meer over deze plek">${items.join('')}</nav>`;
 }
 
 export const GMAPS_DETOUR_NOTE =
@@ -268,7 +268,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
   // An open end is said once, in the "Wanneer" status line under the title (taal-7).
   const bannerWhen = phrase && phrase !== OPEN_END_PHRASE ? [phrase] : [];
 
-  // The pages about this road, place and road bridges, right under the route buttons: the map is
+  // The pages about this road, place and road bridges, right under the title: the map is
   // where people click, the pages hold the day-by-day view and every other melding. The bridges
   // are the ones whose page counts this melding (data/bridge-select.ts): the same selection.
   const pages = state.pages ?? null;
@@ -302,6 +302,7 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
           <h2 class="detail__title" id="detail-title">${esc(p.title)}</h2>
         </div>
       </header>
+      ${pagesNav(pageLinks.top)}
       ${notes
         .map(
           (n) =>
@@ -326,7 +327,6 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
       }
       ${detourUrl ? `<p class="detail__gmaps-note">${esc(GMAPS_DETOUR_NOTE)}</p>` : ''}
       ${onlyRoad}
-      ${pagesNav(pageLinks.top)}
       ${
         state.loading
           ? `<div class="skeleton skeleton--detail" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Details worden geladen</p>`
