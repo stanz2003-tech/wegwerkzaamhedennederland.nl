@@ -191,6 +191,7 @@ betalen voor advertenties die gezien worden.
 | `top` op weg-, plaats- en brugpagina's | Telefoon: tussen het kaartje en de lijst (±2e scherm). Breed scherm: een rij boven kaart en lijst | Staat er vanaf het begin, met vaste hoogte: niets verspringt |
 | `side` op dezelfde pagina's | Alleen op een breed scherm (vanaf 1.024 px): rechts naast `top`, in dezelfde rij | Idem. Eén breed vak kreeg meestal één rechthoek met lege ruimte ernaast; twee vakken zijn twee advertenties op dezelfde hoogte. Heeft Google er voor één geen advertentie, dan krijgt de andere de hele rij |
 | `top` in gidsen en de veelgestelde vragen | Tussen twee hoofdstukken, na ongeveer één scherm lezen | Idem. Niet op privacy, cookies, disclaimer, colofon en contact |
+| `feed` op dezelfde pagina's | Alleen op één kolom (telefoon, tablet): in de lijst met meldingen, na de eerste 12 rijen, tussen twee kaarten. Alleen als er daarna nog minstens 4 rijen volgen; nooit in een ingeklapte groep | Opent pas als de lezer er één scherm vandaan is. Blijft staan als de lijst opnieuw wordt opgebouwd (ander voertuig, andere dag): `ui/entity-list.ts` bouwt de lijst om het vak heen |
 | `article` (bestond al) | Onder de lijst en de vragen, of onder de tekst | Opent pas als de lezer er één scherm vandaan is. Wie er niet komt, laadt hem niet |
 
 Regels die in de code vastliggen (`web/src/ui/ads.ts`, `web/src/ui/ad-lazy.ts`):
@@ -237,9 +238,10 @@ oplossing: de scrollpositie zelf corrigeren op het moment dat het vak inklapt (`
    elkaar in de weg zitten, de eigen balk omhoog laten schuiven of de ankeradvertentie laten.
 3. **Zijbalken van Google op brede schermen** (Auto ads → alleen "zijbalk"). Ze staan naast de
    pagina, niet erin, en verschijnen alleen op schermen die breed genoeg zijn.
-4. **Een blok in de lijst zelf**, na de eerste groep meldingen. Levert op drukke pagina's (Den
-   Bosch: lijst van 7.400 px) het meeste op, maar staat midden in het product. Pas doen als de
-   cijfers van punt 1 laten zien dat het onderste blok te weinig gezien wordt.
+4. **Een blok in de lijst zelf: gedaan op 16 november** (`feed`, alleen op één kolom). Gemeten
+   op een telefoon: in Den Bosch stond de volgende advertentie na de bovenste op 9.990 px, nu op
+   3.100 px. Een telefoon ziet daarmee hooguit drie advertenties per pagina, een breed scherm ook
+   (twee naast elkaar en één onderaan).
 5. **De kaart.** Blijft reclamevrij. Hooguit later één blok in het zijpaneel op een breed scherm.
 
 **Niet doen:** vignetten (schermvullend bij doorklikken), "Automatisch optimaliseren" aanzetten

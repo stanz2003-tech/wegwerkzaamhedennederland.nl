@@ -70,7 +70,8 @@ describe('the snapshot in the HTML', () => {
     const page = renderPage(plain.byPath.get('/weg/a2/'), plain, templates);
     assert.match(page, /class="forecast-pending"/);
     assert.match(page, /<section class="road-questions" id="road-questions" aria-labelledby="rq-title" hidden>/);
-    assert.match(page, /<div id="entity-list" class="entity-list"><\/div>/);
+    // No rows from the build: only the ad slot that lives in the list (ui/entity-list.ts keeps it there).
+    assert.match(page, /<div id="entity-list" class="entity-list"><div class="ad-slot ad-slot--article ad-slot--feed" data-ad-slot="feed" data-list-break aria-hidden="true"><\/div><\/div>/);
   });
 });
 

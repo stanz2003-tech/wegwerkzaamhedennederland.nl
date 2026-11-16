@@ -475,7 +475,8 @@ breed scherm staat naast `top` een tweede vak, `side`; dat valt terug op het blo
 hoofdstukken) en `article` (onder de lijst en de vragen, of onder de tekst). `top` staat er vanaf
 het begin; `article` opent pas als de lezer er op één scherm afstand van is, en alleen als er dan
 minstens één scherm pagina tussen de twee advertenties zit. Zolang `top` leeg is, gebruikt dat vak
-het blok van `article`; met een eigen blok zie je in AdSense per plek wat het opbrengt. `panel` en
+het blok van `article`; met een eigen blok zie je in AdSense per plek wat het opbrengt. Op één kolom (telefoon) staat er nog een vak in de lijst zelf, `feed`,
+na de eerste twaalf meldingen; ook dat gebruikt het blok van `article` zolang het leeg is. `panel` en
 `list` worden nergens gebruikt en mogen leeg blijven.
 Kies **Advertenties → Per advertentieblok → Displayadvertenties**, vorm *Vierkant*, formaat
 *Responsief* **(controleer** de namen**)**; uit de code die AdSense toont heb je alleen het getal

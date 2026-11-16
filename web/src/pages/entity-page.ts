@@ -15,7 +15,7 @@ import type { EntityMap, EntityView } from '../map/entity-map';
 import { mountPageMap, upgradeMapGeometry } from '../ui/entity-map-mount';
 import { mountAnswerBar } from '../ui/answer-bar';
 import { roadBadge } from '../ui/badge';
-import { renderEntityList } from '../ui/entity-list';
+import { renderEntityList, renderEntityNotice } from '../ui/entity-list';
 import { entitySections } from '../ui/entity-sections';
 import { mountForecastBlock, type ForecastState } from '../ui/forecast-block';
 import { fmtDay } from '../ui/format';
@@ -155,7 +155,7 @@ export async function runEntityPage(opts: EntityPageOptions): Promise<void> {
         : `Op ${state.whenLabel}`;
     renderEntityList(listEl, [{ title, items: listed }], now, listOpts);
     if (listed.length === 0) {
-      listEl.innerHTML = `<p class="entity-list__notice" role="status">Niets gemeld ${title.toLowerCase()} voor ${state.mode === 'auto' ? "auto's" : state.mode === 'vracht' ? 'vrachtverkeer' : 'fietsers'}.</p>`;
+      renderEntityNotice(listEl, `Niets gemeld ${title.toLowerCase()} voor ${state.mode === 'auto' ? "auto's" : state.mode === 'vracht' ? 'vrachtverkeer' : 'fietsers'}.`);
     }
   };
 
