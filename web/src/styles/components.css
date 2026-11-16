@@ -1091,6 +1091,10 @@
 /* "Alleen de A27 bekijken": the keyboard- and screen-reader route to road mode (toeg-13). */
 .detail__road { justify-self: start; min-height: var(--touch); gap: var(--s-2); }
 .detail__road-badge { display: inline-flex; }
+/* "Alles op de A27, per dag →": from a melding on the map on to the pages about its road, place
+   and bridges. Full-width rows under the route buttons, text left like a list of destinations. */
+.detail__pages { display: grid; gap: var(--s-2); }
+.detail__page { width: 100%; min-height: var(--touch); justify-content: flex-start; gap: var(--s-2); text-align: left; }
 
 /* ------------------------------------------------------------------ verdict pills & banner */
 /* The verdict is the first thing on every row, in the legend and on the day strip. Text sits
