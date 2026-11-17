@@ -379,21 +379,41 @@ without pushing code, run it manually the same way.
 
 Details with click paths: `docs/handleiding.md`.
 
-## The daily status mail (`infra/daily-report.mjs`)
+## The daily status push (`infra/daily-report.mjs`)
 
-A Claude cloud routine ("Wegwerk dagrapport", daily at 18:00 UTC) checks out this repo,
-runs `node infra/daily-report.mjs` and mails Stan a short Dutch summary of the JSON it
-prints. Nothing here runs in GitHub Actions. The script has two sections, each fetched on
-its own: **visitors** (Cloudflare Web Analytics, Dutch visits only; China is reported
-separately because of the bot traffic that the WAF rule challenges since 2026-10-25) and
-**search** (Search Console, the newest 7 days with data against the 7 before). A section
-that fails carries `{ "error": "…" }` instead, and the exit code is 1 only when both fail.
+A Claude cloud routine ("Wegwerk dagrapport", daily at 19:00 Amsterdam time) checks out this
+repo, runs `node infra/daily-report.mjs` and sends Stan a short Dutch push notification made
+from the JSON it prints. Nothing here runs in GitHub Actions.
+
+Every comparison uses Amsterdam **calendar days** and **Monday–Sunday weeks** (ISO week
+numbers), never "the last 24 hours" or "the last 7 days": today so far against the same
+weekday last week up to the same time, yesterday (whole day) against the same weekday a week
+earlier, this week so far against last week up to the same moment, and last week against the
+week before. `changePct` is a whole percentage, or `null` when the earlier period is zero.
+
+Sections, each fetched on its own:
+
+- **visitors**: Cloudflare Web Analytics, Dutch visits only; China is reported separately
+  because of the bot traffic that the WAF rule challenges since 2026-10-25.
+- **adsense**: estimated earnings (EUR) per calendar day (`infra/lib/adsense.mjs`). AdSense
+  has no hourly numbers, so "this week" runs up to yesterday and is `null` on Mondays.
+- **search**: Search Console (2–3 days behind), the newest complete Monday–Sunday week against
+  the week before, plus the current week so far.
+
+A section that fails carries `{ "error": "…" }` instead; the exit code is 1 only when all fail.
 
 The secrets live in the routine's cloud environment, never in the repo:
 
 - `CF_API_TOKEN`: a Cloudflare API token with *Account → Account Analytics → Read*.
 - `GSC_SA_JSON`: the JSON key of a Google service account. The account is added in Search
   Console (*Instellingen → Gebruikers en rechten*) as a user with *Beperkt* access.
+- `ADSENSE_OAUTH`: `{"client_id","client_secret","refresh_token"}` on one line. The AdSense
+  API does not accept service accounts, so this is a sign-in of the AdSense owner. One-time
+  setup in Google Cloud project `wegwerk-rapport`: enable the *AdSense Management API*, set the
+  OAuth consent screen to *In production* (in *Testing* the refresh token dies after 7 days),
+  create an OAuth client of type *Desktop app* and download its JSON, then run
+  `node infra/adsense-auth.mjs <that file>` on your own computer and paste the printed line.
 
-The environment must allow outbound traffic to `api.cloudflare.com`, `oauth2.googleapis.com`
-and `www.googleapis.com`. Tests: `node --test "infra/test/daily-report.test.mjs"`.
+The environment must allow outbound traffic to `api.cloudflare.com`, `oauth2.googleapis.com`,
+`www.googleapis.com` and `adsense.googleapis.com`. Tests:
+`node --test "infra/test/daily-report.test.mjs" "infra/test/adsense.test.mjs"`.
