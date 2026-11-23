@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<!-- @head -->
+</head>
+<body data-page="list" data-list="{{list}}" data-prov="{{prov}}" data-prov-code="{{provCode}}">
+<a class="skip-link" href="#main">Naar de inhoud</a>
+<!-- @header -->
+<main id="main" class="page page--wide">
+  <nav class="crumbs" aria-label="Kruimelpad">
+    <ol>
+      {{#each crumbs}}<li><a href="{{href}}">{{name}}</a></li>
+      {{/each}}<li aria-current="page">{{crumbCurrent}}</li>
+    </ol>
+  </nav>
+
+  <header class="page-head page-head--{{list}}">
+    <p class="page-head__kicker">{{kicker}}</p>
+    <h1>{{heading}}</h1>
+    <p class="page-head__lead">{{lead}}</p>
+    <p class="page-head__meta"><span id="list-summary">{{summaryFallback}}</span> <span class="page-head__sep" aria-hidden="true">·</span> <span>Pagina bijgewerkt <time id="list-updated" datetime="{{buildIso}}">{{buildLabel}}</time></span> <span class="page-head__sep" aria-hidden="true">·</span> <a href="{{mapHref}}">Bekijk op de kaart</a></p>
+  </header>
+
+  <nav class="quick-links" aria-labelledby="quick-links-title">
+    <p class="quick-links__label" id="quick-links-title">Naar</p>
+    <ul class="chips">
+      <li><a class="chip chip--more" href="#prov-gemeenten">{{gemeenteCount}} gemeenten</a></li>
+      {{#if hasRoads}}<li><a class="chip chip--more" href="#prov-wegen">{{roadCount}} wegen</a></li>{{/if}}
+      {{#if hasBridges}}<li><a class="chip chip--more" href="#prov-bruggen">{{bridgeCount}} bruggen</a></li>{{/if}}
+    </ul>
+  </nav>
+
+  <section class="list-page" aria-label="Vandaag in de provincie {{prov}}">
+    <div id="list-items" class="list-items entity-list"{{#if hasSnapshot}} data-snapshot{{/if}}>{{{snapshotList}}}</div>
+    <div id="list-empty" class="entity-empty" hidden data-empty="{{emptyHtml}}"></div>
+  </section>
+
+  <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
+
+  <section class="list-groups" aria-label="Gemeenten, wegen en bruggen in {{prov}}">
+    <section class="list-group" aria-labelledby="prov-gemeenten">
+      <h2 id="prov-gemeenten">{{gemeentenTitle}} <span class="list-group__count">{{gemeenteCount}}</span></h2>
+      <ul class="chips">
+        {{#each gemeenten}}<li><a class="chip chip--gemeente" href="{{href}}" data-gemeente="{{name}}">{{name}}</a></li>
+        {{/each}}
+      </ul>
+    </section>
+    {{#if hasRoads}}<section class="list-group" aria-labelledby="prov-wegen">
+      <h2 id="prov-wegen">{{roadsTitle}} <span class="list-group__count">{{roadCount}}</span></h2>
+      <ul class="chips chips--badges">
+        {{#each roads}}<li><a class="badge badge--{{badgeClass}}" href="{{href}}">{{road}}</a></li>
+        {{/each}}
+      </ul>
+    </section>{{/if}}
+    {{#if hasBridges}}<section class="list-group" aria-labelledby="prov-bruggen">
+      <h2 id="prov-bruggen">{{bridgesTitle}} <span class="list-group__count">{{bridgeCount}}</span></h2>
+      <ul class="entity-links">
+        {{#each bridges}}<li><a href="{{href}}"><span class="entity-links__name">{{name}}</span>{{#if sub}}<span class="entity-links__sub">{{sub}}</span>{{/if}}</a></li>
+        {{/each}}
+      </ul>
+      {{#if moreBridges}}<p><a href="{{moreBridgesHref}}">Alle {{bridgeCount}} bruggen in {{prov}}</a></p>{{/if}}
+    </section>{{/if}}
+  </section>
+</main>
+<!-- @footer -->
+<script type="module" src="/src/pages/list.ts"></script>
+</body>
+</html>

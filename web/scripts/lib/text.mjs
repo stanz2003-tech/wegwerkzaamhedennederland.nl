@@ -289,22 +289,52 @@ export function roadRouteShort(entry) {
  */
 export const FRESHNESS = 'Elk kwartier bijgewerkt.';
 
-export function roadTitle(entry) {
-  return fitTitle([
-    `${entry.road} afsluitingen & werkzaamheden: vandaag en dit weekend`,
-    `${entry.road} afsluitingen & werkzaamheden`,
-  ]);
+/**
+ * Motorway pages carry the build day in their title since 2026-11-23: "A28 afgesloten?
+ * Werkzaamheden vandaag (ma 23 nov)". People search motorways with a "now" question ("a28
+ * afgesloten vandaag"), and the 25 A-road pages got 74,600 impressions in 28 days at 1.5% CTR
+ * under one fixed title (docs/groei-onderzoek-2026-11.md §2.2). The site is built at 05:41 and
+ * 15:41 (deploy.yml), so the date holds for the day; N- and S-roads keep the fixed title, so the
+ * two groups can be compared in Search Console. Without a usable build day: the fixed title.
+ * @param {{ road: string, type?: string }} entry
+ * @param {{ today?: string }} [opts]   todayLabel() of the build
+ */
+export function roadTitle(entry, { today = '' } = {}) {
+  const fixed = [`${entry.road} afsluitingen & werkzaamheden: vandaag en dit weekend`, `${entry.road} afsluitingen & werkzaamheden`];
+  if (entry.type === 'A' && today) return fitTitle([`${entry.road} afgesloten? Werkzaamheden vandaag (${today})`, ...fixed]);
+  return fitTitle(fixed);
 }
 
-export function roadDescription(entry) {
+/**
+ * With the build's answer for today (snapshot.mjs, the question block's first answer) the
+ * description gives the answer itself, the number of meldingen and the moment of the data: "Is de
+ * A28 vandaag dicht? Ja. Rijbaan dicht bij Assen-Noord (…). 27 meldingen nu en de komende 30
+ * dagen. Stand ma 23 nov 05:41." Google shows it for days, so the stamp is never left out; when
+ * the answer is too long to fit with it, the fixed text.
+ * @param {{ road: string, type?: string }} entry
+ * @param {{ todayAnswer?: string, count?: number | null, asOf?: string } | null} [live]
+ */
+export function roadDescription(entry, live = null) {
   const ask = `Is de ${entry.road} dicht?`;
   const what = `Afsluitingen en werkzaamheden op de ${entry.road}`;
   const route = roadRouteShort(entry);
-  return fitText([
+  const fixed = [
     `${ask} ${what}${route}: vandaag, dit weekend en de komende 30 dagen, plus de files. ${FRESHNESS}`,
     `${ask} ${what}${route}: vandaag, dit weekend en de komende 30 dagen. ${FRESHNESS}`,
     `${ask} ${what}: vandaag, dit weekend en de komende 30 dagen, plus de files. ${FRESHNESS}`,
-  ]);
+  ];
+  const answer = String(live?.todayAnswer ?? '').trim();
+  const asOf = String(live?.asOf ?? '').trim();
+  if (entry.type !== 'A' || !answer || !asOf) return fitText(fixed);
+  const n = live.count;
+  const meldingen = Number.isFinite(n) && n > 0 ? (n === 1 ? '1 melding' : `${n.toLocaleString('nl-NL')} meldingen`) : '';
+  const stamp = ` Stand ${asOf}.`;
+  const today = `Is de ${entry.road} vandaag dicht? ${answer}`;
+  const variants = meldingen
+    ? [`${today} ${meldingen} nu en de komende 30 dagen.${stamp}`, `${today} ${meldingen} in 30 dagen.${stamp}`, `${today}${stamp}`]
+    : [`${today}${stamp}`];
+  const withData = variants.map((v) => v.replace(/\s+/g, ' ').trim()).find((v) => v.length <= DESCRIPTION_MAX);
+  return withData ?? fitText(fixed);
 }
 
 /**

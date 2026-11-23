@@ -111,7 +111,7 @@ export function generate(opts) {
   for (const type of missing) warn(`[gen-pages] shell ${shellDir}/${type}.html ontbreekt – pagina's van type '${type}' overgeslagen`);
 
   const pages = opts.sample ? samplePages(model) : model.pages;
-  const written = { road: 0, place: 0, bridge: 0, list: 0, static: 0 };
+  const written = { road: 0, place: 0, province: 0, bridge: 0, list: 0, static: 0 };
   const placeKinds = { woonplaats: 0, gemeente: 0 };
   let failures = 0;
   const sitemapEntries = [{ path: '/', priority: 1.0, changefreq: 'hourly' }];
@@ -180,7 +180,7 @@ export function generate(opts) {
 
   const total = Object.values(written).reduce((a, b) => a + b, 0);
   const ms = Math.round(performance.now() - t0);
-  console.log(`${total} pagina's gegenereerd (wegen ${written.road}, plaatsen ${placeKinds.woonplaats}, gemeenten ${placeKinds.gemeente}, bruggen ${written.bridge})`);
+  console.log(`${total} pagina's gegenereerd (wegen ${written.road}, plaatsen ${placeKinds.woonplaats}, gemeenten ${placeKinds.gemeente}, bruggen ${written.bridge}, provincies ${written.province})`);
   console.log(activitySummary(model, opts.activity));
   if (!opts.quiet) {
     console.log(

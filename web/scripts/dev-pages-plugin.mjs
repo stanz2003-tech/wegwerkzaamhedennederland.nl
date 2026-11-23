@@ -17,6 +17,7 @@ const ENTITY_PREFIXES = new Map([
   ['plaats', '/plaatsen/'],
   ['gemeente', '/plaatsen/'],
   ['brug', '/bruggen/'],
+  ['provincie', '/plaatsen/'],
 ]);
 const FLAT_ROUTES = new Set([...LIST_ROUTES.map((r) => r.path), ...STATIC_ROUTES.map((r) => r.path)]);
 const GUIDE_PATHS = new Set(GUIDE_ROUTES.map((r) => r.path));
@@ -43,7 +44,7 @@ export function matchRoute(pathname) {
     const canonical = `/uitleg/${guide[1]}/`;
     return pathname === canonical ? { path: canonical } : { redirect: canonical };
   }
-  const entity = /^\/(weg|plaats|gemeente|brug)\/([^/]+)\/?$/.exec(pathname);
+  const entity = /^\/(weg|plaats|gemeente|brug|provincie)\/([^/]+)\/?$/.exec(pathname);
   if (entity) {
     const canonical = `/${entity[1]}/${entity[2]}/`;
     return pathname === canonical ? { path: canonical } : { redirect: canonical };

@@ -216,6 +216,29 @@ describe('snapshot.mjs (build side)', () => {
     assert.equal(snapshotFor({ type: 'list', list: 'files' }, { mapHref: '/' }), null);
   });
 
+  it('gives a province page today\'s rows of its own province only, with its map link', async () => {
+    const mods = await loadSnapshotModules();
+    const live = { index: readJson('index/all.json'), meta: readJson('meta.json') };
+    const snapshotFor = createSnapshotter({ mods, live, files: null, now: NOW });
+    const brabant = snapshotFor({ type: 'province', entity: { name: 'Noord-Brabant' } }, { mapHref: '/#c=5.2,51.6&z=9' });
+    assert.ok(brabant, 'the fixture index has Brabant rows');
+    assert.match(text(brabant.listHtml), new RegExp(`^Stand van ${brabant.asOf}: `));
+    assert.match(brabant.listHtml, /Den Bosch/, 'a Brabant melding is listed');
+    for (const other of ['Utrecht', 'Groningen', 'Vinkeveen']) assert.doesNotMatch(text(brabant.listHtml), new RegExp(`bij ${other}`), `${other} is not in Brabant`);
+    assert.equal(snapshotFor({ type: 'province', entity: { name: 'Nergenshuizen' } }, { mapHref: '/' }), null, 'no rows: no snapshot');
+  });
+
+  it('hands a road page today\'s answer for its meta description', async () => {
+    const mods = await loadSnapshotModules();
+    const live = { index: readJson('index/all.json'), meta: readJson('meta.json') };
+    const snapshotFor = createSnapshotter({ mods, live, files: null, now: NOW });
+    const a2 = snapshotFor({ type: 'road', entity: { road: 'A2', slug: 'a2', type: 'A' } }, { mapHref: '/' });
+    assert.match(a2.todayAnswer, /^(Ja\. |Nee, )/);
+    assert.match(a2.questionsHtml, new RegExp(a2.todayAnswer.slice(0, 20).replace(/[.()]/g, '\\$&')), 'the same sentence as the question block');
+    const place = snapshotFor({ type: 'place', kind: 'gemeente', entity: { naam: 'Utrecht', slug: 'utrecht' } }, { mapHref: '/' });
+    assert.equal(place.todayAnswer, '');
+  });
+
   it('gives a bridge its next opening, or nothing when none is planned', async () => {
     const mods = await loadSnapshotModules();
     const bridges = readJson('bruggen.json');

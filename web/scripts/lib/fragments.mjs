@@ -97,6 +97,11 @@ export function renderPlaatsenList(gemeenten, woonplaatsenByGemeente, merged = n
   return out.join('\n');
 }
 
+/** Id of a province's heading on /bruggen/ ("bruggen-noord-brabant"); province pages link to it. */
+export function bridgesProvAnchor(prov) {
+  return `bruggen-${String(prov).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+}
+
 function bridgeLink(b, sub) {
   return `<li><a href="/brug/${esc(b.slug)}/" data-bridge-id="${esc(b.id)}"><span class="entity-links__name">${esc(b.name)}</span>${sub ? `<span class="entity-links__sub">${sub}</span>` : ''}</a></li>`;
 }
@@ -143,7 +148,7 @@ export function renderBruggenList(bridges) {
   const out = inRoad.length ? [renderRoadBridges(inRoad)] : [];
   for (const prov of provs) {
     const list = byProv.get(prov).sort((a, b) => a.name.localeCompare(b.name, 'nl'));
-    const id = `bruggen-${prov.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+    const id = bridgesProvAnchor(prov);
     out.push(`<section class="list-group" aria-labelledby="${id}"><h2 id="${id}">${esc(prov)} <span class="list-group__count">${list.length}</span></h2><ul class="entity-links">`);
     for (const b of list) out.push(bridgeLink(b, [b.water, b.woonplaats || b.gemeente].filter(Boolean).map(esc).join(' · ')));
     out.push('</ul></section>');

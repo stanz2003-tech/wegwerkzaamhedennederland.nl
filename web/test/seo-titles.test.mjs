@@ -49,6 +49,56 @@ describe('road titles and descriptions', () => {
   });
 });
 
+describe('motorway titles with the build day (groei-onderzoek 2026-11 §2.2)', () => {
+  const a28 = { road: 'A28', type: 'A', names: [] };
+  const answer = 'Ja. Rijbaan dicht bij Assen-Noord, richting Zwolle (vannacht 21:00 tot 06:00).';
+
+  it('ask the question people type and name the day of the build', () => {
+    const title = roadTitle(a28, { today: 'ma 23 nov' });
+    assert.equal(title, 'A28 afgesloten? Werkzaamheden vandaag (ma 23 nov)');
+    assert.ok(title.length <= TITLE_MAX);
+  });
+
+  it('keep the fixed title for other roads and without a build day', () => {
+    assert.equal(roadTitle({ road: 'N57', type: 'N', names: [] }, { today: 'ma 23 nov' }), 'N57 afsluitingen & werkzaamheden: vandaag en dit weekend');
+    assert.equal(roadTitle(a28, { today: '' }), 'A28 afsluitingen & werkzaamheden: vandaag en dit weekend');
+  });
+
+  it('use the build day on the generated motorway pages', () => {
+    assert.equal(ctx('/weg/a2/').title, `A2 afgesloten? Werkzaamheden vandaag (${todayLabel(BUILD.toISOString())})`);
+    assert.match(ctx('/weg/n57/').title, /^N57 afsluitingen/);
+  });
+
+  it('give today\'s answer, the count and the moment of the data in the description', () => {
+    const short = 'Nee, voor vandaag is op de A28 geen afsluiting gemeld.';
+    assert.equal(
+      roadDescription(a28, { todayAnswer: short, count: 27, asOf: 'ma 23 nov 05:41' }),
+      `Is de A28 vandaag dicht? ${short} 27 meldingen nu en de komende 30 dagen. Stand ma 23 nov 05:41.`,
+    );
+    const d = roadDescription(a28, { todayAnswer: answer, count: 27, asOf: 'ma 23 nov 05:41' });
+    assert.equal(d, `Is de A28 vandaag dicht? ${answer} 27 meldingen in 30 dagen. Stand ma 23 nov 05:41.`);
+    assert.ok(d.length <= 158);
+  });
+
+  it('drop the count before the stamp, and fall back to the fixed text when even that is too long', () => {
+    const long = `Ja. ${'Rijbaan dicht bij een heel lange plaatsnaam, '.repeat(2)}richting Zwolle (tot vr 27 nov 20:00).`;
+    const d = roadDescription(a28, { todayAnswer: long, count: 27, asOf: 'ma 23 nov 05:41' });
+    assert.ok(d.endsWith('Stand ma 23 nov 05:41.') || d.endsWith('Elk kwartier bijgewerkt.'), d);
+    assert.ok(d.length <= 158);
+    const tooLong = roadDescription(a28, { todayAnswer: long.repeat(3), count: 27, asOf: 'ma 23 nov 05:41' });
+    assert.match(tooLong, /Elk kwartier bijgewerkt\.$/);
+  });
+
+  it('write large counts the Dutch way', () => {
+    assert.match(roadDescription(a28, { todayAnswer: 'Nee, voor vandaag is op de A28 geen afsluiting gemeld.', count: 1234, asOf: 'ma 23 nov 05:41' }), / 1\.234 meldingen /);
+  });
+
+  it('never write data into the description of N-roads or without a stamp', () => {
+    assert.match(roadDescription({ road: 'N57', type: 'N', names: [] }, { todayAnswer: answer, count: 3, asOf: 'ma 23 nov 05:41' }), /Elk kwartier bijgewerkt\.$/);
+    assert.match(roadDescription(a28, { todayAnswer: answer, count: 3, asOf: '' }), /Elk kwartier bijgewerkt\.$/);
+  });
+});
+
 describe('place titles', () => {
   it('drop "gemeente" when the gemeente has a place of its own name', () => {
     assert.equal(placeTitle(eindhoven, 'gemeente', { sameNameKern: true }), 'Wegwerkzaamheden Eindhoven: wat is nu dicht?');

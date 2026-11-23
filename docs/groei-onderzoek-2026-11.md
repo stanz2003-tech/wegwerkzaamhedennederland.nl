@@ -18,8 +18,8 @@ erbij is dus ± € 2 per dag. Bezoekers zijn de grote hefboom; doorlinken is de
 |---|---|---|---|---|
 | 1 | **Hoger in Google met de pagina's die er al staan.** 456 pagina's staan op plek 5 tot 8 en halen 4,7% van de kijkers; op plek 3 tot 5 is dat 11,4% | Groot: tot + 480 klikken per dag als de helft opschuift | Doorlopend | Voorstel, §2 |
 | 2 | **Linkrij onder het antwoord** op weg-, plaats- en gemeentepagina's | Klein in geld (+ 5 tot 15% paginaweergaven), wel links naar de wegpagina's vanaf 2.700 pagina's | Klaar | **Gebouwd**, wacht op merge, §3 |
-| 3 | **Titels van de 25 snelwegpagina's** met datum en een feit ("A28 afgesloten? Werkzaamheden vandaag (ma 23 nov)") | Middel: 74.600 vertoningen per 28 dagen, nu 1,5% klikt | 2 uur | Voorstel, §2.2 |
-| 4 | **Provinciepagina's** (12 stuks) als tussenlaag en als kruimelpad | Klein in Google, middel als wegwijzer en voor het vinden van pagina's door Google | 1 dag | Voorstel, §3.4 |
+| 3 | **Titels van de 25 snelwegpagina's** met datum en een feit ("A28 afgesloten? Werkzaamheden vandaag (ma 23 nov)") | Middel: 74.600 vertoningen per 28 dagen, nu 1,5% klikt | 2 uur | **Gebouwd** 23 nov, wacht op merge, §2.2 |
+| 4 | **Provinciepagina's** (12 stuks) als tussenlaag en als kruimelpad | Klein in Google, middel als wegwijzer en voor het vinden van pagina's door Google | 1 dag | **Gebouwd** 23 nov, wacht op merge, §3.4 |
 | 5 | **Vermeld worden** waar mensen met dezelfde data werken (NDW, open-dataportalen), en lokale pers | Onbekend, maar het enige dat plek 5 tot 8 structureel omhoog duwt | Een paar uur, jouw naam eronder | Voorstel, §2.4 |
 
 **Niet doen:** een pagina per melding, pagina's per tunnel of knooppunt (geen vraag gemeten),
@@ -137,7 +137,19 @@ De bouwstenen bestaan: de kop van het antwoord (`ui/entity-snapshot.ts`), het aa
 (`pages.mjs` `snapshotCount`), de eerstvolgende afsluiting (`ui/road-questions.ts`
 `nextClosureSentence`) en de datum (`text.mjs` `todayLabel`). De site wordt twee keer per dag
 gebouwd, dus de datum in de titel klopt; aantallen horen in de beschrijving met "Stand …" erbij.
-Niet gebouwd: een titel is het gezicht van de site in Google en dit hoort jouw keuze te zijn.
+**Gebouwd op 23 november** (Stan koos ervoor), precies zo, alleen voor de A-wegen. Past het antwoord
+met de telling niet in 158 tekens, dan valt eerst "nu en de komende 30 dagen" weg ("27 meldingen in
+30 dagen"), dan de telling, en als laatste de vaste tekst; "Stand …" blijft er altijd in. Echte
+voorbeelden uit de bouw van 23 november 23:14:
+
+- A27: *Is de A27 vandaag dicht? Ja. Dicht in één richting tussen De Bilt en Utrecht-Noord, richting
+  Utrecht-Noord (hele dag). Stand ma 23 nov 23:14.*
+- A2: *Is de A2 vandaag dicht? Nee, de A2 is vandaag niet dicht, maar er is wel hinder gemeld. 109
+  meldingen nu en de komende 30 dagen. Stand ma 23 nov 23:14.*
+
+Kanttekening: Google ververst een titel pas als het de pagina opnieuw ophaalt. Staat er
+"vandaag (ma 23 nov)" op donderdag in de zoekresultaten, dan ziet de lezer wel dat het oud is. Meten:
+CTR van `/weg/a` tegen `/weg/n` in Search Console, vier weken na live.
 
 ### 2.3 De landelijke pagina's (/dit-weekend/, /vandaag/, /afsluitingen/)
 
@@ -343,6 +355,15 @@ dicht in Brabant" (groei-onderzoek oktober §4.11) wordt hiermee een onderdeel v
 
 **Advies:** doen, na de meting van de linkrij. Niet omdat mensen erop zoeken, maar omdat het de
 site een logische middenlaag geeft.
+
+**Gebouwd op 23 november** (Stan koos ervoor, dus zonder op de meting te wachten): twaalf pagina's
+`/provincie/<naam>/`, in de sitemap en nooit `noindex`. Bovenaan drie sprongen (gemeenten, wegen,
+bruggen), dan de lijst "vandaag" van alleen die provincie (snelwegen eerst, live uit het eigen
+bestand `index/prov/PV30.json`, in de HTML uit de bouw), en daaronder de gemeenten en wegen met hun
+stand van nu en de bruggen (hooguit 40, daarna een link naar /bruggen/). Kruimelpad op elke plaats-
+en gemeentepagina: **Kaart › Noord-Brabant › Gemeente Altena › Almkerk**. /plaatsen/ begint met
+"Per provincie". Wat niet gebouwd is: "dit weekend in Brabant" als eigen blok (de lijst toont
+vandaag; de kaart doet de andere dagen).
 
 ---
 
