@@ -1005,6 +1005,41 @@
   font-weight: 600;
 }
 
+/* The jump from the quick row to the full block further down: quieter than a link to a page. */
+.page .chip--more {
+  border-style: dashed;
+  color: var(--text-2);
+}
+
+/* ---------------------------------------------------------------------------------------- */
+/* The short row of links under the answer (scripts/lib/quick-links.mjs)                    */
+/*                                                                                           */
+/* Wraps, never scrolls sideways: at most six chips, two lines on a 375 px phone, so the map  */
+/* and the list under it move down as little as possible. The label sits on the first line.   */
+/* ---------------------------------------------------------------------------------------- */
+
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin: 0 0 var(--s-5);
+}
+
+.quick-links__label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+@media print {
+  .quick-links { display: none; }
+}
+
 /* ---------------------------------------------------------------------------------------- */
 /* Pre-rendered index lists (/wegen/, /plaatsen/, /bruggen/)                                */
 /* ---------------------------------------------------------------------------------------- */

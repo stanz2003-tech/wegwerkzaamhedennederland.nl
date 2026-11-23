@@ -6,6 +6,10 @@
  * result in batches. `wegen`, `plaatsen` and `bruggen` are fully pre-rendered by the generator;
  * there we only add a small state label next to the existing links ("rijbaan dicht gemeld",
  * "nu open") and never touch that markup itself.
+ *
+ * A province page (template `province.html`, scripts/lib/province-pages.mjs) is `vandaag` for one
+ * province: `data-prov` names it, `data-prov-code` its index file (index/prov/PV30.json), and the
+ * links to its gemeenten and roads get the same state labels as on /plaatsen/ and /wegen/.
  */
 import '../styles/base.css';
 import '../styles/chrome.css';
@@ -16,7 +20,7 @@ import '../styles/list-filter.css';
 
 import { dedupeItems, roadKey } from '../data/entity';
 import { normalizeText } from '../data/filter';
-import { indexItemFromRow, loadIndexAll, rowsToItems, type IndexItem } from '../data/index';
+import { indexItemFromRow, loadIndexAll, loadIndexProv, rowsToItems, type IndexItem } from '../data/index';
 import { isIndexRow, loadBridges, loadLive } from '../data/load';
 import { toMs } from '../data/time';
 import { slugify, type BridgeEntry } from '../data/types';
@@ -55,6 +59,9 @@ function isPrerenderedList(v: string | undefined): v is PrerenderedList {
 }
 
 const list = bodyAttr('list');
+/** The province of a province page; undefined on the national lists. */
+const prov = bodyAttr('prov');
+const provCode = bodyAttr('provCode');
 const itemsEl = document.getElementById('list-items');
 if (itemsEl && isDataList(list)) startEntityList(itemsEl, (el) => renderEntitySkeleton(el, 5));
 
@@ -103,21 +110,26 @@ async function liveExtras(known: ReadonlySet<string>): Promise<IndexItem[]> {
   return extras;
 }
 
-async function renderDataList(id: DataList): Promise<void> {
+/** On a province page only that province's rows (its own file, or the whole index as fallback). */
+function inProvince(rows: IndexItem[]): IndexItem[] {
+  return prov ? rows.filter((it) => it.prov === prov) : rows;
+}
+
+async function renderDataList(id: DataList): Promise<IndexItem[]> {
   const cfg = CONFIG[id];
   let rows: IndexItem[];
   try {
-    const index = await loadIndexAll();
-    rows = rowsToItems(index.rows);
+    const index = await (prov ? loadIndexProv(provCode) : loadIndexAll());
+    rows = inProvince(rowsToItems(index.rows));
   } catch (err) {
     console.warn('[wegwerk] index niet geladen:', err instanceof Error ? err.message : String(err));
     showListNotice(itemsEl, DATA_NOTICE, renderEntityNotice);
-    return;
+    return [];
   }
 
   if (cfg.live) {
     try {
-      rows = dedupeItems([...rows, ...(await liveExtras(new Set(rows.map((r) => r.id))))]);
+      rows = dedupeItems([...rows, ...inProvince(await liveExtras(new Set(rows.map((r) => r.id))))]);
     } catch (err) {
       console.warn('[wegwerk] live.geojson niet geladen:', err instanceof Error ? err.message : String(err));
     }
@@ -128,9 +140,11 @@ async function renderDataList(id: DataList): Promise<void> {
   setText('list-summary', view.summary);
   setEmptyVisible('list-empty', view.counts.changes === 0 && view.counts.background === 0);
 
-  if (!itemsEl) return;
-  renderEntityList(itemsEl, view.sections, now, { linkQuery: view.linkQuery });
-  if (view.motorwayHtml) itemsEl.insertAdjacentHTML('afterbegin', view.motorwayHtml);
+  if (itemsEl) {
+    renderEntityList(itemsEl, view.sections, now, { linkQuery: view.linkQuery });
+    if (view.motorwayHtml) itemsEl.insertAdjacentHTML('afterbegin', view.motorwayHtml);
+  }
+  return rows;
 }
 
 /* ----------------------------- pre-rendered lists ---------------------------- */
@@ -163,18 +177,15 @@ function decorate(prefix: string, worst: ReadonlyMap<string, VerdictLevel>, keyO
   });
 }
 
-async function decorateRoadsOrPlaces(id: 'wegen' | 'plaatsen'): Promise<void> {
-  const index = await loadIndexAll();
-  const rows = rowsToItems(index.rows);
-  const now = Date.now();
-  if (id === 'wegen') {
-    const worst = worstActiveByKey(rows, (it) => {
-      const key = roadKey(it.road);
-      return key ? [key] : [];
-    }, now);
-    decorate('/weg/', worst, (slug) => roadKey(slug));
-    return;
-  }
+function decorateRoads(rows: readonly IndexItem[], now: number): void {
+  const worst = worstActiveByKey(rows, (it) => {
+    const key = roadKey(it.road);
+    return key ? [key] : [];
+  }, now);
+  decorate('/weg/', worst, (slug) => roadKey(slug));
+}
+
+function decoratePlaces(rows: readonly IndexItem[], now: number): void {
   // Keyed by both the normalised name and the slug, so either lookup works.
   const keysOfName = (name: string | null): string[] => (name ? [normalizeText(name), slugify(name)] : []);
   const places = worstActiveByKey(rows, (it) => keysOfName(it.woonplaats), now);
@@ -183,6 +194,13 @@ async function decorateRoadsOrPlaces(id: 'wegen' | 'plaatsen'): Promise<void> {
   decorate('/plaats/', places, (slug, a) => (places.has(byText(slug, a)) ? byText(slug, a) : slug));
   // The gemeente link reads "Alle werkzaamheden in de gemeente X": look it up by its slug.
   decorate('/gemeente/', gemeenten, (slug, a) => (a.dataset.gemeente ? normalizeText(a.dataset.gemeente) : slug));
+}
+
+async function decorateRoadsOrPlaces(id: 'wegen' | 'plaatsen'): Promise<void> {
+  const index = await loadIndexAll();
+  const rows = rowsToItems(index.rows);
+  if (id === 'wegen') decorateRoads(rows, Date.now());
+  else decoratePlaces(rows, Date.now());
 }
 
 /** "nu open" or "volgende opening do 1 okt 10:30" next to a bridge link; nothing without either. */
@@ -228,7 +246,12 @@ async function renderPrerendered(id: PrerenderedList): Promise<void> {
 async function main(): Promise<void> {
   stampUpdated(await boot.meta);
   if (isDataList(list)) {
-    await renderDataList(list);
+    const rows = await renderDataList(list);
+    // A province page: the state of its gemeenten and roads next to their links, from its own rows.
+    if (prov && rows.length > 0) {
+      decoratePlaces(rows, Date.now());
+      decorateRoads(rows, Date.now());
+    }
     return;
   }
   if (isPrerenderedList(list)) {

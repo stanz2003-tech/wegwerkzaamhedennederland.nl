@@ -205,6 +205,11 @@ export function placesAlongRoad(model, road) {
   const nameCount = new Map();
   for (const w of places) nameCount.set(w.naam, (nameCount.get(w.naam) ?? 0) + 1);
   return {
+    // For the row under the answer (quick-links.mjs): the gemeenten in the order of `gemeenten`,
+    // which is by their one woonplaats with the longest stretch of the road. That puts the towns
+    // on the road first (A28: Zwolle, Harderwijk, Nijkerk). Adding up all kernen of a gemeente was
+    // tried on 23 Nov 2026 and put large rural gemeenten first (Midden-Drenthe, Oldebroek).
+    mainGemeenten: gemeenten.slice(0, MAX_ALONG_GEMEENTEN).map((g) => ({ name: g.naam, href: `/gemeente/${g.slug}/` })),
     alongGemeenten: gemeenten.slice(0, MAX_ALONG_GEMEENTEN).sort(byName).map((g) => ({ name: g.naam, href: `/gemeente/${g.slug}/` })),
     alongPlaces: places.sort(byName).map((w) => ({
       name: nameCount.get(w.naam) > 1 && w.gemeente ? `${w.naam} (${w.gemeente})` : w.naam,

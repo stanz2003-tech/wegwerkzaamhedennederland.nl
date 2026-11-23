@@ -14,6 +14,8 @@ import { decideThin } from './index-state.mjs';
 import { loadLists, nearestByCentroid, nearestRoads } from './lists.mjs';
 import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragments.mjs';
 import { placesAlongRoad, roadPlacesFor, roadsThroughPlace } from './road-places.mjs';
+import { MAX_QUICK_ROADS, placeQuickLinks, roadQuickLinks } from './quick-links.mjs';
+import { provinceContext, provinceHref, provinceLabel, provinceRoutes, provincesFrom, renderProvinceNav } from './province-pages.mjs';
 import {
   alwaysIndexedBridge, bridgesInPlace, bridgesOnRoad, isRoadBridge, loadBridgeExtras, roadBridgeDescription, roadBridgeFaq, roadBridgeTitle, roadBridgeVars,
 } from './bridge-pages.mjs';
@@ -25,7 +27,7 @@ import {
   roadDescription, roadFaq, roadIntro, roadKind, roadTitle, todayLabel, weekendLabel,
 } from './text.mjs';
 
-export const PAGE_TYPES = ['road', 'place', 'bridge', 'list', 'static'];
+export const PAGE_TYPES = ['road', 'place', 'province', 'bridge', 'list', 'static'];
 
 /** Content slug → URL and `data-list` value. Order = navigation order. */
 export const LIST_ROUTES = [
@@ -161,6 +163,8 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
   for (const g of lists.gemeenten) {
     routes.push({ type: 'place', kind: 'gemeente', path: `/gemeente/${g.slug}/`, entity: g, sitemap: true, priority: 0.6, changefreq: 'daily' });
   }
+  const provinces = provincesFrom(lists.gemeenten);
+  routes.push(...provinceRoutes(provinces));
   const redirects = [];
   for (const w of lists.woonplaatsen) {
     const owner = merged.get(w);
@@ -205,6 +209,7 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     gemeenten: lists.gemeenten.length,
     woonplaatsen: lists.woonplaatsen.length,
     bridges: lists.bridges.length,
+    provinces: provinces.length,
     lists: pages.filter((p) => p.type === 'list').length,
     statics: pages.filter((p) => p.type === 'static').length,
     thin: pages.filter((p) => p.thin).length,
@@ -219,7 +224,7 @@ export function buildModel({ webRoot, repoRoot, listsDir, activity = null, index
     byPath: new Map(pages.map((p) => [p.path, p])),
     index: {
       woonplaatsenByGemeente, woonplaatsBySlug: new Map(lists.woonplaatsen.map((w) => [w.slug, w])), gemeenteByCode, gemeenteByName, roadBySlug, roadByNumber,
-      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), bridgeExtras, merged, roadPlaces,
+      bridgesByGemeente, bridgesByProv, bridgeVariants: bridgeVariants(lists.bridges), bridgeExtras, merged, roadPlaces, provinces,
     },
     warn,
   };
@@ -391,6 +396,8 @@ function snapshotVars(model, page, mapHrefValue) {
     questionsHtml: snap?.questionsHtml ?? '',
     /** Who reported this page's meldingen, with the moment of the data (roadFaq / placeFaq); null without data. */
     faqData: snap ? { authorities: snap.authorities ?? [], asOf: snap.asOf ?? '', count: Number.isFinite(snap.count) ? snap.count : null } : null,
+    /** Today's answer on a road page, for its meta description (text.mjs roadDescription); null without data. */
+    descriptionData: snap ? { todayAnswer: snap.todayAnswer ?? '', count: Number.isFinite(snap.count) ? snap.count : null, asOf: snap.asOf ?? '' } : null,
   };
 }
 
@@ -410,7 +417,8 @@ function roadContext(model, page) {
   // of links to pages that say 'niets gemeld' helps nobody. The overview /wegen/ still lists them all.
   const inGoogle = model.lists.roads.filter((o) => model.byPath.get(`/weg/${o.slug}/`)?.thin !== true);
   const related = nearestRoads(r, inGoogle, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
-  const { alongGemeenten, alongPlaces } = placesAlongRoad(model, r);
+  const { alongGemeenten, alongPlaces, mainGemeenten } = placesAlongRoad(model, r);
+  const quickLinks = roadQuickLinks({ gemeenten: mainGemeenten, moreHref: '#along-title' });
   const roadBridges = bridgesOnRoad(model, r);
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
@@ -421,8 +429,8 @@ function roadContext(model, page) {
     ...snapVars,
     emptyHtml: emptyHtml(`Geen meldingen voor de ${r.road}.`, 'Op dit moment zijn er bij NDW geen actuele of geplande werkzaamheden, afsluitingen of files op deze weg bekend.', href),
     ...baseContext(model, page, {
-      title: roadTitle(r),
-      description: roadDescription(r),
+      title: roadTitle(r, { today: todayLabel(model.buildIso) }),
+      description: roadDescription(r, snapVars.descriptionData),
       crumbs,
       current: `Wegwerkzaamheden ${r.road}`,
       ogType: 'article',
@@ -445,6 +453,9 @@ function roadContext(model, page) {
     faq: roadFaq(r, snapVars.faqData),
     related,
     hasRelated: related.length > 0,
+    quickLinks,
+    hasQuickLinks: quickLinks.length > 0,
+    quickLinksTitle: `Langs de ${r.road}`,
     alongGemeenten,
     hasAlongGemeenten: alongGemeenten.length > 0,
     alongPlaces,
@@ -462,7 +473,11 @@ function placeContext(model, page) {
   const isGemeente = kind === 'gemeente';
   const gemeente = isGemeente ? p : model.index.gemeenteByCode.get(p.gemeenteCode) ?? model.index.gemeenteByName.get((p.gemeente ?? '').toLowerCase());
   const siblings = (model.index.woonplaatsenByGemeente.get(isGemeente ? p.code : p.gemeenteCode) ?? []).filter((w) => w !== p && !model.index.merged.has(w));
-  const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Plaatsen', href: '/plaatsen/' }];
+  // "Kaart › Noord-Brabant › …" ("provincie Utrecht" beside the gemeente Utrecht): the province page
+  // is the way to the rest of the region.
+  const provName = p.prov ?? gemeente?.prov ?? '';
+  const provHref = model.byPath.has(provinceHref(provName)) ? provinceHref(provName) : '';
+  const crumbs = [{ name: 'Kaart', href: '/' }, provHref ? { name: provinceLabel({ name: provName }, model.lists.gemeenten), href: provHref } : { name: 'Plaatsen', href: '/plaatsen/' }];
   if (!isGemeente && gemeente) crumbs.push({ name: `Gemeente ${gemeente.naam}`, href: `/gemeente/${gemeente.slug}/` });
 
   const relatedPlaces = siblings
@@ -477,7 +492,11 @@ function placeContext(model, page) {
       : [];
   const nearbyRoads = roadsThroughPlace(model, page);
   const placeBridges = bridgesInPlace(model, page);
-  const provName = p.prov ?? gemeente?.prov ?? '';
+  // The row under the answer (quick-links.mjs): only pages that are in Google, as the road links
+  // already are. "Meer in de buurt" when the block at the bottom holds more than the row shows.
+  const quickGemeenten = relatedGemeenten.filter((g) => model.byPath.get(g.href)?.thin !== true);
+  const moreBelow = nearbyRoads.length > MAX_QUICK_ROADS || relatedPlaces.length + placeBridges.length > 0 || relatedGemeenten.length > 1;
+  const quickLinks = placeQuickLinks({ roads: nearbyRoads, gemeenten: quickGemeenten, moreHref: moreBelow ? '#related-title' : '' });
   const zoom = isGemeente ? 11 : 12;
   const href = mapHref(p.lon, p.lat, zoom);
   const gemeenteName = isGemeente ? p.naam : p.gemeente ?? gemeente?.naam ?? '';
@@ -517,6 +536,9 @@ function placeContext(model, page) {
     zoom,
     intro: placeIntro(p, kind, siblings),
     faq: placeFaq(p, kind, placeSnap.faqData),
+    quickLinks,
+    hasQuickLinks: quickLinks.length > 0,
+    quickLinksTitle: 'Ook in de buurt',
     relatedPlaces,
     hasRelatedPlaces: relatedPlaces.length > 0,
     relatedPlacesTitle: isGemeente ? `Plaatsen in de gemeente ${p.naam}` : `Andere plaatsen in de gemeente ${p.gemeente ?? ''}`,
@@ -649,7 +671,7 @@ function listContext(model, page) {
   const body = entry ? markdownToHtml(substituteVars(entry.body, vars, model.warn), { headingOffset: 0 }) : '';
   let prerendered = '';
   if (page.list === 'wegen') prerendered = renderWegenList(model.lists.roads);
-  else if (page.list === 'plaatsen') prerendered = renderPlaatsenList(model.lists.gemeenten, model.index.woonplaatsenByGemeente, model.index.merged);
+  else if (page.list === 'plaatsen') prerendered = renderProvinceNav(model.index.provinces) + renderPlaatsenList(model.lists.gemeenten, model.index.woonplaatsenByGemeente, model.index.merged);
   else if (page.list === 'bruggen') prerendered = renderBruggenList(model.lists.bridges);
   const snap = !prerendered && model.snapshotFor ? model.snapshotFor(page, { mapHref: '/' }) : null;
   // No " | Wegwerk" on list titles: they are written to fit 60 characters, and Google adds the
@@ -753,6 +775,8 @@ export function pageContext(page, model) {
       return roadContext(model, page);
     case 'place':
       return placeContext(model, page);
+    case 'province':
+      return provinceContext(model, page, { base: baseContext });
     case 'bridge':
       return bridgeContext(model, page);
     case 'list':

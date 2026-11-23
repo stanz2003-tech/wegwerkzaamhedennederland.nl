@@ -220,13 +220,13 @@ export function createSnapshotter({ mods, live, files, now }) {
   const horizon = Date.parse(live.meta?.horizon?.until ?? '');
   const horizonMs = Number.isFinite(horizon) ? horizon : undefined;
 
-  const listSnapshot = (page) => {
-    if (!SNAPSHOT_LISTS.has(page.list) || rows.length === 0) return null;
-    const view = mods.listSections.listView(page.list, rows, now);
+  const listSnapshot = (list, listRows = rows, mapHref = '/') => {
+    if (!SNAPSHOT_LISTS.has(list) || listRows.length === 0) return null;
+    const view = mods.listSections.listView(list, listRows, now);
     const listOpts = view.linkQuery ? { linkQuery: view.linkQuery } : {};
     const { html, more } = mods.entityList.renderSectionsHtml(view.sections, now, listOpts, mods.snapshot.SNAPSHOT_ROWS);
-    const stamp = `<p class="entity-snapshot__stamp">Stand van ${escapeHtml(asOf)}: ${escapeHtml(listStampText(page.list, view, mods.format))}</p>`;
-    const moreLine = more > 0 ? `<p class="entity-snapshot__more">En nog ${more === 1 ? '1 melding' : `${mods.format.formatCount(more)} meldingen`}: <a href="/">bekijk ze op de kaart</a>.</p>` : '';
+    const stamp = `<p class="entity-snapshot__stamp">Stand van ${escapeHtml(asOf)}: ${escapeHtml(listStampText(list, view, mods.format))}</p>`;
+    const moreLine = more > 0 ? `<p class="entity-snapshot__more">En nog ${more === 1 ? '1 melding' : `${mods.format.formatCount(more)} meldingen`}: <a href="${escapeHtml(mapHref)}">bekijk ze op de kaart</a>.</p>` : '';
     return { summary: view.summary, listHtml: `${stamp}${view.motorwayHtml}${html}${moreLine}`, asOf };
   };
 
@@ -265,7 +265,9 @@ export function createSnapshotter({ mods, live, files, now }) {
   };
 
   return (page, { mapHref }) => {
-    if (page.type === 'list') return listSnapshot(page);
+    if (page.type === 'list') return listSnapshot(page.list);
+    // A province page is /vandaag/ for the rows of its province (province-pages.mjs).
+    if (page.type === 'province') return listSnapshot('vandaag', rows.filter((it) => it.prov === page.entity.name), mapHref);
     if (isRoadBridgePage(page)) return roadBridgeSnapshot(page, mapHref);
     if (page.type === 'bridge') return bridgeSnapshot(page);
     if (page.type !== 'road' && page.type !== 'place') return null;
@@ -284,6 +286,8 @@ export function createSnapshotter({ mods, live, files, now }) {
           ? mods.questions.placeQuestions(items, subject, now, horizonMs)
           : [];
     const questionsHtml = questions.length > 0 ? mods.questions.renderRoadQuestions(questions, `stand van ${asOf}`) : '';
-    return { ...snap, questionsHtml, asOf };
+    // "Ja. Rijbaan dicht bij …" for the meta description of a motorway page (text.mjs roadDescription).
+    const todayAnswer = page.type === 'road' ? questions.find((q) => q.id === 'vandaag')?.a ?? '' : '';
+    return { ...snap, questionsHtml, todayAnswer, asOf };
   };
 }
