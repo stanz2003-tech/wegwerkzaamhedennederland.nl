@@ -1,5 +1,6 @@
 /**
- * Ad slots on content pages only (never on the map canvas).
+ * Ad slots on the content pages, and one in the panel of the map page, under the text of an
+ * opened melding (`panel`, wired by `renewableSlot` for ui/panel-ad.ts); never on the map itself.
  * Markup: <div class="ad-slot ad-slot--article" data-ad-slot="article" aria-hidden="true"></div>
  * Filled only when site.config `ads.enabled` is true: one <ins> per slot, fixed height reserved so
  * nothing jumps when the ad arrives. A slot AdSense leaves unfilled collapses (components.css),
@@ -74,9 +75,8 @@ function loadAdsenseScript(client: string): AdScript | null {
   return adScript;
 }
 
-/** Builds the slot's `<ins>` and queues it for AdSense; null when the slot was already filled. */
-function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: string): HTMLElement | null {
-  if (el.dataset.adFilled === '1') return null;
+/** Opens the slot's box: its reserved room and the "Advertenties" label. */
+function openBox(el: HTMLElement, name: SlotName): void {
   el.dataset.adFilled = '1';
   el.classList.add('is-enabled');
   el.style.height = `${SLOT_HEIGHT[name] + LABEL_HEIGHT}px`;
@@ -87,6 +87,20 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
   label.textContent = AD_LABEL;
   label.setAttribute('aria-hidden', 'true'); // the slot's aria-label already says it
   el.appendChild(label);
+}
+
+/** Back to the state before `openBox`: no room, no label, nothing for a screen reader. */
+function closeBox(el: HTMLElement): void {
+  delete el.dataset.adFilled;
+  el.classList.remove('is-enabled');
+  el.style.height = '';
+  el.removeAttribute('aria-label');
+  el.setAttribute('aria-hidden', 'true');
+  el.replaceChildren();
+}
+
+/** Puts a new `<ins>` in the slot's open box and queues it for AdSense. */
+function requestAd(el: HTMLElement, name: SlotName, client: string, slotId: string): HTMLElement {
   const ins = document.createElement('ins');
   ins.className = 'adsbygoogle';
   ins.style.display = 'block';
@@ -98,6 +112,13 @@ function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: strin
   el.appendChild(ins);
   (window.adsbygoogle = window.adsbygoogle ?? []).push({});
   return ins;
+}
+
+/** Opens the slot and asks for its ad; null when the slot was already filled. */
+function fillSlot(el: HTMLElement, name: SlotName, client: string, slotId: string): HTMLElement | null {
+  if (el.dataset.adFilled === '1') return null;
+  openBox(el, name);
+  return requestAd(el, name, client, slotId);
 }
 
 /** A slot of this page that has an AdSense ad unit to show. */
@@ -142,11 +163,16 @@ function hasAd(el: HTMLElement): boolean {
   return ins !== null && slotTaken(ins);
 }
 
-/** Wires every `[data-ad-slot]` in `root`. Safe to call more than once (idempotent per slot). */
-export function mountAds(root: ParentNode = document): void {
+/** True when ads are on for the site and this page may carry them (ui/ad-policy.ts). */
+function pageShowsAds(): boolean {
   const robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content;
   const adsMeta = document.querySelector<HTMLMetaElement>('meta[name="wegwerk-ads"]')?.content;
-  const enabled = adsEnabled() && pageAllowsAds(robots, adsMeta);
+  return adsEnabled() && pageAllowsAds(robots, adsMeta);
+}
+
+/** Wires every `[data-ad-slot]` in `root`. Safe to call more than once (idempotent per slot). */
+export function mountAds(root: ParentNode = document): void {
+  const enabled = pageShowsAds();
   window.__ADS_ENABLED__ = enabled;
   if (!enabled) {
     root.querySelectorAll<HTMLElement>('[data-ad-slot]').forEach((el) => {
@@ -203,6 +229,78 @@ export function mountAds(root: ParentNode = document): void {
   script?.onFail(retire);
 }
 
+/** A slot whose ad can be replaced by a new one (ui/panel-ad.ts decides when). */
+export interface RenewableSlot {
+  /** Puts a fresh ad in the slot; the one before it, if any, leaves the page. */
+  show(): void;
+  /** Calls `cb` once, when the slot comes within reach of the reader; returns the cancel. */
+  whenInReach(cb: () => void): () => void;
+  /** Takes the ad and its box out of the page: the reader left what it stood in. */
+  clear(): void;
+}
+
+const NO_CANCEL = (): void => undefined;
+
+/**
+ * The slot inside an opened melding on the map (`panel`). Unlike the slots `mountAds` wires it
+ * loads nothing by itself: the AdSense script, and Google's consent dialog with it, are fetched
+ * when the first melding is opened (`whenInReach`), so a visitor who only looks at the map never
+ * downloads them. Null when this page or this slot shows no ads.
+ */
+export function renewableSlot(el: HTMLElement | null): RenewableSlot | null {
+  const name = el?.dataset.adSlot;
+  if (!el || !isSlotName(name)) return null;
+  const slotId = pageShowsAds() ? slotIdFor(name) : '';
+  if (!slotId) {
+    el.hidden = true;
+    return null;
+  }
+  const client = site.ads.adsenseClient;
+  let script: AdScript | null = null;
+  let retired = false;
+  /** No ad will come (script blocked, or an ad blocker's stand-in): the slot leaves for good. */
+  const retire = (): void => {
+    retired = true;
+    el.classList.remove('is-waiting');
+    el.hidden = true;
+  };
+  const ensureScript = (): AdScript | null => {
+    if (script) return script;
+    script = loadAdsenseScript(client);
+    script?.onFail(retire);
+    return script;
+  };
+
+  return {
+    show() {
+      if (retired) return;
+      el.classList.remove('is-waiting');
+      // The ad that was there leaves the page; its box stays, so nothing around it moves.
+      el.querySelector('ins.adsbygoogle')?.remove();
+      if (el.dataset.adFilled !== '1') openBox(el, name);
+      const ins = requestAd(el, name, client, slotId);
+      ensureScript()?.onLoaded(() =>
+        hideIfNotTaken(ins, () => {
+          if (ins.isConnected) retire();
+        }),
+      );
+    },
+    whenInReach(cb) {
+      if (retired) return NO_CANCEL;
+      ensureScript();
+      // A box AdSense left unfilled is collapsed (components.css) and could never come into reach.
+      if (el.querySelector("ins.adsbygoogle[data-ad-status='unfilled']")) closeBox(el);
+      if (el.dataset.adFilled !== '1') el.classList.add('is-waiting');
+      return whenNear(el, cb);
+    },
+    clear() {
+      if (retired) return;
+      el.classList.remove('is-waiting');
+      closeBox(el);
+    },
+  };
+}
+
 /** The AdSense script also waits for this work of the page (its data, answer and map). */
 export function holdAdsUntil(work: Promise<unknown>): void {
   adScript?.holdUntil(work);
@@ -212,9 +310,12 @@ export function holdAdsUntil(work: Promise<unknown>): void {
  * Re-opens Google's consent dialog, also before the deferred AdSense script has arrived (ui/cmp.ts).
  * Returns false when the CMP is not on the page (no ads here, or the script was blocked) so the
  * caller can explain that no ad cookies are in use; `onUnavailable` is also called when a script
- * that was still on its way fails afterwards.
+ * that was still on its way fails afterwards. On the map the script is not there before the first
+ * melding is opened, while the reader may have answered the dialog on a text page: the link
+ * fetches it then.
  */
 export function openCmp(onUnavailable?: () => void): boolean {
+  if (!adScript && pageShowsAds()) loadAdsenseScript(site.ads.adsenseClient);
   return openConsentDialog(adScript, onUnavailable);
 }
 

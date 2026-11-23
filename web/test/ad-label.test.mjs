@@ -12,8 +12,11 @@ const ads = read('../src/ui/ads.ts');
 const css = read('../src/styles/components.css');
 
 describe('ad label', () => {
-  it('fillSlot puts a visible "Advertenties" label above the ad', () => {
-    const fill = ads.slice(ads.indexOf('function fillSlot'), ads.indexOf('export function mountAds'));
+  it('a slot gets a visible "Advertenties" label above the ad', () => {
+    // openBox writes the label, requestAd the <ins>; fillSlot and the map's slot call them in that order.
+    const fill = ads.slice(ads.indexOf('function openBox'), ads.indexOf('export function mountAds'));
+    assert.match(fill, /function fillSlot[^]*?openBox\(el, name\);\s*return requestAd\(/);
+    assert.match(ads, /if \(el\.dataset\.adFilled !== '1'\) openBox\(el, name\);\s*const ins = requestAd\(/);
     assert.match(fill, /AD_LABEL/);
     assert.match(ads, /const AD_LABEL = 'Advertenties';/);
     assert.ok(fill.indexOf('ad-slot__label') < fill.indexOf("createElement('ins')"), 'label must come before the ad');

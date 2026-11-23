@@ -39,7 +39,8 @@ import type { Category, ItemFeature } from './data/types';
 import { adoptHashState, normalizeRoadParam, readStoredMode, readUrlState, storeMode, writeUrlState, type HistoryMarker, type UrlState } from './data/url-state';
 import { verdictFor } from './data/verdict';
 import { AppMap, NL_CENTER, NL_LAND_BOUNDS, NL_ZOOM } from './map/map';
-import { wireCmpLinks } from './ui/ads';
+import { renewableSlot, wireCmpLinks } from './ui/ads';
+import { createPanelAd } from './ui/panel-ad';
 import { announce } from './ui/announce';
 import { mountAnalytics } from './ui/analytics';
 import { mountCategoryChips } from './ui/chips';
@@ -415,6 +416,10 @@ const routes = createRouteController(
 
 /* ------------------------------------------------------------------ detail view */
 
+/** The ad under an opened melding (ui/panel-ad.ts); null when this page shows no ads. */
+const panelAdSlot = renewableSlot(panelEl.querySelector<HTMLElement>('[data-ad-slot="panel"]'));
+const panelAd = panelAdSlot ? createPanelAd(panelAdSlot) : null;
+
 const detail = createDetailController({
   url: () => url,
   setUrl: (next) => (url = next),
@@ -430,6 +435,8 @@ const detail = createDetailController({
     panel.ensureAtLeast('half');
     updatePadding();
   },
+  opened: () => panelAd?.meldingOpened(),
+  closed: () => panelAd?.meldingClosed(),
   detailEl,
   listEl,
 });

@@ -39,7 +39,7 @@ Bedenk wel: de kaart toont wat de wegbeheerder heeft **ingevoerd**. Werk dat eer
 
 ## Onafhankelijk
 
-Wegwerk is een particulier initiatief en **geen officiële website** van Rijkswaterstaat, NDW, een provincie of gemeente. De site wordt betaald uit advertenties op de tekstpagina's; op de kaart staan er geen. Gepersonaliseerde advertenties zie je alleen als je daar toestemming voor geeft. We verkopen geen gegevens over bezoekers. Hoe we met privacy omgaan, staat in de [privacyverklaring](/privacy/) en het [cookiebeleid](/cookies/).
+Wegwerk is een particulier initiatief en **geen officiële website** van Rijkswaterstaat, NDW, een provincie of gemeente. De site wordt betaald uit advertenties: op de tekstpagina's en, op de kaart, alleen onder de tekst van een geopende melding, nooit over de kaart zelf. Gepersonaliseerde advertenties zie je alleen als je daar toestemming voor geeft. We verkopen geen gegevens over bezoekers. Hoe we met privacy omgaan, staat in de [privacyverklaring](/privacy/) en het [cookiebeleid](/cookies/).
 
 ## Hoe we controleren wat je ziet
 

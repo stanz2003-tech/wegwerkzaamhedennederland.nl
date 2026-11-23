@@ -189,7 +189,10 @@
             <h2 class="sr-only" id="list-heading" tabindex="-1">Meldingen</h2>
             <div class="panel__body" data-panel-body>
               <div class="panel__view" data-list></div>
-              <div class="panel__view panel__view--detail" data-detail hidden></div>
+              <!-- The one ad of the map page stands inside an opened melding, under its answer
+                   (ui/panel-ad.ts). ui/detail.ts writes the melding around this slot and never takes
+                   it out; it is empty and without height until a melding is opened. -->
+              <div class="panel__view panel__view--detail" data-detail hidden><div class="ad-slot ad-slot--panel" data-ad-slot="panel" data-detail-break aria-hidden="true"></div></div>
               <a class="panel__more" href="#uitleg" data-scroll-uitleg>Meer over deze kaart <span aria-hidden="true">↓</span></a>
             </div>
           </div>

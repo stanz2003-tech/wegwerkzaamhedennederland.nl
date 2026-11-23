@@ -23,7 +23,7 @@ Meer bewaren we niet. De kaartpositie, filters en de geselecteerde melding staan
 
 ## Toestemmingsbeheer
 
-Op de tekstpagina's (de kaart heeft geen advertenties) vraagt een toestemmingsbanner bij je eerste bezoek of je akkoord gaat met advertentiecookies en gepersonaliseerde advertenties. We gebruiken daarvoor de door Google gecertificeerde toestemmingstool (Google Privacy & messaging, volgens het IAB Transparency & Consent Framework). De banner heeft gelijkwaardige knoppen om te **accepteren** en te **weigeren** en een knop om per doel en per partner te kiezen. Vóór je keuze worden geen advertentiecookies geplaatst. Je keuze zelf wordt onthouden in een cookie:
+Advertenties staan op de tekstpagina's en, op de kaart, alleen onder de tekst van een geopende melding. De eerste keer dat je een tekstpagina bezoekt of op de kaart een melding opent, vraagt een toestemmingsbanner of je akkoord gaat met advertentiecookies en gepersonaliseerde advertenties. We gebruiken daarvoor de door Google gecertificeerde toestemmingstool (Google Privacy & messaging, volgens het IAB Transparency & Consent Framework). De banner heeft gelijkwaardige knoppen om te **accepteren** en te **weigeren** en een knop om per doel en per partner te kiezen. Vóór je keuze worden geen advertentiecookies geplaatst. Je keuze zelf wordt onthouden in een cookie:
 
 | Naam | Soort | Geplaatst door | Doel | Bewaartermijn |
 |---|---|---|---|---|
