@@ -1,13 +1,15 @@
 /* answer-bar.css — the compact answer bar of a long road / place page on a phone
    (ui/answer-bar.ts, mobiel-12). Fixed to the bottom once the forecast block scrolled away;
-   body gets room underneath (.has-answer-bar), so the bar never covers the footer or an ad. */
+   body gets room underneath (.has-answer-bar), so the bar never covers the footer or an ad.
+   At the top instead while Google's anchor ad takes the bottom (.answer-bar--top). */
 .answer-bar {
   --answer-bar-h: 64px;
   position: fixed;
   inset: auto 0 0 0;
   z-index: var(--z-sheet);
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Flex, not a three-column grid: a place page has no road badge, and without that first child
+     the text took the badge's column and the button was pushed off the screen. */
+  display: flex;
   align-items: center;
   gap: var(--s-2) var(--s-3);
   min-height: var(--answer-bar-h);
@@ -26,12 +28,25 @@
   background: var(--vpill-color, var(--border));
 }
 
+/* Google's anchor ad has the bottom edge (ui/bottom-anchor.ts): the bar stands at the top. */
+.answer-bar--top {
+  inset: 0 0 auto 0;
+  padding: calc(var(--s-2) + env(safe-area-inset-top, 0px)) var(--s-3) var(--s-2) calc(var(--s-3) + 6px);
+  border-top: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--vpill-color, var(--border)) 40%, var(--border));
+}
+
+html:has(.answer-bar--top:not([hidden])) {
+  scroll-padding-top: calc(64px + var(--s-2));
+}
+
 .answer-bar[hidden] { display: none; }
 
 .answer-bar__badge { display: inline-flex; }
 .answer-bar__badge:empty { display: none; }
 
 .answer-bar__text {
+  flex: 1 1 0;
   margin: 0;
   min-width: 0;
   font-size: var(--text-sm);
@@ -47,6 +62,7 @@
 .answer-bar__text strong { color: var(--text); font-weight: 700; }
 
 .answer-bar__btn {
+  flex: none;
   min-height: var(--touch);
   white-space: nowrap;
 }

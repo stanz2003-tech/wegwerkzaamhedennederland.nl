@@ -32,7 +32,7 @@ De verkeersinformatie en de kaart komen van de volgende bronnen. De bronvermeldi
 - **Iconen:** [Lucide](https://lucide.dev), ISC-licentie.
 - **Lettertypen:** Overpass (Red Hat) en IBM Plex Sans en IBM Plex Mono (IBM), beide onder de SIL Open Font License 1.1 ([licentie](/fonts/OFL.txt)). We serveren ze zelf, zodat je browser daarvoor geen verbinding met Google maakt.
 - **Hosting en distributie:** Cloudflare (Pages en R2). Bezoekersstatistieken, als die worden bijgehouden, via Cloudflare Web Analytics, dat geen cookies plaatst en geen bezoekers volgt; zie de [privacyverklaring](/privacy/).
-- **Advertenties:** Google AdSense, alleen op de tekstpagina's en niet op de kaart. Gepersonaliseerde advertenties alleen met je toestemming; zonder toestemming toont Google hooguit beperkte advertenties zonder advertentiecookies. Zie het [cookiebeleid](/cookies/).
+- **Advertenties:** Google AdSense, op de tekstpagina's en op de kaart alleen onder de tekst van een geopende melding, nooit over de kaart zelf. Gepersonaliseerde advertenties alleen met je toestemming; zonder toestemming toont Google hooguit beperkte advertenties zonder advertentiecookies. Zie het [cookiebeleid](/cookies/).
 
 ## Hoe de site werkt
 

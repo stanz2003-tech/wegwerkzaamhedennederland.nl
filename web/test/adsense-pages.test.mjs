@@ -119,11 +119,21 @@ describe('ads only where Google may index', () => {
   it('mountAds asks the policy with the page\'s own robots and ads meta before loading anything', () => {
     // ads.ts imports site.config.json, which Node cannot load in a test; read its source instead.
     const src = readFileSync(join(WEB_ROOT, 'src/ui/ads.ts'), 'utf8');
-    const mount = src.slice(src.indexOf('export function mountAds'), src.indexOf('export function openCmp'));
-    assert.match(mount, /querySelector<HTMLMetaElement>\('meta\[name="robots"\]'\)\?\.content/);
-    assert.match(mount, /querySelector<HTMLMetaElement>\('meta\[name="wegwerk-ads"\]'\)\?\.content/);
-    assert.match(mount, /const enabled = adsEnabled\(\) && pageAllowsAds\(robots, adsMeta\);/);
-    assert.ok(mount.indexOf('pageAllowsAds') < mount.indexOf('loadAdsenseScript'), 'the policy decides before the script loads');
+    const policy = src.slice(src.indexOf('function pageShowsAds'), src.indexOf('export function mountAds'));
+    assert.match(policy, /querySelector<HTMLMetaElement>\('meta\[name="robots"\]'\)\?\.content/);
+    assert.match(policy, /querySelector<HTMLMetaElement>\('meta\[name="wegwerk-ads"\]'\)\?\.content/);
+    assert.match(policy, /return adsEnabled\(\) && pageAllowsAds\(robots, adsMeta\);/);
+    const mount = src.slice(src.indexOf('export function mountAds'), src.indexOf('export interface RenewableSlot'));
+    assert.match(mount, /const enabled = pageShowsAds\(\);/);
+    assert.ok(mount.indexOf('pageShowsAds') < mount.indexOf('loadAdsenseScript'), 'the policy decides before the script loads');
+  });
+
+  it('the map slot and the cookie link ask the same policy before they fetch the script', () => {
+    const src = readFileSync(join(WEB_ROOT, 'src/ui/ads.ts'), 'utf8');
+    const rest = src.slice(src.indexOf('export function renewableSlot'));
+    assert.equal(rest.split('loadAdsenseScript(').length - 1, 2, 'the map slot and openCmp');
+    assert.ok(rest.indexOf("pageShowsAds() ? slotIdFor(name) : ''") < rest.indexOf('loadAdsenseScript('));
+    assert.match(rest, /if \(!adScript && pageShowsAds\(\)\) loadAdsenseScript\(/);
   });
 });
 

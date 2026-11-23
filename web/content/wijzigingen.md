@@ -6,10 +6,12 @@ description: Logboek van Wegwerk: nieuwe functies, verbeterde oordelen en herste
 heading: Wijzigingen
 kicker: Over deze site
 lead: Wegwerk wordt elke week beter. Hier staan de belangrijkste veranderingen, de nieuwste bovenaan. De verkeersgegevens zelf worden los daarvan elke {{refreshMinutes}} minuten (actueel beeld) en ongeveer elk kwartier (planning) vernieuwd; de pagina's per weg, plaats en brug twee keer per dag.
-updated: 2026-11-13
+updated: 2026-11-23
 ---
 
 ## November 2026
+
+**23 november** — Op de kaart staat nu **één advertentie**: onder de tekst van een melding die je opent, nooit over de kaart zelf. Op de tekstpagina's kan Google daarnaast een smalle advertentiebalk onderaan het scherm tonen, die je kunt wegklikken, en op brede schermen advertenties naast de pagina. Uit die advertenties wordt de site betaald; het antwoord of je erdoor kunt, staat altijd bovenaan.
 
 **13 november** — Op de kaart zie je nu **welke kant op** een weg dicht is. Een lijn die in één richting dicht is, heeft pijltjes in die rijrichting en ligt iets naar de kant waar dat verkeer rijdt, zodat je ook op je telefoon, zonder ver in te zoomen, ziet of het jouw kant is.
 

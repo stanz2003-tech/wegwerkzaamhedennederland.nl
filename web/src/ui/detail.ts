@@ -235,6 +235,30 @@ function pagesNav(links: readonly PageLink[]): string {
   return `<nav class="detail__pages" aria-label="Meer over deze plek">${items.join('')}</nav>`;
 }
 
+/**
+ * The element inside the detail view that must never leave the page: the ad slot index.html puts
+ * there (`data-detail-break`, ui/panel-ad.ts). A repaint (the loaded shard, another vehicle or
+ * moment) would otherwise throw the ad away and ask for a new one.
+ */
+function detailBreak(root: HTMLElement): HTMLElement | null {
+  return root.querySelector<HTMLElement>(':scope > [data-detail-break]');
+}
+
+/**
+ * Writes the detail: in one `<article>`, or, around a break, the answer above it and the
+ * background below, so the ad stands under the answer and not under everything.
+ */
+function setDetailContent(root: HTMLElement, attrs: string, head: string, rest: string): void {
+  const keep = detailBreak(root);
+  if (!keep) {
+    root.innerHTML = `<article class="detail" ${attrs} aria-labelledby="detail-title">${head}${rest}</article>`;
+    return;
+  }
+  for (const child of Array.from(root.childNodes)) if (child !== keep) child.remove();
+  keep.insertAdjacentHTML('beforebegin', `<article class="detail" ${attrs} aria-labelledby="detail-title">${head}</article>`);
+  keep.insertAdjacentHTML('afterend', `<div class="detail detail--rest" ${attrs}>${rest}</div>`);
+}
+
 export const GMAPS_DETOUR_NOTE =
   'Google Maps kent de omleiding niet zelf; we sturen de route langs de omleidingsborden. Controleer onderweg de borden.';
 
@@ -289,7 +313,8 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
       ? `<button type="button" class="btn btn--secondary detail__road" data-road="${esc(p.road)}"><span class="detail__road-badge" aria-hidden="true">${roadBadge(p.road, p.roadType, { size: 'sm' })}</span><span>Alleen de ${esc(p.road)} bekijken</span></button>`
       : '';
 
-  root.innerHTML = `<article class="detail" data-cat="${p.cat}" data-verdict="${verdict.level}" aria-labelledby="detail-title">
+  // The answer first: verdict, when, detour and the buttons.
+  const head = `
       <div class="detail__top">
         <button type="button" class="btn btn--ghost detail__back" data-back>${ICONS.arrowLeft}<span>Terug</span></button>
         <button type="button" class="btn btn--ghost detail__share" data-share aria-label="Deel deze melding">${ICONS.share2}<span>Deel</span></button>
@@ -337,6 +362,9 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
           ? `<div class="banner banner--warn" role="status">${ICONS.circleAlert}<div><p class="banner__title">Details konden niet worden geladen.</p></div><button type="button" class="btn btn--secondary" data-retry>${ICONS.refreshCw}<span>Opnieuw</span></button></div>`
           : ''
       }
+      `;
+  // Then the background: what the wegbeheerder reported, phases, periods, the explanation and the source.
+  const rest = `
       ${
         rows.length
           ? `<section class="detail__section" aria-labelledby="detail-reported"><h3 class="detail__h" id="detail-reported">Zo meldt de wegbeheerder het</h3><dl class="impact">${rows.map((r) => `<div class="impact__row">${r.icon}<dt>${esc(r.label)}</dt><dd>${esc(r.value)}</dd></div>`).join('')}</dl><p class="detail__reported-note">Het oordeel bovenaan maakt Wegwerk uit deze gegevens. Wijkt het af van de borden ter plaatse, dan gelden de borden.</p></section>`
@@ -352,7 +380,8 @@ export function renderDetail(root: HTMLElement, state: DetailState, now: number,
         <p class="detail__id">Melding ${esc(p.id)}${mergedIds.length ? ` (ook ${esc(mergedIds.join(', '))})` : ''}</p>
         ${merged ? `<p class="detail__merged">${esc(merged)}</p>` : ''}
       </footer>
-    </article>`;
+    `;
+  setDetailContent(root, `data-cat="${p.cat}" data-verdict="${verdict.level}"`, head, rest);
 
   root.querySelector('[data-back]')?.addEventListener('click', () => cb.onBack());
   root.querySelector('[data-share]')?.addEventListener('click', () => cb.onShare());

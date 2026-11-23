@@ -29,6 +29,10 @@ export interface DetailHost {
   listSelected(id: string | null): void;
   /** Gives the focus back to the row the detail was opened from. */
   focusRow(id: string | null): void;
+  /** A melding other than the one on screen was opened (not a repaint of the open one). */
+  opened?(): void;
+  /** The open melding was closed: the list is back. */
+  closed?(): void;
   /** The sheet at least half open and the camera padding updated, before flying to the item. */
   makeRoom(): void;
   detailEl: HTMLElement;
@@ -148,6 +152,7 @@ export function createDetailController(host: DetailHost): DetailController {
     host.map()?.setSelected(feature ? feature.properties.id : null);
     host.listSelected(feature ? feature.properties.id : null);
     if (!feature) {
+      if (previous !== null) host.closed?.();
       host.detailEl.hidden = true;
       host.listEl.hidden = false;
       host.setDetail(false);
@@ -161,6 +166,7 @@ export function createDetailController(host: DetailHost): DetailController {
     host.makeRoom();
     if (fly) host.map()?.fitToFeature(feature);
     void load(feature, true);
+    if (feature.properties.id !== previous) host.opened?.();
     host.syncUrl((push ?? previous === null) ? { wegwerk: true, detail: true } : false);
   };
 

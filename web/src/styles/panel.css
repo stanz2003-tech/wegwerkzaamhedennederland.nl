@@ -333,6 +333,26 @@
 
 .panel__more:hover { color: var(--text); border-color: var(--text-3); }
 
+/* The ad inside an opened melding (ui/panel-ad.ts): under the answer, with air around it so it never sits against a button, and its rectangle centred in
+   the panel's width. ui/detail.ts writes the melding in two parts around the slot; they are spaced
+   as the one block they were. */
+.ad-slot--panel.is-enabled {
+  margin: var(--s-6) var(--s-4);
+  text-align: center;
+}
+
+.ad-slot--panel > .ad-slot__label {
+  text-align: left;
+}
+
+.panel__view--detail > .detail:has(+ .ad-slot--panel) {
+  padding-bottom: 0;
+}
+
+.panel .panel__view--detail > .detail.detail--rest {
+  padding-top: var(--s-4);
+}
+
 /* ------------------------------------------------------------------ detail mode */
 /* An open melding needs its verdict, period and detour in view, not the filters: the answer,
    the filters and the list bar step aside. The sticky header (search, mode, Wanneer with its

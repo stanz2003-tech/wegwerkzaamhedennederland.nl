@@ -80,3 +80,5 @@ export const bridgeOpenings = await load('ui/bridge-openings.ts');
 export const bridgeSelect = await load('data/bridge-select.ts');
 export const deepLink = await load('ui/deep-link.ts');
 export const mapData = await load('ui/map-data.ts');
+export const panelAd = await load('ui/panel-ad.ts');
+export const bottomAnchor = await load('ui/bottom-anchor.ts');

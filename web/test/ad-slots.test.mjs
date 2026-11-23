@@ -160,7 +160,11 @@ describe('the AdSense script waits for the page', () => {
   });
 
   it('the cookie link goes through ui/cmp.ts, which knows about the deferred script', () => {
-    assert.match(ads, /export function openCmp\(onUnavailable\?: \(\) => void\): boolean \{\s*return openConsentDialog\(adScript, onUnavailable\);/);
+    // On the map the script waits for the first opened melding; the link fetches it when the page may show ads.
+    assert.match(
+      ads,
+      /export function openCmp\(onUnavailable\?: \(\) => void\): boolean \{\s*if \(!adScript && pageShowsAds\(\)\) loadAdsenseScript\(site\.ads\.adsenseClient\);\s*return openConsentDialog\(adScript, onUnavailable\);/,
+    );
     assert.match(ads, /if \(!openCmp\(onUnavailable\)\) onUnavailable\(\);/);
   });
 });

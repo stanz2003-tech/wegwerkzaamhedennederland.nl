@@ -7,7 +7,12 @@
  * The bar never has an answer of its own: it copies the headline and colour of the answer card
  * the forecast block rendered for the current state, so it can never read lighter than the card.
  * Shown at ≤768 px only (entity-list.css); wider screens have room for the block itself.
+ *
+ * Google's anchor ad takes the same bottom edge when it shows (ui/bottom-anchor.ts) and lay over
+ * the bar. While it is there the bar stands at the top of the screen: readable, and its button
+ * never sits against an ad.
  */
+import { watchBottomAnchor } from './bottom-anchor';
 import { prefersReducedMotion } from './theme';
 
 export interface AnswerBar {
@@ -40,12 +45,20 @@ export function mountAnswerBar(forecastEl: HTMLElement, badgeHtml = ''): AnswerB
 
   const phone = window.matchMedia(PHONE);
   let past = false;
+  /** Px of the bottom edge Google's anchor ad takes right now; 0 without one. */
+  let anchorPx = 0;
   const apply = (): void => {
     const show = past && phone.matches;
+    const atTop = show && anchorPx > 0;
     bar.hidden = !show;
+    bar.classList.toggle('answer-bar--top', atTop);
     // Room under the last content, so the bar never covers the footer or an ad slot.
-    document.body.classList.toggle('has-answer-bar', show);
+    document.body.classList.toggle('has-answer-bar', show && !atTop);
   };
+  watchBottomAnchor((px) => {
+    anchorPx = px;
+    apply();
+  });
 
   new IntersectionObserver((entries) => {
     const e = entries[entries.length - 1];

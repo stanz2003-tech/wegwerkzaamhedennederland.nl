@@ -145,7 +145,8 @@ leeg vak zien: `web/src/ui/ad-fill.ts`.)
    incognitovenster. De melding moet verschijnen, met knoppen om te accepteren, te weigeren en
    opties te beheren. "Cookie-instellingen" onderaan moet hem opnieuw openen.
 3. Controleer na een week in Cloudflare de **snelheid (INP)** van de tekstpagina's.
-4. Begin pas daarna met Auto ads of meer blokken, en houd de kaart reclamevrij.
+4. Begin pas daarna met Auto ads of meer blokken. (Tot 23 november stond hier: "en houd de kaart
+   reclamevrij". Dat is sindsdien anders, zie §7.)
    - **Automatisch optimaliseren staat uit** (16 november 2026). Het stond standaard aan, op 50%
      van het verkeer, met "winnaar automatisch toepassen": Google mag dan zelf een indeling voor
      automatische advertenties aanzetten, ook een schermvullende. Zet het pas weer aan als de
@@ -155,8 +156,9 @@ leeg vak zien: `web/src/ui/ad-fill.ts`.)
      **ankeradvertentie onderaan** en **zijbalken** aan; **vignetten**, **op intentie gerichte
      indelingen** (BÈTA) en **in-page-indelingen** uit. Een vignet verschijnt ook bij een klik
      van een wegpagina naar de kaart; intentielinks komen in teksten als "A2 dicht"; in-page
-     blokken laten de pagina verspringen. De kaart en lege pagina's blijven vanzelf reclamevrij:
-     daar laadt het AdSense-script niet (`web/src/ui/ads.ts`).
+     blokken laten de pagina verspringen. Lege pagina's blijven vanzelf reclamevrij: daar laadt
+     het AdSense-script niet (`web/src/ui/ads.ts`). De kaart is sinds 23 november in AdSense
+     uitgesloten van automatische advertenties (§7).
    - Een tweede eigen blok onder de veelgestelde vragen op weg- en plaatspagina's is goedkoper
      voor de snelheid dan in-page Auto ads (vaste hoogte, geen verspringing).
    - **Let op bij de ankeradvertentie (toegevoegd 16 november):** weg-, plaats- en brugpagina's
@@ -200,7 +202,8 @@ Regels die in de code vastliggen (`web/src/ui/ads.ts`, `web/src/ui/ad-lazy.ts`):
 - Nooit twee advertenties onder elkaar in beeld: het onderste blok opent alleen met minstens één
   schermhoogte pagina ertussen (op een korte brugpagina blijft het dus weg). Op een telefoon is er
   dus nooit meer dan één tegelijk te zien; op een breed scherm staan er twee naast elkaar in één rij.
-- Geen advertenties op de kaart, op lege pagina's en op pagina's die uit Google zijn (ongewijzigd).
+- Geen advertenties op lege pagina's en op pagina's die uit Google zijn (ongewijzigd). Op de
+  kaart staat sinds 23 november één blok, in een geopende melding (§7); nooit over de kaart zelf.
 - Geen eigen "meeschuivende" advertentie. Op een breed scherm schuift het kaartje mee; daarom
   staat het blok daar boven kaart en lijst, niet in de kaartkolom. Google's hulppagina's noemen
   zelfgebouwde meeschuivende blokken niet als toegestaan.
@@ -242,7 +245,135 @@ oplossing: de scrollpositie zelf corrigeren op het moment dat het vak inklapt (`
    op een telefoon: in Den Bosch stond de volgende advertentie na de bovenste op 9.990 px, nu op
    3.100 px. Een telefoon ziet daarmee hooguit drie advertenties per pagina, een breed scherm ook
    (twee naast elkaar en één onderaan).
-5. **De kaart.** Blijft reclamevrij. Hooguit later één blok in het zijpaneel op een breed scherm.
+5. **De kaart.** Sinds 23 november één blok in een geopende melding, zie §7.
 
 **Niet doen:** vignetten (schermvullend bij doorklikken), "Automatisch optimaliseren" aanzetten
 zonder die te blokkeren, advertenties verversen, of het blok boven het antwoord zetten.
+
+---
+
+## 7. Naar € 5 per dag (23 november 2026)
+
+**Meting van de eerste volle week** (AdSense → Rapporten, 17 t/m 22 november, zes volle dagen):
+gemiddeld **€ 1,96 per dag** bij ±1.690 paginaweergaven en ±2.660 vertoningen per dag. Pagina-RPM
+€ 1,19, RPM per vertoning € 0,77, zichtbare actieve weergave 54% (was 10% op dag één).
+
+| Apparaat | Paginaweergaven (7 d) | Pagina-RPM | Zichtbaar |
+|---|---|---|---|
+| Telefoon | 7.765 (74%) | € 1,02 | 51% |
+| Desktop | 2.287 (22%) | € 1,78 | 61% |
+| Tablet | 465 (4%) | € 1,11 | 60% |
+
+74% van de vertoningen was gepersonaliseerd: de toestemmingsmelding kost dus weinig. Alle
+inkomsten kwamen uit de eigen blokken ("Display, Handmatig").
+
+**Waar het geld bleef liggen.** € 5 per dag bij dezelfde bezoekers vraagt een pagina-RPM van
+± € 2,90; meer blokken in dezelfde tekstpagina's leveren dat niet op. Twee dingen wel:
+
+1. Google's eigen indelingen (anker, zijbalken) stonden uit.
+2. Ongeveer 700 bezoekers per dag klikken van een tekstpagina door naar de kaart (Cloudflare,
+   week tot 16 november: ±1.000 echte paginaladingen van `/` per dag, waarvan ±330 als eerste
+   pagina) en klikken daar samen ±10.000 keer per dag verder. Hoeveel van die klikken een melding
+   openen is niet apart gemeten; de schatting is ±4.500. Daar stond geen advertentie.
+
+**Wat Stan op 23 november heeft besloten** (drie vragen, drie antwoorden):
+
+| Vraag | Besluit |
+|---|---|
+| Ankeradvertentie en zijbalken van Google | **Ja**, met de kaart uitgesloten |
+| Advertentie op de kaart | **Ja**, in een geopende melding, per geopende melding |
+| Vignetten (schermvullend bij doorklikken) | **Nee** |
+
+### 7a. Auto ads: wat er aan staat (AdSense → Advertenties → Op site → potlood)
+
+Toegepast op 23 november ±19:40; een kwartier later stond het anker al gevuld op de site.
+
+- **Automatische advertenties: AAN.**
+- Overlay-indelingen 2/3: **ankeradvertenties** aan, **zijrail-advertenties** aan (links en
+  rechts), **vignetten uit**.
+- Geavanceerd: *dynamische ankeradvertenties* **uit** (die veranderen van grootte); anker op
+  brede schermen aan; positie **alleen onderkant**. Boven het antwoord komt dus niets.
+- In-page indelingen 0/2 (banner en multiplex uit), op intentie gerichte indelingen 0/1.
+- **Uitgesloten pagina's:** `wegwerkzaamhedennederland.nl` → "Alleen deze pagina". Dat is de
+  kaart. Zonder die regel zou het anker over het uitschuifpaneel van de kaart komen zodra de
+  kaart het AdSense-script laadt (§7b).
+- *Automatisch optimaliseren* blijft **uit**.
+
+**Het anker en de eigen balk.** Gemeten op de live site, telefoon 375 × 812: het anker is 139 px
+hoog (17% van het scherm), heeft een pijltje om het in te klappen en lag over de eigen balk
+"Nu: … · Andere dag". Zolang het anker onderaan staat, staat de eigen balk nu **bovenaan** het
+scherm (`web/src/ui/bottom-anchor.ts`, `answer-bar.ts`): hij blijft leesbaar en de knop staat
+nooit tegen een advertentie aan. Klapt de bezoeker het anker in, dan blijft er een randje staan en
+blijft de balk boven. Zonder anker (adblocker, geen advertentie) staat de balk onderaan als altijd.
+Tot dit live staat, ligt het anker over de balk heen.
+
+Bij dezelfde controle gevonden en hersteld: op plaats- en gemeentepagina's (zonder wegbordje) viel
+de knop "Andere dag" half buiten beeld.
+
+### 7b. De kaart: één advertentie in een geopende melding
+
+Eigen advertentieblok **"Kaart onder melding"**, ID `2443153207` (`ads.slots.panel`), zodat de
+kaart apart in de rapporten staat (Rapporten → Ad units).
+
+- **Waar:** in de geopende melding, onder het antwoord (oordeel, wanneer, omleiding,
+  routeknoppen) en boven "Zo meldt de wegbeheerder het". Onderaan de hele melding stond het vak
+  1.500 px diep in een paneel van 680 px: dan ziet niemand het. Nooit in de lijst, nooit over de
+  kaart zelf. Op telefoon en breed scherm.
+- **Wanneer:** pas als het vak in beeld komt (wie niet scrolt, vraagt geen advertentie aan). Het
+  AdSense-script en de toestemmingsmelding laden pas bij de eerste geopende melding; wie alleen
+  de kaart bekijkt, laadt niets van Google.
+- **Een nieuwe advertentie** alleen als de bezoeker zelf een andere melding opent, en hooguit
+  één keer per 30 seconden (`RENEW_AFTER_MS` in `web/src/ui/panel-ad.ts`). Nooit op een timer.
+- **Terug naar de lijst:** de advertentie gaat uit de pagina (niet verborgen: AdSense verbiedt
+  het verbergen van een blok). Wie binnen 30 seconden een volgende melding opent, ziet daar geen
+  advertentie.
+
+**Het beleidsrisico, eerlijk.** Google's regel (hulppagina 1346295, gelezen 23 november):
+verversen mag niet "zonder dat de gebruiker om een verversing vraagt". Over sites die zonder
+herladen van pagina wisselen, zoals deze kaart, zeggen de hulppagina's niets: niet toegestaan en
+niet verboden. De redenering hier: een melding is een eigen pagina (eigen adres, titel en tekst)
+en de bezoeker vraagt er zelf om. Dat is gangbaar, maar staat nergens zwart-op-wit. Komt er een
+beleidsmelding over dit blok (Beleidscentrum), zet dan `ads.slots.panel` op `""`: het blok is
+weg en de rest blijft werken. Wil je het zekere voor het onzekere: zet `RENEW_AFTER_MS` op een
+heel groot getal, dan blijft het bij één advertentie per kaartbezoek.
+
+**De teksten op de site** zeiden op vijf plekken "geen advertenties op de kaart". Aangepast:
+colofon, cookies, over, privacy (twee plekken), plus een regel in het logboek (wijzigingen).
+
+### 7c. Wat je ervan mag verwachten
+
+Schattingen, geen beloftes; ze zijn van vóór de eerste meting.
+
+| Bron | Per dag |
+|---|---|
+| Nu (eigen blokken op tekstpagina's) | € 2,00 |
+| Anker en zijbalken | + € 0,80 tot € 1,20 |
+| Kaart, per geopende melding | + € 1,00 tot € 2,00 |
+| Samen | **€ 3,80 tot € 5,20** |
+
+December helpt (adverteerders betalen meer tot ±20 december), januari valt altijd terug. De rest
+moet uit meer bezoekers komen: Search Console groeide in november 6 tot 8% per week.
+
+**Meten op 30 november** (een week na het aanzetten):
+
+1. AdSense → Rapporten → *Ad formats*: wat anker en zijbalk opleveren naast "Display, Handmatig".
+2. Rapporten → *Ad units* → "Kaart onder melding": vertoningen, zichtbaarheid, RPM. Ligt de
+   zichtbaarheid onder de 40%, dan staat het vak te diep.
+3. Cloudflare Web Analytics: INP en CLS van `/` (de kaart laadt nu het AdSense-script zodra een
+   melding opengaat) en van de tekstpagina's (het anker), naast de week ervoor.
+4. Cloudflare: paginaweergaven en bezoekduur van de kaart. Zakken die, dan kost de advertentie
+   meer dan hij oplevert.
+5. Beleidscentrum: moet leeg blijven.
+
+**Nog niet gedaan, in volgorde van opbrengst.**
+
+1. Vignetten: het meeste per stuk (schatting + € 0,50 tot € 1,50 per dag), het hinderlijkst.
+   Alleen als € 5 na de meting nog buiten bereik is, en dan met de laagste frequentie.
+2. Het blok `feed` ook op brede schermen, en een tweede `feed` verderop in lange lijsten
+   (samen + € 0,10 tot € 0,30 per dag).
+3. Eigen blokken voor `top`, `side` en `feed`, zodat elke plek apart in de rapporten staat.
+4. Meer bezoekers: de A-wegpagina's (70.900 vertoningen in Google per 28 dagen, 1,5% klikt door).
+
+**Staat los hiervan, wel doen:** AdSense meldt "Er geldt momenteel een betalingsstop omdat u uw
+adres moet bevestigen". Google stuurt een brief met een pincode; zonder die code wordt er niet
+uitbetaald (Betalingen → Verificatie).
