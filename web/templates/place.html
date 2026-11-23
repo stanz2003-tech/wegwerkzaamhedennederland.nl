@@ -27,6 +27,14 @@
 
   <section class="entity-forecast" id="entity-forecast" {{#if hasSnapshot}}data-reserve{{else}}data-pending{{/if}} aria-label="Kan ik door {{name}}?">{{#if hasSnapshot}}<div class="forecast__answer forecast-snapshot">{{{snapshotAnswer}}}</div>{{else}}<div class="forecast-pending" aria-hidden="true"><span></span><span></span><span></span></div><p class="sr-only">Het antwoord wordt geladen.</p>{{/if}}</section>
 
+  {{#if hasQuickLinks}}<nav class="quick-links" aria-labelledby="quick-links-title">
+    <p class="quick-links__label" id="quick-links-title">{{quickLinksTitle}}</p>
+    <ul class="chips chips--badges">
+      {{#each quickLinks}}<li><a class="{{cls}}" href="{{href}}">{{name}}</a></li>
+      {{/each}}
+    </ul>
+  </nav>{{/if}}
+
   <section class="entity-live" aria-label="Actuele situatie in {{name}}">
     <div class="entity-mapcol">
       <div id="entity-map" class="entity-map">

@@ -14,6 +14,7 @@ import { decideThin } from './index-state.mjs';
 import { loadLists, nearestByCentroid, nearestRoads } from './lists.mjs';
 import { renderBruggenList, renderPlaatsenList, renderWegenList } from './fragments.mjs';
 import { placesAlongRoad, roadPlacesFor, roadsThroughPlace } from './road-places.mjs';
+import { MAX_QUICK_ROADS, placeQuickLinks, roadQuickLinks } from './quick-links.mjs';
 import {
   alwaysIndexedBridge, bridgesInPlace, bridgesOnRoad, isRoadBridge, loadBridgeExtras, roadBridgeDescription, roadBridgeFaq, roadBridgeTitle, roadBridgeVars,
 } from './bridge-pages.mjs';
@@ -410,7 +411,8 @@ function roadContext(model, page) {
   // of links to pages that say 'niets gemeld' helps nobody. The overview /wegen/ still lists them all.
   const inGoogle = model.lists.roads.filter((o) => model.byPath.get(`/weg/${o.slug}/`)?.thin !== true);
   const related = nearestRoads(r, inGoogle, 12).map((o) => ({ road: o.road, href: `/weg/${o.slug}/`, badgeClass: roadKind(o.type).badge }));
-  const { alongGemeenten, alongPlaces } = placesAlongRoad(model, r);
+  const { alongGemeenten, alongPlaces, mainGemeenten } = placesAlongRoad(model, r);
+  const quickLinks = roadQuickLinks({ gemeenten: mainGemeenten, moreHref: '#along-title' });
   const roadBridges = bridgesOnRoad(model, r);
   const bbox = Array.isArray(r.bbox) && r.bbox.length === 4 ? r.bbox.map((n) => Number(n).toFixed(5)).join(',') : '';
   const crumbs = [{ name: 'Kaart', href: '/' }, { name: 'Wegen', href: '/wegen/' }];
@@ -445,6 +447,9 @@ function roadContext(model, page) {
     faq: roadFaq(r, snapVars.faqData),
     related,
     hasRelated: related.length > 0,
+    quickLinks,
+    hasQuickLinks: quickLinks.length > 0,
+    quickLinksTitle: `Langs de ${r.road}`,
     alongGemeenten,
     hasAlongGemeenten: alongGemeenten.length > 0,
     alongPlaces,
@@ -477,6 +482,11 @@ function placeContext(model, page) {
       : [];
   const nearbyRoads = roadsThroughPlace(model, page);
   const placeBridges = bridgesInPlace(model, page);
+  // The row under the answer (quick-links.mjs): only pages that are in Google, as the road links
+  // already are. "Meer in de buurt" when the block at the bottom holds more than the row shows.
+  const quickGemeenten = relatedGemeenten.filter((g) => model.byPath.get(g.href)?.thin !== true);
+  const moreBelow = nearbyRoads.length > MAX_QUICK_ROADS || relatedPlaces.length + placeBridges.length > 0 || relatedGemeenten.length > 1;
+  const quickLinks = placeQuickLinks({ roads: nearbyRoads, gemeenten: quickGemeenten, moreHref: moreBelow ? '#related-title' : '' });
   const provName = p.prov ?? gemeente?.prov ?? '';
   const zoom = isGemeente ? 11 : 12;
   const href = mapHref(p.lon, p.lat, zoom);
@@ -517,6 +527,9 @@ function placeContext(model, page) {
     zoom,
     intro: placeIntro(p, kind, siblings),
     faq: placeFaq(p, kind, placeSnap.faqData),
+    quickLinks,
+    hasQuickLinks: quickLinks.length > 0,
+    quickLinksTitle: 'Ook in de buurt',
     relatedPlaces,
     hasRelatedPlaces: relatedPlaces.length > 0,
     relatedPlacesTitle: isGemeente ? `Plaatsen in de gemeente ${p.naam}` : `Andere plaatsen in de gemeente ${p.gemeente ?? ''}`,
