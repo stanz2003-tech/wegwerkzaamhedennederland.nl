@@ -62,6 +62,20 @@ test('summariseAdsense compares whole calendar days and Monday-based weeks', () 
   assert.deepEqual([s.monthToDate.from, s.monthToDate.earnings], ['2026-11-01', 7 + 14 + 6]);
 });
 
+test('thisWeekToDate is the plain total from Monday up to and including today, without a comparison', () => {
+  const byDate = {
+    '2026-11-15': { earnings: 9, pageViews: 1, impressions: 1, clicks: 0 }, // Sunday of last week: not counted
+    '2026-11-16': { earnings: 4.22, pageViews: 100, impressions: 150, clicks: 2 },
+    '2026-11-17': { earnings: 6.84, pageViews: 120, impressions: 170, clicks: 3 },
+  };
+  const t = summariseAdsense(byDate, new Date('2026-11-17T18:00:00Z')).thisWeekToDate;
+  assert.deepEqual([t.week, t.from, t.to, t.earnings, t.pageViews, t.clicks], [47, '2026-11-16', '2026-11-17', 11.06, 220, 5]);
+  assert.equal(t.changePct, undefined);
+  // On a Monday the week so far is just today.
+  const monday = summariseAdsense(byDate, new Date('2026-11-16T18:00:00Z')).thisWeekToDate;
+  assert.deepEqual([monday.from, monday.to, monday.earnings], ['2026-11-16', '2026-11-16', 4.22]);
+});
+
 test('on a Monday AdSense has no week-so-far, only last week; missing days count as zero', () => {
   const s = summariseAdsense({ '2026-11-15': { earnings: 0.1 + 0.2, pageViews: 1, impressions: 1, clicks: 0 } }, new Date('2026-11-16T18:00:00Z'));
   assert.equal(s.thisWeekThroughYesterday, null);

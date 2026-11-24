@@ -70,7 +70,8 @@ const compare = (current, previous) => ({ current, previous, changePct: changePc
 /**
  * Calendar periods only: today so far, yesterday against the same weekday a week earlier, this
  * week up to yesterday against the same days last week (AdSense has no hours, so a half day
- * would be compared with a whole one), last Monday–Sunday against the week before, and the month.
+ * would be compared with a whole one), the week so far including today as a plain total, last
+ * Monday–Sunday against the week before, and the month.
  */
 export function summariseAdsense(byDate, now) {
   const today = amsterdamDate(now);
@@ -85,6 +86,9 @@ export function summariseAdsense(byDate, now) {
       week: isoWeek(today),
       ...compare(sumDays(byDate, monday, yesterday), sumDays(byDate, lastMonday, addDays(yesterday, -7))),
     },
+    // What the week has brought in so far, today included. A plain total: today is still running,
+    // so a comparison with last week would set half a day against a whole one.
+    thisWeekToDate: { week: isoWeek(today), ...sumDays(byDate, monday, today) },
     lastWeek: {
       week: isoWeek(lastMonday),
       ...compare(sumDays(byDate, lastMonday, addDays(monday, -1)), sumDays(byDate, addDays(lastMonday, -7), addDays(lastMonday, -1))),
