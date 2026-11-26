@@ -77,7 +77,10 @@ test('every data run sets the wekker, also after a failed data job', () => {
   assert.match(volgende, /if: always\(\) && needs\.preflight\.outputs\.configured == 'true'/);
   assert.match(volgende, /gh workflow run wekker\.yml/);
   // One chain: a wekker that already waits will start the next run itself.
-  assert.match(volgende, /--workflow wekker\.yml[^\n]*select\(\.status != "completed"\)/);
+  // Only a recent one counts: a ghost wekker stuck in "queued" must not make every run defer to it
+  // (a ghost Data run did exactly that to the wekker on 25–26 November 2026).
+  assert.match(volgende, /--workflow wekker\.yml[^\n]*select\(\.status != \\"completed\\" and \.createdAt >= \\"\$recent\\"\)/);
+  assert.match(volgende, /recent=\$\(date -u -d '20 minutes ago'/);
 });
 
 test('the data workflow keeps its hourly schedule as a fallback and serialises its runs', () => {

@@ -96,7 +96,7 @@ no-cache`) and the newest runs of `data.yml` and `wekker.yml` via the REST API, 
 |---|---|
 | `unknown` | a run list could not be read (token, rate limit, network) — never act blind |
 | `ok` | `generated` is at most 20 min old (meta.json unreadable: the chain was active within 20 min) |
-| `wait` | stale, but a `Data` or `Wekker` run is queued/waiting/running — the chain lives, a failing pipeline is not fixed by another run; or a run finished < 2 min ago (its successor may not be listed yet); or a restart from outside the chain (`workflow_dispatch` by anyone but `github-actions[bot]`: this watchdog or a manual run) happened < 20 min ago |
+| `wait` | stale, but a `Data` or `Wekker` run is queued/waiting/running — the chain lives, a failing pipeline is not fixed by another run (exception: only wekkers busy and no `Data` run created for 30 min means the chain spins without data → go on); or a run finished < 2 min ago (its successor may not be listed yet); or a restart from outside the chain (`workflow_dispatch` by anyone but `github-actions[bot]`: this watchdog or a manual run) happened < 20 min ago |
 | `dispatch` | otherwise: first `POST .../actions/runs/{id}/cancel` for every stuck run (see below), then `POST /repos/stanz2003-tech/wegwerkzaamhedennederland.nl/actions/workflows/data.yml/dispatches` with `{"ref":"main"}` |
 
 - **One chain.** The `wait` rules mirror the chain's own: whoever is busy sets the next link
@@ -110,6 +110,14 @@ no-cache`) and the newest runs of `data.yml` and `wekker.yml` via the REST API, 
   `volgende` defer to it, and a stuck `Data` run would hold the new one as *pending* in the
   `data` concurrency group, so the restart alone would not bring the chain back. A 409 (it
   finished meanwhile) counts as done.
+- **A chain that spins.** On 25–26 November 2026 a dispatched `Data` run stayed `queued` for 25
+  hours without a job. Every wekker read it as busy and set itself again, so a wekker was always
+  waiting and the watchdog kept saying "de keten leeft" while data came only from the rare
+  scheduled runs. Two fixes: the wekker ignores unfinished `Data` runs older than 45 min
+  (`STALE_RUN_MINUTES` in `infra/wekker/next.mjs`), and the watchdog no longer counts busy
+  wekkers as a living chain when no `Data` run was created for 30 min (`DATA_SILENT_MINUTES`).
+  A failing pipeline still starts a `Data` run every ~11 min, so it stays `wait`. Note that
+  **Cancel workflow** did not remove that ghost run (it stayed `queued` after a manual cancel).
 - **The rate limit needs no storage.** The watchdog's own dispatches show up in the run list as
   `workflow_dispatch` runs by the token's owner, so "at most one restart per 20 min" is read
   from GitHub — it survives redeploys and also holds back after a manual **Run workflow**. The one

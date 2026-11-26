@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import {
   BUSY_MAX_AGE_MINUTES,
   CHAIN_ACTOR,
+  DATA_SILENT_MINUTES,
   RESTART_INTERVAL_MINUTES,
   SETTLE_SECONDS,
   STALE_AFTER_MINUTES,
@@ -108,6 +109,47 @@ test('a run that has been "busy" for over an hour is stuck, not alive, and is ca
   assert.equal(alive.action, 'wait');
   assert.equal(alive.cancel, undefined);
   assert.deepEqual(decide({ nowMs: NOW, generated: STALE, dataRuns: deadData, wekkerRuns: deadWekker }).cancel, []);
+});
+
+test('a wekker that keeps setting itself while no Data run starts: restart (25–26 November)', () => {
+  // A ghost Data run sat "queued" for 25 hours. Every wekker read it as busy and set itself again,
+  // so a wekker was always waiting and the watchdog took that for a living chain. Data came only
+  // from GitHub's rare scheduled runs. A waiting wekker without any Data run is a chain spinning
+  // in place, not a living one.
+  const ghost = run({ id: 8001, status: 'queued', created: 25 * 60 });
+  const lastScheduled = run({ created: 330, updated: 327, event: 'schedule' });
+  const d = decide({
+    nowMs: NOW,
+    generated: ago(330),
+    dataRuns: [lastScheduled, ghost],
+    wekkerRuns: [run({ status: 'waiting', created: 3 }), run({ created: 11, updated: 3 })],
+  });
+  assert.equal(d.action, 'dispatch');
+  assert.match(d.reason, /geen Data-run/);
+  assert.deepEqual(d.cancel, [8001], 'the ghost is cancelled first, never the waiting wekker');
+});
+
+test('a failing pipeline keeps starting Data runs: a waiting wekker is then a living chain', () => {
+  // Stale data with Data runs every ten minutes means NDW or R2 fails; another run adds nothing.
+  const failed = (created) => ({ ...run({ created, updated: created - 2 }), conclusion: 'failure' });
+  const d = decide({
+    nowMs: NOW,
+    generated: STALE,
+    dataRuns: [failed(12), failed(23)],
+    wekkerRuns: [run({ status: 'waiting', created: 3 })],
+  });
+  assert.equal(d.action, 'wait');
+  assert.match(d.reason, /keten leeft/);
+  // Right up to the silence limit, a waiting wekker still counts as alive.
+  const edge = decide({ nowMs: NOW, generated: STALE, dataRuns: [run({ created: DATA_SILENT_MINUTES - 1 })], wekkerRuns: [run({ status: 'waiting', created: 3 })] });
+  assert.equal(edge.action, 'wait');
+});
+
+test('the Data silence limit spans more than two healthy cycles and sits above the stale mark', () => {
+  // A healthy cycle starts a Data run every ~11 minutes (run ~3 + wekker wait 8).
+  assert.ok(DATA_SILENT_MINUTES >= 25, String(DATA_SILENT_MINUTES));
+  assert.ok(DATA_SILENT_MINUTES >= STALE_AFTER_MINUTES);
+  assert.ok(DATA_SILENT_MINUTES < BUSY_MAX_AGE_MINUTES);
 });
 
 test('GitHub unreadable: do nothing rather than act blind', () => {

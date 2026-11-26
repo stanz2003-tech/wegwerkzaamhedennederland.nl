@@ -514,6 +514,7 @@ opnieuw. Bijgehouden wat al gemeld is: `infra/indexnow-state.json` (commits
 | E-mail van healthchecks, maar *Data*-runs zijn groen | `HEALTHCHECK_URL` verkeerd of check-periode korter dan 10 min | §6.1 / §7.1 |
 | E-mail "Wegwerk waakhond is DOWN" / `"action":"unknown"` met "token ongeldig of verlopen" in de Worker-logs | GitHub-token van de waakhond verlopen of ingetrokken | nieuw token, `npx wrangler@4 secret put GITHUB_TOKEN` (§7.4) |
 | Waakhond-log zegt steeds `wait` met "de keten leeft", maar de data blijft oud | de keten draait, de pipeline faalt (NDW, upload) | rode *Data*-run openen (§8.5); een extra run helpt niet |
+| Wekker-runs komen elke ~8 min, maar al lang geen nieuwe *Data*-run; een oude *Data*-run staat op *Queued* | spookrun: GitHub startte een run nooit (25–26 nov 2026) | vangen de wekker (na 45 min) en de waakhond (na 30 min stilte) sinds 26 nov zelf af; *Cancel workflow* helpt niet. Vanaf de telefoon: *Actions → Data → Run workflow*, of een Claude-cloudsessie op deze repo (zie `CLAUDE.md`) |
 
 Technische details van de workflows, het uploadscript en het roteren van tokens:
 `infra/README.md`. Achtergrond bij alle keuzes en cijfers: `docs/onderzoek.md`.
