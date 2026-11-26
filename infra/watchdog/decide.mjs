@@ -16,7 +16,9 @@
  *      the one-chain rules of the chain itself (infra/wekker/next.mjs, the `volgende` job): whoever
  *      is busy will set the next link. Stale data with a living chain means the pipeline fails, and
  *      another run cannot fix NDW or R2. A run "busy" for over BUSY_MAX_AGE_MINUTES is stuck, not
- *      alive, and does not count.
+ *      alive, and does not count. Exception: only wekkers busy and no Data run created for
+ *      DATA_SILENT_MINUTES means the chain spins without data (25–26 November 2026: a ghost Data
+ *      run sat "queued" for 25 hours and every wekker set itself again) → go on to rule 4.
  *   4. A run finished less than SETTLE_SECONDS ago → its successor may not be listed yet (`wait`).
  *   5. A restart (a workflow_dispatch from outside the chain: this watchdog or a manual
  *      "Run workflow") less than RESTART_INTERVAL_MINUTES ago → `wait`. At most one per interval.
@@ -40,6 +42,11 @@ export const TICK_MINUTES = 5;
 export const BUSY_MAX_AGE_MINUTES = 60;
 /** After a run finishes, the next link appears within seconds; give it one tick. */
 export const SETTLE_SECONDS = 120;
+/**
+ * With stale data, only wekkers busy and no Data run created for this long, the chain spins in
+ * place instead of living (rule 3). A healthy cycle starts a Data run every ~11 minutes.
+ */
+export const DATA_SILENT_MINUTES = 30;
 /** At most one restart (own or manual) per this many minutes. */
 export const RESTART_INTERVAL_MINUTES = 20;
 /** Runs the chain starts itself carry this actor (the jobs' GITHUB_TOKEN). */
@@ -86,8 +93,11 @@ function chainState(dataRuns, wekkerRuns, nowMs) {
   // An unreadable start time counts as busy: holding back is the safe side.
   const isStuck = (r) => minutesSince(r.created_at, nowMs) > BUSY_MAX_AGE_MINUTES;
   const stuck = open.filter(isStuck);
+  const busyRuns = open.filter((r) => !isStuck(r));
   return {
-    busy: open.filter((r) => !isStuck(r)).map(label),
+    busy: busyRuns.map(label),
+    busyData: busyRuns.filter((r) => r.workflow === 'Data').length,
+    lastDataMinutes: newestMinutesAgo(dataRuns.map((r) => r?.created_at), nowMs),
     stuck: stuck.map(label),
     stuckIds: stuck.map((r) => r.id).filter((id) => Number.isSafeInteger(id) && id > 0),
     idleMinutes: newestMinutesAgo(runs.map((r) => r.updated_at ?? r.created_at), nowMs),
@@ -125,7 +135,8 @@ export function decide({ nowMs, generated, dataRuns, wekkerRuns }) {
       : `${ageText}, maar de keten was ${idleText} geleden nog actief; niets gedaan.`;
     return { action: 'ok', reason, facts };
   }
-  if (chain.busy.length > 0) {
+  const spinning = chain.busyData === 0 && chain.lastDataMinutes > DATA_SILENT_MINUTES;
+  if (chain.busy.length > 0 && !spinning) {
     return {
       action: 'wait',
       reason: `${ageText}, maar de keten leeft (${chain.busy.join(', ')}). Een extra run voegt niets toe; faalt de pipeline zelf?`,
@@ -143,9 +154,12 @@ export function decide({ nowMs, generated, dataRuns, wekkerRuns }) {
     };
   }
   const cancelText = chain.stuckIds.length ? ` Eerst ${chain.stuckIds.length} vastgelopen run(s) annuleren.` : '';
+  const why = chain.busy.length > 0
+    ? `${Number.isFinite(chain.lastDataMinutes) ? `al ${Math.round(chain.lastDataMinutes)} min` : 'lange tijd'} geen Data-run gestart terwijl de wekker blijft wachten (${chain.busy.join(', ')}): de keten draait rond zonder data`
+    : `al ${idleText} geen Data- of Wekker-run actief: de keten is gestopt`;
   return {
     action: 'dispatch',
-    reason: `${ageText} en al ${idleText} geen Data- of Wekker-run actief: de keten is gestopt. Data wordt opnieuw gestart.${cancelText}`,
+    reason: `${ageText} en ${why}. Data wordt opnieuw gestart.${cancelText}`,
     facts,
     cancel: chain.stuckIds,
   };
