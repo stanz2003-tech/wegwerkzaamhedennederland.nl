@@ -25,6 +25,9 @@ import { pathToFileURL } from 'node:url';
 /** The wait timer on the environment "wekker" is 8 minutes; a wekker younger than this has none. */
 export const MIN_OWN_AGE_SECONDS = 360;
 
+/** A data run that is still not completed this many minutes after creation is a ghost (see isStale). */
+export const STALE_RUN_MINUTES = 45;
+
 /**
  * @param {{ nowMs: number, selfCreatedAt: string, dataRuns: { status?: string, createdAt?: string }[],
  *           minOwnAgeSeconds?: number }} input
@@ -43,14 +46,34 @@ export function decide({ nowMs, selfCreatedAt, dataRuns, minOwnAgeSeconds = MIN_
   }
   // Unknown own age (API hiccup): carry on rather than risk a dead chain — a missing timer would
   // then show up as runs back to back, which the next wekker with a readable age stops.
-  const busy = (Array.isArray(dataRuns) ? dataRuns : []).filter((r) => r && r.status !== 'completed').length;
+  const unfinished = (Array.isArray(dataRuns) ? dataRuns : []).filter((r) => r && r.status !== 'completed');
+  const stale = unfinished.filter((r) => isStale(r, nowMs));
+  const busy = unfinished.length - stale.length;
   if (busy > 0) {
     return {
       action: 'rearm',
       reason: `Er loopt of wacht al een Data-run (${busy}); de wekker wordt opnieuw gezet zodat de keten niet afbreekt.`,
     };
   }
+  if (stale.length > 0) {
+    return {
+      action: 'dispatch-data',
+      reason: `Volgende Data-run gestart. ${stale.length} vastgelopen Data-run(s) ouder dan ${STALE_RUN_MINUTES} min genegeerd (${stale.map((r) => `${r.status} sinds ${r.createdAt}`).join(', ')}).`,
+    };
+  }
   return { action: 'dispatch-data', reason: 'Volgende Data-run gestart.' };
+}
+
+/**
+ * A run that is not completed this long after it was created is a ghost: GitHub accepted it and
+ * never ran it. On 25 November 2026 a dispatched data run stayed "queued" without a single job for
+ * over a day, and every wekker deferred to it. A real data run is done within about 21 minutes
+ * (preflight 2 + job 15 + "Wekker zetten" 4), plus at most one run ahead of it in the concurrency
+ * group. A run without a readable createdAt still counts as busy.
+ */
+function isStale(run, nowMs) {
+  const created = Date.parse(run.createdAt ?? '');
+  return Number.isFinite(created) && nowMs - created > STALE_RUN_MINUTES * 60_000;
 }
 
 function main() {

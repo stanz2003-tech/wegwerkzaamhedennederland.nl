@@ -239,7 +239,11 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # One chain only: a wekker that is already waiting will start the next run itself.
-          pending=$(gh run list -R "$REPO" --workflow wekker.yml --limit 10 --json status --jq '[.[] | select(.status != "completed")] | length')
+          # Only a recent one counts (a real wekker is done within 8 min wait + 5 min job): on
+          # 25 November 2026 a data run stayed "queued" for a day without ever getting a job, and a
+          # ghost wekker like that must not make every data run defer to it.
+          recent=$(date -u -d '20 minutes ago' +%Y-%m-%dT%H:%M:%SZ)
+          pending=$(gh run list -R "$REPO" --workflow wekker.yml --limit 10 --json status,createdAt --jq "[.[] | select(.status != \"completed\" and .createdAt >= \"$recent\")] | length")
           if [ "$pending" -gt 0 ]; then
             echo "Er wacht al een wekker; er komt geen tweede keten bij."
             exit 0
