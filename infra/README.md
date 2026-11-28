@@ -410,6 +410,12 @@ Sections, each fetched on its own:
 
 A section that fails carries `{ "error": "…" }` instead; the exit code is 1 only when all fail.
 
+Stan's other sites in the same Cloudflare account follow under `otherSites` (now
+`stroomprijzenperuur.nl`; the list is `OTHER_SITES` in the script), each with its own
+**visitors** and **search** section. They are fetched after Wegwerk's, so the Wegwerk part of the
+JSON is unchanged. For their search section the same service account must also be a user of that
+Search Console property; until then that section carries an error.
+
 The secrets live in the routine's cloud environment, never in the repo:
 
 - `CF_API_TOKEN`: a Cloudflare API token with *Account → Account Analytics → Read*.

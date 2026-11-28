@@ -3,6 +3,7 @@ import { createVerify, generateKeyPairSync } from 'node:crypto';
 import { test } from 'node:test';
 import {
   CF_SITE_TAG,
+  OTHER_SITES,
   amsterdamDate,
   amsterdamMidnight,
   buildReport,
@@ -217,4 +218,34 @@ test('a partial Cloudflare answer (some aliases null plus errors) is an error, n
   const fetchImpl = async () => json({ data: { viewer: { accounts: [{ today: null, yesterday: [row(5, 5)] }] } }, errors: [{ message: 'unknown field countryName_neq' }] });
   const report = await buildReport({ env: { CF_API_TOKEN: 'x' }, now: new Date(), fetchImpl });
   assert.deepEqual(report.visitors, { error: 'Cloudflare GraphQL failed: unknown field countryName_neq' });
+});
+
+// --- second site: stroomprijzenperuur.nl ------------------------------------------------------
+
+test('visitorsQuery can ask for another site of the same account', () => {
+  const [site] = OTHER_SITES;
+  const q = visitorsQuery(new Date('2026-11-28T18:00:00Z'), site.siteTag);
+  assert.match(q, new RegExp(`siteTag:"${site.siteTag}"`));
+  assert.ok(!q.includes(CF_SITE_TAG), 'not the Wegwerk site');
+});
+
+test('summariseSearch strips the host of the site it is about', () => {
+  const s = summariseSearch([], [{ keys: ['https://www.stroomprijzenperuur.nl/morgen/'], clicks: 3, impressions: 30 }], 'https://www.stroomprijzenperuur.nl');
+  assert.deepEqual(s.topPages, [{ page: '/morgen/', clicks: 3, impressions: 30 }]);
+});
+
+test('buildReport adds the other sites after Wegwerk, each with its own visitors and search', async () => {
+  const bodies = [];
+  const fetchImpl = async (url, init) => {
+    bodies.push(init.body);
+    return json({ data: { viewer: { accounts: [{ today: [row(bodies.length === 1 ? 5 : 2, 3)] }] } } });
+  };
+  const report = await buildReport({ env: { CF_API_TOKEN: 'cf-token' }, now: new Date('2026-11-28T18:00:00Z'), fetchImpl });
+  assert.equal(report.visitors.today.current.visits, 5, 'Wegwerk stays at the top level, unchanged');
+  assert.equal(report.otherSites.length, OTHER_SITES.length);
+  const [other] = report.otherSites;
+  assert.equal(other.site, 'https://www.stroomprijzenperuur.nl');
+  assert.equal(other.visitors.today.current.visits, 2);
+  assert.match(bodies[1], new RegExp(OTHER_SITES[0].siteTag), 'the second query is for the other site');
+  assert.deepEqual(other.search, { error: 'GSC_SA_JSON is not set' });
 });

@@ -39,6 +39,22 @@ export { amsterdamDate, amsterdamMidnight } from './lib/amsterdam-time.mjs';
 export const CF_ACCOUNT = 'e05c34416fc750c256958a04f58b0c9a';
 export const CF_SITE_TAG = '2dd291d8e9274d309dddef0d56257f9e';
 export const GSC_PROPERTY = 'sc-domain:wegwerkzaamhedennederland.nl';
+const SITE_URL = 'https://www.wegwerkzaamhedennederland.nl';
+
+/**
+ * Stan's other sites in the same Cloudflare account, reported after Wegwerk under `otherSites`
+ * (visitors and search only; AdSense is per account and already in the Wegwerk section). The
+ * site tag is the id in the Web Analytics "Manage site" link. For search, the service account
+ * must be a user of that Search Console property too; until then its search section is an error.
+ */
+export const OTHER_SITES = Object.freeze([
+  {
+    name: 'stroomprijzenperuur.nl',
+    url: 'https://www.stroomprijzenperuur.nl',
+    siteTag: 'bb14995f76624747978a6f291c41f146',
+    gscProperty: 'sc-domain:stroomprijzenperuur.nl',
+  },
+]);
 const CF_GRAPHQL = 'https://api.cloudflare.com/client/v4/graphql';
 const GSC_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
 const FETCH_TIMEOUT_MS = 30_000;
@@ -80,9 +96,9 @@ export function visitorPeriods(now) {
   };
 }
 
-function rumGroup(alias, [from, to], { country, countryNot, dims, limit = 10 } = {}) {
+function rumGroup(alias, [from, to], { country, countryNot, dims, limit = 10, siteTag = CF_SITE_TAG } = {}) {
   const filters = [
-    `siteTag:"${CF_SITE_TAG}"`,
+    `siteTag:"${siteTag}"`,
     `datetime_geq:"${from.toISOString()}"`,
     `datetime_lt:"${to.toISOString()}"`,
     country ? `countryName:"${country}"` : '',
@@ -94,14 +110,14 @@ function rumGroup(alias, [from, to], { country, countryNot, dims, limit = 10 } =
 
 const NL_PERIODS = ['today', 'todayLastWeek', 'yesterday', 'yesterdayLastWeek', 'thisWeek', 'thisWeekLastWeek', 'lastWeek', 'weekBefore'];
 
-/** One GraphQL query for every number of the visitors section. */
-export function visitorsQuery(now) {
+/** One GraphQL query for every number of the visitors section of one site (Wegwerk by default). */
+export function visitorsQuery(now, siteTag = CF_SITE_TAG) {
   const p = visitorPeriods(now);
-  const nl = { country: 'NL' };
+  const nl = { country: 'NL', siteTag };
   const groups = [
     ...NL_PERIODS.map((name) => rumGroup(name, p[name], nl)),
-    rumGroup('todayChina', p.today, { country: 'CN' }),
-    rumGroup('todayOther', p.today, { countryNot: 'NL' }),
+    rumGroup('todayChina', p.today, { country: 'CN', siteTag }),
+    rumGroup('todayOther', p.today, { countryNot: 'NL', siteTag }),
     rumGroup('topPages', p.today, { ...nl, dims: 'requestPath', limit: TOP_N }),
     rumGroup('referrers', p.today, { ...nl, dims: 'refererHost', limit: 6 }),
   ];
@@ -132,12 +148,12 @@ export function summariseVisitors(account, now) {
   };
 }
 
-export async function fetchVisitors({ token, now, fetchImpl = fetch }) {
+export async function fetchVisitors({ token, now, fetchImpl = fetch, siteTag = CF_SITE_TAG }) {
   if (!token) throw new Error('CF_API_TOKEN is not set');
   const res = await fetchImpl(CF_GRAPHQL, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query: visitorsQuery(now) }),
+    body: JSON.stringify({ query: visitorsQuery(now, siteTag) }),
     signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
   });
   const body = await res.json().catch(() => ({}));
@@ -176,8 +192,8 @@ async function googleAccessToken(serviceAccount, now, fetchImpl) {
   return body.access_token;
 }
 
-async function searchAnalytics(accessToken, request, fetchImpl) {
-  const url = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(GSC_PROPERTY)}/searchAnalytics/query`;
+async function searchAnalytics(accessToken, request, fetchImpl, property = GSC_PROPERTY) {
+  const url = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(property)}/searchAnalytics/query`;
   const res = await fetchImpl(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
@@ -237,7 +253,7 @@ const compareClicks = ({ week, current, previous }) => {
 };
 
 /** The newest complete week against the week before, the current week so far, and the top pages. */
-export function summariseSearch(dailyRows, pageRows) {
+export function summariseSearch(dailyRows, pageRows, siteUrl = SITE_URL) {
   const windows = searchWindows(dailyRows);
   const empty = { week: null, current: { from: null, to: null, rows: [] }, previous: { from: null, to: null, rows: [] } };
   return {
@@ -245,14 +261,14 @@ export function summariseSearch(dailyRows, pageRows) {
     lastFullWeek: compareClicks(windows?.lastFullWeek ?? empty),
     weekToDate: windows?.weekToDate ? compareClicks(windows.weekToDate) : null,
     topPages: pageRows.slice(0, TOP_N).map((r) => ({
-      page: r.keys[0].replace(/^https:\/\/www\.wegwerkzaamhedennederland\.nl/, ''),
+      page: r.keys[0].startsWith(siteUrl) ? r.keys[0].slice(siteUrl.length) : r.keys[0],
       clicks: r.clicks,
       impressions: r.impressions,
     })),
   };
 }
 
-export async function fetchSearch({ serviceAccountJson, now, fetchImpl = fetch }) {
+export async function fetchSearch({ serviceAccountJson, now, fetchImpl = fetch, property = GSC_PROPERTY, siteUrl = SITE_URL }) {
   if (!serviceAccountJson) throw new Error('GSC_SA_JSON is not set');
   let serviceAccount;
   try {
@@ -263,30 +279,51 @@ export async function fetchSearch({ serviceAccountJson, now, fetchImpl = fetch }
   const accessToken = await googleAccessToken(serviceAccount, now, fetchImpl);
   const endDate = amsterdamDate(now);
   const startDate = addDays(endDate, -GSC_LOOKBACK_DAYS);
-  const daily = await searchAnalytics(accessToken, { startDate, endDate, dimensions: ['date'], dataState: 'final' }, fetchImpl);
+  const daily = await searchAnalytics(accessToken, { startDate, endDate, dimensions: ['date'], dataState: 'final' }, fetchImpl, property);
   const week = searchWindows(daily)?.lastFullWeek.current;
   const pages = week
-    ? await searchAnalytics(accessToken, { startDate: week.from, endDate: week.to, dimensions: ['page'], rowLimit: TOP_N }, fetchImpl)
+    ? await searchAnalytics(accessToken, { startDate: week.from, endDate: week.to, dimensions: ['page'], rowLimit: TOP_N }, fetchImpl, property)
     : [];
-  return summariseSearch(daily, pages);
+  return summariseSearch(daily, pages, siteUrl);
 }
 
-/** Runs every section; a failure becomes `{ error }` in its section instead of aborting. */
+const settle = (promise) => promise.then((data) => data, (err) => ({ error: err.message }));
+
+/** Visitors and search of one of the other sites; each section fails on its own. */
+async function otherSiteReport(site, { env, now, fetchImpl }) {
+  const [visitors, search] = await Promise.all([
+    settle(fetchVisitors({ token: env.CF_API_TOKEN?.trim(), now, fetchImpl, siteTag: site.siteTag })),
+    settle(fetchSearch({ serviceAccountJson: env.GSC_SA_JSON?.trim(), now, fetchImpl, property: site.gscProperty, siteUrl: site.url })),
+  ]);
+  return { name: site.name, site: site.url, visitors, search };
+}
+
+/**
+ * Runs every section; a failure becomes `{ error }` in its section instead of aborting. Wegwerk
+ * stays at the top level exactly as before; the other sites follow, after Wegwerk's requests.
+ */
 export async function buildReport({ env, now, fetchImpl = fetch }) {
-  const settle = (promise) => promise.then((data) => data, (err) => ({ error: err.message }));
   const [visitors, adsense, search] = await Promise.all([
     settle(fetchVisitors({ token: env.CF_API_TOKEN?.trim(), now, fetchImpl })),
     settle(fetchAdsense({ oauthJson: env.ADSENSE_OAUTH?.trim(), now, fetchImpl })),
     settle(fetchSearch({ serviceAccountJson: env.GSC_SA_JSON?.trim(), now, fetchImpl })),
   ]);
+  const otherSites = [];
+  for (const site of OTHER_SITES) otherSites.push(await otherSiteReport(site, { env, now, fetchImpl }));
   return {
-    site: 'https://www.wegwerkzaamhedennederland.nl',
+    site: SITE_URL,
     generatedAt: now.toISOString(),
     period: reportPeriod(now),
     visitors,
     adsense,
     search,
+    otherSites,
   };
+}
+
+/** Every section of every site, for the exit code. */
+export function allSections(report) {
+  return [report.visitors, report.adsense, report.search, ...report.otherSites.flatMap((s) => [s.visitors, s.search])];
 }
 
 async function main() {
@@ -294,7 +331,7 @@ async function main() {
   const now = values.now ? new Date(values.now) : new Date();
   const report = await buildReport({ env: process.env, now });
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  process.exitCode = [report.visitors, report.adsense, report.search].every((s) => s.error) ? 1 : 0;
+  process.exitCode = allSections(report).every((s) => s.error) ? 1 : 0;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) await main();
